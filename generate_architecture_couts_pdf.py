@@ -1,0 +1,1889 @@
+import os
+import subprocess
+
+html_content = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Architecture Technique Globale, Sous-Architectures & Budget Serveurs/Domaines - M. Taha Chouaib</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --primary: #0A2540;
+    --primary-light: #133B63;
+    --accent: #00A86B;
+    --accent-dark: #007A4D;
+    --gold: #D97706;
+    --gold-light: #FEF3C7;
+    --blue-tech: #2563EB;
+    --blue-light: #EFF6FF;
+    --emerald-light: #ECFDF5;
+    --purple: #7C3AED;
+    --purple-light: #F5F3FF;
+    --slate-900: #0F172A;
+    --slate-800: #1E293B;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748B;
+    --slate-300: #CBD5E1;
+    --slate-200: #E2E8F0;
+    --slate-100: #F1F5F9;
+    --slate-50: #F8FAFC;
+    --danger: #DC2626;
+    --danger-light: #FEF2F2;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0mm;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--slate-800);
+    background: #FFFFFF;
+    margin: 0;
+    padding: 0;
+    font-size: 8.5pt;
+    line-height: 1.40;
+  }
+
+  h1, h2, h3, h4, .heading-font {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 7.6pt;
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    padding: 9mm 13mm 8mm 13mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    page-break-after: always;
+    overflow: hidden;
+    position: relative;
+    background: #FFFFFF;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+  }
+
+  .page-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  /* COVER PAGE */
+  .cover-page {
+    width: 210mm;
+    height: 297mm;
+    background: linear-gradient(145deg, #040D1A 0%, #0A2540 52%, #0B3B2E 100%);
+    color: #FFFFFF;
+    padding: 18mm 17mm 15mm 17mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+
+  .cover-bg-pattern {
+    position: absolute;
+    top: -70px;
+    right: -70px;
+    width: 540px;
+    height: 540px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(37,99,235,0.24) 0%, rgba(0,168,107,0.12) 45%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cover-bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+  }
+
+  .cover-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    padding-bottom: 12px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .brand-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 11pt;
+    letter-spacing: 0.5px;
+    color: #FFFFFF;
+  }
+
+  .brand-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: linear-gradient(135deg, #38BDF8, #34D399);
+    display: inline-block;
+  }
+
+  .doc-ref {
+    font-size: 8pt;
+    color: #94A3B8;
+    background: rgba(255,255,255,0.07);
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .cover-hero {
+    position: relative;
+    z-index: 2;
+  }
+
+  .cover-tag {
+    display: inline-block;
+    background: rgba(56, 189, 248, 0.18);
+    border: 1px solid #38BDF8;
+    color: #7DD3FC;
+    font-weight: 700;
+    font-size: 8.2pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+
+  .cover-title {
+    font-size: 24.5pt;
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0 0 12px 0;
+    letter-spacing: -0.5px;
+    color: #FFFFFF;
+  }
+
+  .cover-title span.highlight { color: #34D399; }
+  .cover-title span.gold { color: #FBBF24; }
+  .cover-title span.cyan { color: #38BDF8; }
+
+  .cover-subtitle {
+    font-size: 10.2pt;
+    line-height: 1.5;
+    color: #CBD5E1;
+    max-width: 98%;
+    font-weight: 400;
+    margin-bottom: 18px;
+  }
+
+  .cover-pillars {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .cover-pillar-card {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 3.5px solid #34D399;
+    border-radius: 8px;
+    padding: 10px 13px;
+  }
+
+  .cover-pillar-card.gold-border { border-left-color: #FBBF24; }
+  .cover-pillar-card.cyan-border { border-left-color: #38BDF8; }
+  .cover-pillar-card.purple-border { border-left-color: #A78BFA; }
+
+  .cover-pillar-title {
+    font-weight: 700;
+    font-size: 9pt;
+    color: #FFFFFF;
+    margin-bottom: 3px;
+  }
+
+  .cover-pillar-desc {
+    font-size: 7.8pt;
+    color: #94A3B8;
+    line-height: 1.35;
+  }
+
+  .cover-client-box {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 100%);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .client-meta-label {
+    font-size: 6.8pt;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: #94A3B8;
+    margin-bottom: 3px;
+    font-weight: 600;
+  }
+
+  .client-meta-value {
+    font-size: 10.8pt;
+    font-weight: 800;
+    color: #FBBF24;
+  }
+
+  .client-meta-sub {
+    font-size: 7.5pt;
+    color: #E2E8F0;
+    margin-top: 2px;
+  }
+
+  .cover-footer {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.14);
+    padding-top: 10px;
+    font-size: 7.6pt;
+    color: #94A3B8;
+  }
+
+  /* HEADERS & FOOTERS */
+  .doc-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1.5px solid var(--slate-200);
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+    font-size: 7.2pt;
+    color: var(--slate-500);
+    font-weight: 600;
+  }
+
+  .doc-topbar .client-tag {
+    color: var(--primary);
+    background: var(--slate-100);
+    border: 1px solid var(--slate-200);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+
+  .doc-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1.5px solid var(--slate-200);
+    padding-top: 4px;
+    margin-top: 5px;
+    font-size: 7.1pt;
+    color: var(--slate-500);
+    font-weight: 500;
+  }
+
+  .page-num-pill {
+    background: var(--primary);
+    color: #34D399;
+    font-weight: 700;
+    padding: 1.5px 8px;
+    border-radius: 10px;
+    font-size: 7.1pt;
+  }
+
+  .section-header {
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--primary) 0%, #10365C 100%);
+    color: #FFFFFF;
+    padding: 8px 13px;
+    border-radius: 7px;
+    border-left: 4px solid var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .section-num {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+    color: #34D399;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 1px;
+  }
+
+  .section-title {
+    font-size: 11.8pt;
+    font-weight: 800;
+    margin: 0;
+    color: #FFFFFF;
+  }
+
+  .section-badge {
+    font-size: 7pt;
+    background: rgba(255,255,255,0.12);
+    color: #E2E8F0;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  h3 {
+    font-size: 9.4pt;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 7px 0 4px 0;
+    padding-bottom: 2px;
+    border-bottom: 1.5px solid var(--slate-200);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  h3 .h3-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  p {
+    margin: 0 0 5px 0;
+    text-align: justify;
+  }
+
+  ul, ol {
+    margin: 2px 0 5px 0;
+    padding-left: 14px;
+  }
+
+  li {
+    margin-bottom: 2px;
+  }
+
+  li strong {
+    color: var(--primary);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 6px; }
+
+  .card {
+    background: var(--slate-50);
+    border: 1px solid var(--slate-200);
+    border-radius: 6px;
+    padding: 6.5px 9px;
+  }
+
+  .card-white {
+    background: #FFFFFF;
+    border: 1px solid var(--slate-200);
+    border-radius: 6px;
+    padding: 6.5px 9px;
+  }
+
+  .card-accent {
+    background: var(--emerald-light);
+    border: 1px solid #A7F3D0;
+    border-left: 3.5px solid var(--accent);
+    border-radius: 6px;
+    padding: 6.5px 9px;
+  }
+
+  .card-gold {
+    background: var(--gold-light);
+    border: 1px solid #FDE68A;
+    border-left: 3.5px solid var(--gold);
+    border-radius: 6px;
+    padding: 6.5px 9px;
+  }
+
+  .card-blue {
+    background: var(--blue-light);
+    border: 1px solid #BFDBFE;
+    border-left: 3.5px solid var(--blue-tech);
+    border-radius: 6px;
+    padding: 6.5px 9px;
+  }
+
+  .card-purple {
+    background: var(--purple-light);
+    border: 1px solid #DDD6FE;
+    border-left: 3.5px solid var(--purple);
+    border-radius: 6px;
+    padding: 6.5px 9px;
+  }
+
+  .card-title {
+    font-weight: 700;
+    font-size: 8.5pt;
+    color: var(--primary);
+    margin-bottom: 3px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 6.6pt;
+    font-weight: 700;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .badge-green { background: #D1FAE5; color: #065F46; }
+  .badge-blue { background: #DBEAFE; color: #1E40AF; }
+  .badge-amber { background: #FEF3C7; color: #92400E; }
+  .badge-purple { background: #EDE9FE; color: #5B21B6; }
+  .badge-red { background: #FEE2E2; color: #991B1B; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0 6px 0;
+    font-size: 7.7pt;
+  }
+
+  th {
+    background: var(--primary);
+    color: #FFFFFF;
+    font-weight: 700;
+    text-align: left;
+    padding: 4.5px 6.5px;
+    border: 1px solid var(--primary);
+    font-size: 7.6pt;
+  }
+
+  td {
+    padding: 4px 6.5px;
+    border: 1px solid var(--slate-200);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td {
+    background: var(--slate-50);
+  }
+
+  .diagram-box {
+    background: #F8FAFC;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 7px;
+    padding: 7px 9px;
+    margin: 4px 0 6px 0;
+    text-align: center;
+  }
+
+  .kpi-box {
+    text-align: center;
+    padding: 6px 5px;
+    background: #FFFFFF;
+    border: 1px solid var(--slate-200);
+    border-top: 3px solid var(--accent);
+    border-radius: 6px;
+  }
+
+  .kpi-val {
+    font-size: 11.5pt;
+    font-weight: 800;
+    color: var(--primary);
+  }
+
+  .kpi-lbl {
+    font-size: 6.8pt;
+    color: var(--slate-500);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 1 : COUVERTURE OFFICIELLE ==================== -->
+<div class="cover-page">
+  <div class="cover-bg-pattern"></div>
+  <div class="cover-bg-grid"></div>
+
+  <div class="cover-top-bar">
+    <div class="brand-badge">
+      <span class="brand-dot"></span>
+      <span>FULL-TEK CLOUD &amp; EDGE &bull; ARCHITECTURE &amp; INFRASTRUCTURE</span>
+    </div>
+    <div class="doc-ref">Réf : ARCH-INFRA-2026-V2 &bull; 12 Pages (Diagrammes UML Inclus)</div>
+  </div>
+
+  <div class="cover-hero">
+    <div class="cover-tag">Dossier d'Architecture Technique &amp; Budget Hors-Développement</div>
+    <h1 class="cover-title">
+      Architecture Globale, <span class="cyan">Sous-Architectures</span><br>
+      &amp; Budget <span class="highlight">Serveurs, Domaines</span> &amp; <span class="gold">Infrastructure</span>
+    </h1>
+    <p class="cover-subtitle">
+      Document d'ingénierie détaillant l'intégralité des architectures logicielles, matérielles et réseaux du SaaS POS Multi-Caisse (<strong>Cloud Multi-Tenant + Edge Local Offline-First</strong>) ainsi que le chiffrage transparent de <strong>toutes les dépenses hors développement</strong> : noms de domaine, hébergement serveurs Cloud, bases de données, sauvegardes, comptes Apple/Google Stores, APIs WhatsApp/SMS et équipements matériels.
+    </p>
+
+    <div class="cover-pillars">
+      <div class="cover-pillar-card cyan-border">
+        <div class="cover-pillar-title">1. Architecture Globale &amp; Cloud Multi-Tenant</div>
+        <div class="cover-pillar-desc">Isolation stricte des restaurants abonnés (PostgreSQL RLS), API Gateway, cache Redis, CDN Cloudflare, WAF anti-DDoS et sauvegardes S3 chiffrées (règle 3-2-1).</div>
+      </div>
+      <div class="cover-pillar-card">
+        <div class="cover-pillar-title">2. Sous-Architecture Edge Local « Offline-First »</div>
+        <div class="cover-pillar-desc">Synchronisation LAN multi-caisses en &lt;0,2s sans Internet, moteur SQLite WAL local, résolution de conflits CRDT, et Auto-Failover Master/Replica en 3 secondes.</div>
+      </div>
+      <div class="cover-pillar-card purple-border">
+        <div class="cover-pillar-title">3. Sous-Architectures Matérielles, Wallets &amp; Sécurité</div>
+        <div class="cover-pillar-desc">Pilotes ESC/POS, tiroir RJ11, balance RS232, passerelle Bankily/Masrivi/Sedad, bot WhatsApp Business, GPS livreurs et verrouillage cryptographique des licences.</div>
+      </div>
+      <div class="cover-pillar-card gold-border">
+        <div class="cover-pillar-title">4. Budget Optimisé « Zéro Frais Inutiles »</div>
+        <div class="cover-pillar-desc">Suppression totale des stores Apple/Google (0 € via PWA &amp; APK direct), serveur VPS compact à 4,50 €/mois, et domaine .com à 12 €/an. Total : ~6 €/mois !</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-client-box">
+    <div>
+      <div class="client-meta-label">Client &amp; Investisseur</div>
+      <div class="client-meta-value">M. Taha Chouaib</div>
+      <div class="client-meta-sub">Propriétaire exclusif de la plateforme</div>
+    </div>
+    <div>
+      <div class="client-meta-label">Coût Serveur &amp; Domaine Ultra-Low-Cost</div>
+      <div class="client-meta-value">~5,50 € / mois</div>
+      <div class="client-meta-sub">~240 MRU / mois (quasi gratuit !)</div>
+    </div>
+    <div>
+      <div class="client-meta-label">Économie Stores Apple / Google</div>
+      <div class="client-meta-value">-124 $ / an ÉCONOMISÉS</div>
+      <div class="client-meta-sub">100 % Direct APK &amp; PWA Mobile Web</div>
+    </div>
+    <div>
+      <div class="client-meta-label">Seuil de Rentabilité Cloud</div>
+      <div class="client-meta-value">Moins de 4 % d'une seule caisse</div>
+      <div class="client-meta-sub">Rentabilité financière instantanée</div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span>Novembre 2026 &bull; République Islamique de Mauritanie</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 2 : VUE MACRO - ARCHITECTURE GLOBALE 360° EN 4 COUCHES ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 01 &bull; Architecture Globale</span>
+        <h2 class="section-title">Vue Macroscopique : Architecture Hybride en 4 Couches (Cloud + Edge)</h2>
+      </div>
+      <span class="section-badge">Topologie Système 360°</span>
+    </div>
+
+    <p>
+      Pour garantir à la fois une <strong>gestion centralisée multi-établissements en ligne (SaaS Cloud)</strong> pour <strong>M. Taha Chouaib</strong> et une <strong>continuité opérationnelle absolue sans Internet (Offline-First)</strong> dans chaque restaurant ou supermarché en Mauritanie, le système repose sur une architecture distribuée en <strong>4 couches indépendantes mais synchronisées</strong>.
+    </p>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:4px;">
+        SCHÉMA 1 : ARCHITECTURE GLOBALE HYBRIDE EN 4 COUCHES (CLOUD SAAS &harr; PASSERELLE SYNC &harr; EDGE LAN &harr; MATÉRIEL)
+      </div>
+      <svg viewBox="0 0 820 215" width="100%" height="182" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Couche 1 : Cloud -->
+        <rect x="10" y="6" width="800" height="44" rx="6" fill="#0A2540" stroke="#38BDF8" stroke-width="1.5"/>
+        <text x="24" y="23" fill="#38BDF8" font-size="8.5" font-weight="800">COUCHE 1 : CLOUD CENTRAL MULTI-TENANT (EUROPE / HAUTE DISPONIBILITÉ 99,95%)</text>
+        <text x="24" y="38" fill="#E2E8F0" font-size="7.5">Cloudflare WAF/CDN &bull; Load Balancer Nginx SSL &bull; API SaaS (NestJS/Go) &bull; PostgreSQL 16 (RLS Multi-Tenant) &bull; Redis &bull; Backups S3</text>
+
+        <!-- Flèches Sync -->
+        <line x1="250" y1="50" x2="250" y2="68" stroke="#00A86B" stroke-width="2" stroke-dasharray="3,2"/>
+        <line x1="570" y1="50" x2="570" y2="68" stroke="#00A86B" stroke-width="2" stroke-dasharray="3,2"/>
+        <rect x="200" y="52" width="420" height="15" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1"/>
+        <text x="410" y="62" fill="#065F46" font-size="7.2" font-weight="700" text-anchor="middle">COUCHE 2 : TUNNEL DE SYNCHRONISATION ASYNCHRONE HTTPS/WSS (Delta CRDT + Compression Gzip + Jeton Licence 30j)</text>
+
+        <!-- Couche 3 : Edge Local -->
+        <rect x="10" y="70" width="800" height="72" rx="6" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.8"/>
+        <text x="24" y="85" fill="#065F46" font-size="8.5" font-weight="800">COUCHE 3 : CLUSTER LOCAL « EDGE LAN » DANS CHAQUE RESTAURANT / MARKET (FONCTIONNE 100 % SANS INTERNET)</text>
+        
+        <rect x="24" y="92" width="240" height="42" rx="5" fill="#FFFFFF" stroke="#16A34A" stroke-width="1.2"/>
+        <text x="144" y="107" fill="#0F172A" font-size="8" font-weight="700" text-anchor="middle">🖥️ Caisse #1 Principale (Master Node)</text>
+        <text x="144" y="120" fill="#475569" font-size="7" text-anchor="middle">Base SQLite WAL locale + Serveur WebSocket LAN</text>
+
+        <rect x="285" y="92" width="245" height="42" rx="5" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.2"/>
+        <text x="407" y="107" fill="#1E40AF" font-size="8" font-weight="700" text-anchor="middle">🖥️ Caisses #2, #3, #4 (Replicas + Auto-Failover)</text>
+        <text x="407" y="120" fill="#475569" font-size="7" text-anchor="middle">Sync LAN &lt;0,2s &bull; Devient Master si Caisse #1 s'éteint</text>
+
+        <rect x="550" y="92" width="246" height="42" rx="5" fill="#FFFFFF" stroke="#D97706" stroke-width="1.2"/>
+        <text x="673" y="107" fill="#92400E" font-size="8" font-weight="700" text-anchor="middle">🍳 Écrans KDS Cuisine, TV Salle &amp; PDA Serveurs</text>
+        <text x="673" y="120" fill="#475569" font-size="7" text-anchor="middle">Connectés en Wi-Fi / Ethernet local au Master Node</text>
+
+        <!-- Couche 4 : Périphériques & Mobiles -->
+        <rect x="10" y="150" width="800" height="58" rx="6" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="24" y="165" fill="#1E40AF" font-size="8.5" font-weight="800">COUCHE 4 : PÉRIPHÉRIQUES PHYSIQUES, INTERFACES MOBILES &amp; PASSERELLES FINTECH MAURITANIE</text>
+        <text x="24" y="180" fill="#334155" font-size="7.4">&bull; Matériel Local : Imprimantes ESC/POS 80mm (LAN/USB), Tiroir-caisse RJ11, Balance RS232/COM, Douchette EAN-13, Borne Kiosk 27", Second Écran Client.</text>
+        <text x="24" y="194" fill="#334155" font-size="7.4">&bull; Externe &amp; Mobile : App Mobile Propriétaire (iOS/Android), App Livreur GPS, Menu QR Table, Bot WhatsApp Business, Wallets (Bankily, Masrivi, Sedad, Click).</text>
+      </svg>
+    </div>
+
+    <h3><span class="h3-dot"></span>1.1 Récapitulatif de la Stack Technologique par Couche Architecturale</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:22%;">Couche / Composant</th>
+          <th style="width:28%;">Technologies Retenues</th>
+          <th style="width:50%;">Justification Technique &amp; Avantage Financier pour M. Taha Chouaib</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Application Caisse Desktop &amp; Kiosk (Edge)</strong></td>
+          <td><code>Rust / Tauri</code> ou <code>Electron</code> + <code>React 19 / TypeScript</code> + <code>TailwindCSS</code></td>
+          <td>Exécutable natif ultra-léger sur Windows 10/11 et Android. Consomme 5x moins de mémoire RAM qu'un navigateur classique et pilote directement les ports USB/COM/RJ11.</td>
+        </tr>
+        <tr>
+          <td><strong>Base de Données Locale (Dans chaque caisse)</strong></td>
+          <td><code>SQLite 3 (Mode WAL)</code> + Chiffrement <code>SQLCipher AES-256</code></td>
+          <td>Supporte plus de 50 000 transactions/seconde sur disque local SSD sans aucun serveur externe requis. Zéro frais de licence base de données.</td>
+        </tr>
+        <tr>
+          <td><strong>Moteur Réseau Local (Multi-Caisses LAN)</strong></td>
+          <td><code>WebSockets LAN</code> + <code>mDNS (ZeroConf)</code> + <code>Raft Leader Election</code></td>
+          <td>Découverte automatique des caisses et imprimantes sur le routeur local sans configuration d'IP complexe. Bascule automatique (Failover) en 3 secondes.</td>
+        </tr>
+        <tr>
+          <td><strong>Backend Cloud Central &amp; API Multi-Tenant</strong></td>
+          <td><code>Node.js (NestJS)</code> / <code>Go</code> + <code>REST &amp; WebSockets</code></td>
+          <td>Architecture modulaire hautement scalable capable de gérer plus de 500 établissements simultanés sur un seul cluster VPS économique.</td>
+        </tr>
+        <tr>
+          <td><strong>Base de Données Cloud &amp; Cache Temps Réel</strong></td>
+          <td><code>PostgreSQL 16</code> (avec <code>Row-Level Security</code>) + <code>Redis 7</code></td>
+          <td>Isolation bancaire des données entre chaque client abonné (via <code>tenant_id</code> obligatoire). Redis accélère les tableaux de bord mobiles du propriétaire.</td>
+        </tr>
+        <tr>
+          <td><strong>Applications Mobiles (Boss, Serveur, Livreur)</strong></td>
+          <td><code>Flutter</code> ou <code>React Native</code> + <code>PWA Mobile QR</code></td>
+          <td>Un seul code source compilé nativement pour <strong>Android et iOS (iPhone/iPad)</strong>, réduisant de moitié les coûts de maintenance évolutive.</td>
+        </tr>
+        <tr>
+          <td><strong>Sécurité, CDN, DNS &amp; Stockage Backups</strong></td>
+          <td><code>Cloudflare</code> + <code>Docker</code> + Stockage Objet <code>S3 Compatible</code></td>
+          <td>Protection anti-DDoS gratuite, certificats SSL automatiques et stockage chiffré des sauvegardes de tous les restaurants pour quelques euros par mois.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card-accent">
+      <div class="card-title">Pourquoi cette architecture est un avantage économique majeur pour M. Taha Chouaib ? <span class="badge badge-green">-70 % de Coûts Serveurs</span></div>
+      <p style="margin:0; font-size:7.8pt;">
+        Dans un SaaS classique 100 % en ligne, chaque clic d'un caissier sollicite le serveur Cloud (ce qui oblige à louer d'énormes serveurs très coûteux dès 30 clients). Avec notre <strong>architecture Edge Local</strong>, <strong>95 % du travail lourd</strong> (calcul du ticket, plan de salle, envoi KDS, impression) est exécuté <strong>gratuitement par le processeur local de la caisse du restaurant</strong> ! Le serveur Cloud ne reçoit que les paquets de synchronisation compressés, ce qui divise par 4 la facture mensuelle d'hébergement de M. Taha Chouaib.
+      </p>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 02 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 3 : SOUS-ARCHITECTURE 1 - CLOUD MULTI-TENANT, ISOLATION & BACKUPS ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 02 &bull; Sous-Architecture N°1</span>
+        <h2 class="section-title">Sous-Architecture Cloud Multi-Tenant, Isolation des Données &amp; Backups</h2>
+      </div>
+      <span class="section-badge">Cloud Central &amp; Sécurité</span>
+    </div>
+
+    <p>
+      La première sous-architecture concerne le <strong>Cœur Cloud SaaS</strong> contrôlé par <strong>M. Taha Chouaib</strong>. Elle héberge la Console Super-Admin (gestion des abonnements MRR et licences), les tableaux de bord temps réel des propriétaires, le catalogue central multi-sites et le coffre-fort de sauvegarde.
+    </p>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:4px;">
+        SCHÉMA 2 : SOUS-ARCHITECTURE DU CLUSTER CLOUD MULTI-TENANT (CONTENEURS DOCKER &amp; ISOLATION RLS)
+      </div>
+      <svg viewBox="0 0 820 175" width="100%" height="148" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Entrée Cloudflare -->
+        <rect x="12" y="42" width="135" height="90" rx="6" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+        <text x="80" y="65" fill="#92400E" font-size="8.2" font-weight="800" text-anchor="middle">☁️ Cloudflare Edge</text>
+        <text x="80" y="82" fill="#475569" font-size="7.2" text-anchor="middle">&bull; DNS Ultra-Rapide</text>
+        <text x="80" y="96" fill="#475569" font-size="7.2" text-anchor="middle">&bull; Pare-feu WAF / DDoS</text>
+        <text x="80" y="110" fill="#475569" font-size="7.2" text-anchor="middle">&bull; Certificat SSL TLS 1.3</text>
+
+        <line x1="147" y1="87" x2="182" y2="87" stroke="#0A2540" stroke-width="2"/>
+
+        <!-- Reverse Proxy -->
+        <rect x="182" y="42" width="130" height="90" rx="6" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+        <text x="247" y="65" fill="#1E40AF" font-size="8.2" font-weight="800" text-anchor="middle">🔀 Reverse Proxy</text>
+        <text x="247" y="82" fill="#475569" font-size="7.2" text-anchor="middle">Nginx / Traefik</text>
+        <text x="247" y="96" fill="#475569" font-size="7.2" text-anchor="middle">&bull; Rate Limiting API</text>
+        <text x="247" y="110" fill="#475569" font-size="7.2" text-anchor="middle">&bull; Routage WebSockets</text>
+
+        <line x1="312" y1="87" x2="347" y2="87" stroke="#0A2540" stroke-width="2"/>
+
+        <!-- Cluster Applicatif -->
+        <rect x="347" y="12" width="215" height="150" rx="7" fill="#0A2540" stroke="#00A86B" stroke-width="2"/>
+        <text x="454" y="30" fill="#34D399" font-size="8.5" font-weight="800" text-anchor="middle">⚙️ MOTEUR API SAAS (DOCKER)</text>
+        <rect x="360" y="38" width="188" height="26" rx="4" fill="#133B63"/>
+        <text x="454" y="54" fill="#FFFFFF" font-size="7.4" font-weight="600" text-anchor="middle">Module 1 : Auth JWT &amp; Licences RSA</text>
+        <rect x="360" y="70" width="188" height="26" rx="4" fill="#133B63"/>
+        <text x="454" y="86" fill="#FFFFFF" font-size="7.4" font-weight="600" text-anchor="middle">Module 2 : Sync Engine (CRDT / Delta)</text>
+        <rect x="360" y="102" width="188" height="26" rx="4" fill="#133B63"/>
+        <text x="454" y="118" fill="#FFFFFF" font-size="7.4" font-weight="600" text-anchor="middle">Module 3 : Webhooks Bankily &amp; WhatsApp</text>
+        <text x="454" y="148" fill="#FBBF24" font-size="7.2" font-weight="700" text-anchor="middle">Super-Admin M. Taha Chouaib</text>
+
+        <line x1="562" y1="55" x2="602" y2="42" stroke="#00A86B" stroke-width="2"/>
+        <line x1="562" y1="87" x2="602" y2="87" stroke="#2563EB" stroke-width="2"/>
+        <line x1="562" y1="120" x2="602" y2="135" stroke="#7C3AED" stroke-width="2"/>
+
+        <!-- Data Layer -->
+        <rect x="602" y="10" width="206" height="48" rx="5" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+        <text x="705" y="27" fill="#065F46" font-size="8" font-weight="800" text-anchor="middle">🗄️ PostgreSQL 16 (Multi-Tenant RLS)</text>
+        <text x="705" y="42" fill="#475569" font-size="7" text-anchor="middle">Cloisonnement strict par tenant_id + Indexation</text>
+
+        <rect x="602" y="65" width="206" height="44" rx="5" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="705" y="82" fill="#1E40AF" font-size="8" font-weight="800" text-anchor="middle">⚡ Redis 7 (Cache &amp; Files BullMQ)</text>
+        <text x="705" y="96" fill="#475569" font-size="7" text-anchor="middle">Notifications Live App Boss &amp; Envois WhatsApp</text>
+
+        <rect x="602" y="116" width="206" height="48" rx="5" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
+        <text x="705" y="133" fill="#5B21B6" font-size="8" font-weight="800" text-anchor="middle">🔒 Object Storage S3 (Backups &amp; PDF)</text>
+        <text x="705" y="148" fill="#475569" font-size="7" text-anchor="middle">Snapshots quotidiens chiffrés + Photos produits</text>
+      </svg>
+    </div>
+
+    <h3><span class="h3-dot"></span>2.1 Sous-Architecture d'Isolation Multi-Tenant (Cloisonnement des Clients Abonnés)</h3>
+    <div class="grid-2">
+      <div class="card-white">
+        <div class="card-title">Politique PostgreSQL « Row-Level Security » (RLS)</div>
+        <ul>
+          <li><strong>Un seul cluster à maintenir, isolation totale :</strong> Tous les établissements abonnés (Restaurant A, Supermarché B, Boulangerie C) sont hébergés sur la même infrastructure Cloud mais chaque ligne de la base de données porte une clé immuable <code>tenant_id</code>.</li>
+          <li><strong>Verrouillage au niveau du moteur SQL :</strong> Même en cas d'erreur de requête, PostgreSQL bloque matériellement l'accès aux lignes d'un autre <code>tenant_id</code>. Aucun commerçant ne peut jamais voir les ventes ou les clients d'un concurrent.</li>
+          <li><strong>Multi-Magasins pour un même propriétaire :</strong> Un client qui possède 3 restaurants dispose d'un <code>organization_id</code> parent regroupant ses 3 <code>site_id</code> pour consolider son chiffre d'affaires.</li>
+        </ul>
+      </div>
+      <div class="card-blue">
+        <div class="card-title">Stratégie de Sauvegarde « 3-2-1 » (Zéro Perte de Données)</div>
+        <ul>
+          <li><strong>Niveau 1 (Disque Local Caisse) :</strong> Base SQLite locale avec journalisation <em>Write-Ahead Logging (WAL)</em> résistante aux coupures électriques brusques.</li>
+          <li><strong>Niveau 2 (Miroir sur 2e Caisse LAN + Clé USB) :</strong> Dès qu'un restaurant a 2 caisses ou une tablette, chaque vente est répliquée en temps réel sur le second appareil du réseau local + export automatique sur clé USB à la clôture Z.</li>
+          <li><strong>Niveau 3 (Coffre Cloud S3 Externe) :</strong> Synchronisation continue au fil de l'eau vers PostgreSQL Cloud + sauvegarde complète chiffrée toutes les nuits à 04h00 vers un stockage S3 géographiquement séparé (conservation 90 jours).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3><span class="h3-dot"></span>2.2 Sous-Architecture de Mises à Jour Silencieuses (OTA Auto-Updater) &amp; Monitoring</h3>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">Mise à Jour OTA en 1 Clic</div>
+        <p style="margin:0; font-size:7.6pt;">
+          Lorsque l'équipe technique publie une nouvelle fonctionnalité, M. Taha Chouaib n'a pas besoin de se déplacer chez ses 50 clients : les caisses téléchargent la mise à jour en tâche de fond et l'appliquent au démarrage suivant avec rollback automatique en cas d'erreur.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title">Monitoring Santé 24/7</div>
+        <p style="margin:0; font-size:7.6pt;">
+          Agent de télémétrie léger (<em>Heartbeat</em> toutes les 5 minutes) qui remonte dans la Console Super-Admin l'état de chaque restaurant : version installée, espace disque restant, date de dernière synchronisation et alertes d'imprimante.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title">Logs d'Audit Immuables</div>
+        <p style="margin:0; font-size:7.6pt;">
+          Toutes les actions sensibles (modification d'un prix, suppression d'une ligne après impression, ouverture tiroir, remise) sont inscrites dans une table <code>audit_log</code> en mode <em>Append-Only</em> (impossible à effacer par un caissier).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 03 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 4 : SOUS-ARCHITECTURE 2 - MOTEUR EDGE LOCAL OFFLINE-FIRST & SYNC LAN ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 03 &bull; Sous-Architecture N°2</span>
+        <h2 class="section-title">Sous-Architecture Edge Local « Offline-First », LAN Multi-Caisses &amp; Failover</h2>
+      </div>
+      <span class="section-badge">Cœur Critique Hors-Ligne</span>
+    </div>
+
+    <p>
+      En Mauritanie, une coupure de fibre optique ou de réseau 4G en plein coup de feu du soir (20h00–23h30) ne doit <strong>jamais bloquer ni ralentir l'encaissement</strong>. La sous-architecture locale transforme le réseau local (routeur Wi-Fi/Ethernet du magasin) en un mini-serveur autonome ultra-rapide.
+    </p>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:4px;">
+        SCHÉMA 3 : TOPOLOGIE RÉSEAU LOCAL (LAN) MULTI-CAISSES, SYNCHRONISATION CRDT &amp; BASCULE AUTO-FAILOVER
+      </div>
+      <svg viewBox="0 0 820 180" width="100%" height="152" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Caisse Master -->
+        <rect x="14" y="18" width="235" height="145" rx="7" fill="#ECFDF5" stroke="#00A86B" stroke-width="2"/>
+        <text x="131" y="36" fill="#065F46" font-size="8.5" font-weight="800" text-anchor="middle">🖥️ CAISSE #1 (MASTER NODE ACTIF)</text>
+        <rect x="26" y="45" width="210" height="28" rx="4" fill="#FFFFFF" stroke="#10B981"/>
+        <text x="131" y="62" fill="#0F172A" font-size="7.4" font-weight="700" text-anchor="middle">Interface Tactile POS (React / Tauri)</text>
+        <rect x="26" y="80" width="210" height="32" rx="4" fill="#FFFFFF" stroke="#10B981"/>
+        <text x="131" y="94" fill="#0F172A" font-size="7.4" font-weight="700" text-anchor="middle">Moteur Local SQLite WAL + Outbox Queue</text>
+        <text x="131" y="106" fill="#64748B" font-size="6.8" text-anchor="middle">IDs uniques ULID + Signature Hash Fiscal</text>
+        <rect x="26" y="119" width="210" height="32" rx="4" fill="#0A2540"/>
+        <text x="131" y="133" fill="#34D399" font-size="7.4" font-weight="700" text-anchor="middle">Hub WebSocket LAN (:8443) + mDNS</text>
+        <text x="131" y="145" fill="#CBD5E1" font-size="6.8" text-anchor="middle">Diffuse les tables &amp; tickets en &lt; 0,2 seconde</text>
+
+        <!-- Routeur Local -->
+        <rect x="295" y="55" width="190" height="72" rx="8" fill="#0A2540" stroke="#F59E0B" stroke-width="2"/>
+        <text x="390" y="76" fill="#FBBF24" font-size="8.5" font-weight="800" text-anchor="middle">📡 ROUTEUR LOCAL GIGABIT</text>
+        <text x="390" y="92" fill="#FFFFFF" font-size="7.3" text-anchor="middle">Réseau 192.168.1.0/24 (Câble + Wi-Fi)</text>
+        <text x="390" y="106" fill="#34D399" font-size="7.2" font-weight="700" text-anchor="middle">✔ Protégé par Onduleur UPS (2h)</text>
+        <text x="390" y="119" fill="#94A3B8" font-size="6.8" text-anchor="middle">Indépendant de la Box Internet</text>
+
+        <line x1="249" y1="91" x2="295" y2="91" stroke="#00A86B" stroke-width="2.5"/>
+        <line x1="485" y1="68" x2="535" y2="42" stroke="#2563EB" stroke-width="2"/>
+        <line x1="485" y1="91" x2="535" y2="91" stroke="#D97706" stroke-width="2"/>
+        <line x1="485" y1="114" x2="535" y2="140" stroke="#7C3AED" stroke-width="2"/>
+
+        <!-- Replicas -->
+        <rect x="535" y="14" width="270" height="46" rx="5" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+        <text x="670" y="31" fill="#1E40AF" font-size="8" font-weight="800" text-anchor="middle">🖥️ CAISSES #2 &amp; #3 (REPLICAS HOT-STANDBY)</text>
+        <text x="670" y="45" fill="#475569" font-size="7" text-anchor="middle">Copie locale SQLite synchronisée en continu + Auto-Failover 3s</text>
+
+        <rect x="535" y="68" width="270" height="46" rx="5" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+        <text x="670" y="85" fill="#92400E" font-size="8" font-weight="800" text-anchor="middle">🍳 ÉCRANS KDS CUISINE &amp; TV FILE D'ATTENTE</text>
+        <text x="670" y="99" fill="#475569" font-size="7" text-anchor="middle">Réception instantanée des bons &amp; mise à jour statut Prêt</text>
+
+        <rect x="535" y="122" width="270" height="46" rx="5" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
+        <text x="670" y="139" fill="#5B21B6" font-size="8" font-weight="800" text-anchor="middle">📱 TABLETTES SERVEURS (PDA) &amp; BORNE KIOSK</text>
+        <text x="670" y="153" fill="#475569" font-size="7" text-anchor="middle">Prise de commande à table en Wi-Fi local sans Internet</text>
+      </svg>
+    </div>
+
+    <h3><span class="h3-dot"></span>3.1 Fonctionnement du Protocole de Synchronisation Hybride (Outbox Pattern + CRDT)</h3>
+    <div class="grid-2">
+      <div class="card-white">
+        <div class="card-title">1. Écriture Locale Atomique (0,01 seconde)</div>
+        <ul>
+          <li>Lorsqu'un caissier valide une commande ou un encaissement, la transaction est écrite simultanément dans la table <code>orders</code> locale et dans la file d'envoi <code>sync_outbox</code> au sein d'une même transaction SQLite ACID.</li>
+          <li><strong>Identifiants Universels Triables (ULID) :</strong> Chaque ticket et mouvement de stock reçoit un identifiant <code>ULID</code> (128 bits combinant horodatage à la milliseconde + entropie aléatoire) ainsi qu'un numéro de ticket séquentiel préfixé par caisse (ex: <code>C1-2026-00412</code>, <code>C2-2026-00189</code>). Il est donc <strong>mathématiquement impossible</strong> que deux caisses hors-ligne créent un conflit de numéro de facture !</li>
+        </ul>
+      </div>
+      <div class="card-accent">
+        <div class="card-title">2. Auto-Failover (Si la Caisse Principale tombe en panne)</div>
+        <ul>
+          <li>Toutes les caisses du réseau local échangent un signal de vie (<em>Heartbeat UDP/WebSocket</em>) toutes les secondes.</li>
+          <li>Si la <strong>Caisse #1 (Master)</strong> est débranchée ou subit une panne matérielle, la <strong>Caisse #2</strong> détecte l'absence de signal au bout de <strong>3 secondes</strong>, s'élit automatiquement <em>Nouveau Master Local</em> (protocole d'élection par priorité), et toutes les tablettes serveurs ainsi que l'écran cuisine KDS basculent sur la Caisse #2 de façon transparente sans interrompre le service !</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3><span class="h3-dot"></span>3.2 Règles de Réconciliation Automatique au Retour de la Connexion Internet</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:26%;">Type de Donnée Synchronisée</th>
+          <th style="width:34%;">Mécanisme de Synchronisation</th>
+          <th style="width:40%;">Règle de Résolution des Conflits (Zéro Perte)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Ventes, Tickets &amp; Paiements</strong></td>
+          <td>Envoi par lots compressés (<em>Batch Delta Push</em> de 100 événements) avec accusé de réception cryptographique.</td>
+          <td><strong>Journal Additif Immuable (Append-Only) :</strong> Toutes les ventes réalisées hors-ligne s'ajoutent dans le Cloud dans leur ordre chronologique exact.</td>
+        </tr>
+        <tr>
+          <td><strong>Stocks &amp; Matières Premières</strong></td>
+          <td>Synchronisation par <strong>mouvements différentiels (Delta CRDT)</strong> et non par écrasement de valeur brute.</td>
+          <td>Si la Caisse 1 vend <code>-2 kg</code> et la Caisse 2 vend <code>-3 kg</code> hors-ligne pendant que le gérant ajoute <code>+20 kg</code> sur le Cloud, le stock final converge exactement à <code>Stock Initial + 20 - 2 - 3</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Changements de Prix / Menu</strong></td>
+          <td>Diffusion descendante (<em>Cloud &rarr; Edge Pull</em>) avec numéro de révision de catalogue (<code>catalog_version</code>).</td>
+          <td>Toute commande déjà ouverte garde le prix affiché au client au moment de sa saisie (<em>Price Snapshot</em> sur la ligne de commande).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 04 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 5 : SOUS-ARCHITECTURE 3 - PERIPHERIQUES MATERIELS & RESEAU MAGASIN ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 04 &bull; Sous-Architecture N°3</span>
+        <h2 class="section-title">Sous-Architecture Matérielle : Imprimantes ESC/POS, Balances RS232 &amp; Tiroirs</h2>
+      </div>
+      <span class="section-badge">Drivers Locaux &amp; Périphériques</span>
+    </div>
+
+    <p>
+      Une application web ordinaire ouverte dans Chrome ne peut pas piloter fiablement 4 imprimantes de cuisine, ouvrir un tiroir-caisse en 0,1 seconde ni lire une balance de boucherie en continu. Notre sous-architecture intègre un <strong>pont matériel natif (Hardware Bridge Daemon)</strong> directement dans l'exécutable de la caisse.
+    </p>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:4px;">
+        SCHÉMA 4 : SOUS-ARCHITECTURE DE PILOTAGE DES PÉRIPHÉRIQUES PHYSIQUES (RESTAURANT &amp; SUPERMARCHÉ)
+      </div>
+      <svg viewBox="0 0 820 170" width="100%" height="145" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Pont Matériel -->
+        <rect x="275" y="12" width="270" height="145" rx="8" fill="#0A2540" stroke="#38BDF8" stroke-width="2"/>
+        <text x="410" y="32" fill="#38BDF8" font-size="8.6" font-weight="800" text-anchor="middle">🔌 HARDWARE BRIDGE SERVICE (LOCAL)</text>
+        <text x="410" y="46" fill="#CBD5E1" font-size="7.2" text-anchor="middle">Intégré nativement dans l'application Caisse</text>
+        
+        <rect x="290" y="55" width="240" height="26" rx="4" fill="#133B63"/>
+        <text x="410" y="71" fill="#FFFFFF" font-size="7.4" font-weight="700" text-anchor="middle">Spooler ESC/POS Bilingue (Rendu Image Arabe RTL)</text>
+        
+        <rect x="290" y="88" width="240" height="26" rx="4" fill="#133B63"/>
+        <text x="410" y="104" fill="#FFFFFF" font-size="7.4" font-weight="700" text-anchor="middle">écouteur Série RS232 / USB-HID (Scanners &amp; Balances)</text>
+
+        <rect x="290" y="121" width="240" height="26" rx="4" fill="#133B63"/>
+        <text x="410" y="137" fill="#34D399" font-size="7.4" font-weight="700" text-anchor="middle">Redirection Auto Imprimante de Secours (Failover)</text>
+
+        <!-- Gauche : Entrées -->
+        <rect x="14" y="16" width="215" height="42" rx="5" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+        <text x="121" y="33" fill="#065F46" font-size="8" font-weight="800" text-anchor="middle">⚖️ Balance Électronique (RS232/USB)</text>
+        <text x="121" y="47" fill="#475569" font-size="7" text-anchor="middle">Flux poids temps réel (ex: 1,450 kg) + Étiquettes 21xxxxx</text>
+
+        <rect x="14" y="66" width="215" height="42" rx="5" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+        <text x="121" y="83" fill="#1E40AF" font-size="8" font-weight="800" text-anchor="middle">🔍 Douchette 1D/2D &amp; Lecteur Badge</text>
+        <text x="121" y="97" fill="#475569" font-size="7" text-anchor="middle">Interception clavier ultra-rapide (50 scans/min)</text>
+
+        <rect x="14" y="116" width="215" height="42" rx="5" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+        <text x="121" y="133" fill="#92400E" font-size="8" font-weight="800" text-anchor="middle">🖥️ Second Écran Client (HDMI / USB-C)</text>
+        <text x="121" y="147" fill="#475569" font-size="7" text-anchor="middle">Affichage Panier Live + QR Code Bankily dynamique</text>
+
+        <!-- Droite : Sorties Impression -->
+        <rect x="590" y="16" width="216" height="42" rx="5" fill="#F8FAFC" stroke="#0F172A" stroke-width="1.5"/>
+        <text x="698" y="33" fill="#0F172A" font-size="8" font-weight="800" text-anchor="middle">🧾 Imprimante Caisse 80mm + Tiroir RJ11</text>
+        <text x="698" y="47" fill="#475569" font-size="7" text-anchor="middle">Impulsion électrique 24V (ouverture tiroir &lt; 50ms)</text>
+
+        <rect x="590" y="66" width="216" height="42" rx="5" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.5"/>
+        <text x="698" y="83" fill="#991B1B" font-size="8" font-weight="800" text-anchor="middle">🍖 Imprimantes Cuisine / Grill / Pizza (LAN)</text>
+        <text x="698" y="97" fill="#475569" font-size="7" text-anchor="middle">Socket TCP Raw Port 9100 + Buzzer sonore intégré</text>
+
+        <rect x="590" y="116" width="216" height="42" rx="5" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.5"/>
+        <text x="698" y="133" fill="#5B21B6" font-size="8" font-weight="800" text-anchor="middle">🍹 Imprimante Bar / Chicha / Pâtisserie</text>
+        <text x="698" y="147" fill="#475569" font-size="7" text-anchor="middle">Routage sélectif par catégorie de produit</text>
+
+        <line x1="229" y1="37" x2="275" y2="95" stroke="#10B981" stroke-width="1.8"/>
+        <line x1="229" y1="87" x2="275" y2="101" stroke="#2563EB" stroke-width="1.8"/>
+        <line x1="229" y1="137" x2="275" y2="130" stroke="#D97706" stroke-width="1.8"/>
+        <line x1="545" y1="68" x2="590" y2="37" stroke="#0F172A" stroke-width="1.8"/>
+        <line x1="545" y1="68" x2="590" y2="87" stroke="#DC2626" stroke-width="1.8"/>
+        <line x1="545" y1="68" x2="590" y2="137" stroke="#7C3AED" stroke-width="1.8"/>
+      </svg>
+    </div>
+
+    <h3><span class="h3-dot"></span>4.1 Résolution Technique de l'Impression Arabe/Français sur Toutes les Imprimantes 80mm</h3>
+    <div class="grid-2">
+      <div class="card-white">
+        <div class="card-title">Moteur Raster Graphic ESC/POS (100 % Compatible)</div>
+        <ul>
+          <li><strong>Le problème fréquent en Mauritanie :</strong> Beaucoup d'imprimantes thermiques chinoises d'entrée de gamme impriment des caractères illisibles (« <code>????</code> » ou lettres détachées de gauche à droite) lorsqu'on leur envoie du texte en Arabe.</li>
+          <li><strong>Notre solution architecturale :</strong> Notre moteur <em>Hardware Bridge</em> compose le ticket bilingue (Français + Arabe parfaitement lié avec ligatures + Logo + QR Code) en mémoire sous forme de <strong>trame bitmap haute densité (203 DPI monochrome)</strong> et l'envoie via la commande universelle <code>GS v 0</code>. Résultat : <strong>100 % des imprimantes du marché mauritanien impriment un arabe calligraphié parfait</strong> !</li>
+        </ul>
+      </div>
+      <div class="card-gold">
+        <div class="card-title">Décodage des Balances Poids-Prix (Boucherie &amp; Market)</div>
+        <ul>
+          <li><strong>Mode 1 — Lecture Directe RS232 / USB-Serial :</strong> La balance posée sur le comptoir envoie le poids stable en grammes via le port série (protocoles <em>Toledo, Dibal, CAS, Mettler</em>). La caisse multiplie automatiquement par le prix au kilo en MRU.</li>
+          <li><strong>Mode 2 — Lecture d'Étiquettes Code-Barres Poids (Préfixe 20 / 21) :</strong> Au rayon boucherie ou fruits &amp; légumes, la balance imprime une étiquette EAN-13 de type <code>21 00452 01450 8</code>. La caisse extrait automatiquement le code article (<code>00452</code> = Viande hachée) et le poids exact (<code>01450</code> = <strong>1,450 kg</strong>) en un seul bip !</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 05 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 6 : SOUS-ARCHITECTURE 4 - PAIEMENTS MAURITANIE, WHATSAPP & ANTI-PIRATAGE ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 05 &bull; Sous-Architectures N°4 &amp; N°5</span>
+        <h2 class="section-title">Passerelle Wallets Mauritanie, Automatisation WhatsApp &amp; Sécurité Licences</h2>
+      </div>
+      <span class="section-badge">Fintech, Bot &amp; Anti-Piratage</span>
+    </div>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:4px;">
+        SCHÉMA 5 : SOUS-ARCHITECTURE HYBRIDE DES PAIEMENTS WALLETS (BANKILY, MASRIVI, SEDAD) &amp; CONTRÔLE DES LICENCES
+      </div>
+      <svg viewBox="0 0 820 165" width="100%" height="140" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Paiements -->
+        <rect x="12" y="10" width="390" height="146" rx="7" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.6"/>
+        <text x="207" y="28" fill="#1E40AF" font-size="8.3" font-weight="800" text-anchor="middle">📲 SOUS-ARCHITECTURE PAIEMENTS WALLETS (DOUBLE CANAL)</text>
+        
+        <rect x="24" y="38" width="366" height="48" rx="5" fill="#FFFFFF" stroke="#3B82F6"/>
+        <text x="207" y="54" fill="#0F172A" font-size="7.6" font-weight="700" text-anchor="middle">Canal A (Automatique API / Webhook Marchand)</text>
+        <text x="207" y="67" fill="#475569" font-size="6.9" text-anchor="middle">Caisse affiche QR Dynamique (Montant + ID Ticket) &rarr; Client paie sur Bankily/Masrivi</text>
+        <text x="207" y="79" fill="#059669" font-size="6.9" font-weight="700" text-anchor="middle">&rarr; Webhook Cloud notifie la caisse en 1,5s &rarr; Validation &amp; impression automatique !</text>
+
+        <rect x="24" y="94" width="366" height="52" rx="5" fill="#FFFFFF" stroke="#D97706"/>
+        <text x="207" y="110" fill="#92400E" font-size="7.6" font-weight="700" text-anchor="middle">Canal B (Mode Universel / Hors-Ligne Anti-Faux Reçus)</text>
+        <text x="207" y="123" fill="#475569" font-size="6.9" text-anchor="middle">Si pas d'API ou coupure Internet : saisie obligatoire des 4 derniers chiffres de la</text>
+        <text x="207" y="135" fill="#475569" font-size="6.9" text-anchor="middle">référence de transaction SMS + Rapprochement automatique lors de la Clôture Z.</text>
+
+        <!-- Licences -->
+        <rect x="418" y="10" width="390" height="146" rx="7" fill="#ECFDF5" stroke="#00A86B" stroke-width="1.6"/>
+        <text x="613" y="28" fill="#065F46" font-size="8.3" font-weight="800" text-anchor="middle">🔐 SOUS-ARCHITECTURE ANTI-PIRATAGE &amp; LICENCES OFFLINE</text>
+
+        <rect x="430" y="38" width="366" height="48" rx="5" fill="#FFFFFF" stroke="#10B981"/>
+        <text x="613" y="54" fill="#0F172A" font-size="7.6" font-weight="700" text-anchor="middle">1. Empreinte Matérielle (Hardware Fingerprint + Bail Signé RSA-2048)</text>
+        <text x="613" y="67" fill="#475569" font-size="6.9" text-anchor="middle">Chaque PC caisse génère un Hash unique (CPU + Carte Mère + UUID Disque).</text>
+        <text x="613" y="79" fill="#065F46" font-size="6.9" font-weight="700" text-anchor="middle">Le serveur de M. Taha Chouaib délivre un jeton signé valable 30 jours hors-ligne.</text>
+
+        <rect x="430" y="94" width="366" height="52" rx="5" fill="#FFFFFF" stroke="#7C3AED"/>
+        <text x="613" y="110" fill="#5B21B6" font-size="7.6" font-weight="700" text-anchor="middle">2. Renouvellement par Code 12 Chiffres (Même Sans Internet)</text>
+        <text x="613" y="123" fill="#475569" font-size="6.9" text-anchor="middle">Si le client paie son abonnement par Bankily mais n'a pas Internet au magasin,</text>
+        <text x="613" y="135" fill="#475569" font-size="6.9" text-anchor="middle">M. Taha Chouaib lui envoie par WhatsApp un code HMAC à 12 chiffres qui débloque 30j.</text>
+      </svg>
+    </div>
+
+    <h3><span class="h3-dot"></span>5.1 Sous-Architecture d'Automatisation WhatsApp Business &amp; Dispatch Livreur GPS</h3>
+    <div class="grid-2">
+      <div class="card-white">
+        <div class="card-title">Passerelle WhatsApp Business (File Asynchrone BullMQ)</div>
+        <ul>
+          <li><strong>Architecture découplée :</strong> Pour ne jamais ralentir la caisse, les messages WhatsApp sont placés dans une file d'attente Redis (<code>BullMQ</code>) qui les expédie en tâche de fond.</li>
+          <li><strong>3 usages automatisés :</strong> (1) Envoi du rapport PDF de clôture Z chaque soir à 23h59 sur le WhatsApp du propriétaire, (2) Envoi du ticket PDF et du suivi de commande au client en livraison, (3) Alertes critiques en temps réel (annulation suspecte en caisse ou rupture de stock).</li>
+        </ul>
+      </div>
+      <div class="card-purple">
+        <div class="card-title">Moteur de Géolocalisation &amp; Dispatch Livraison</div>
+        <ul>
+          <li><strong>Partage de position WhatsApp :</strong> En Mauritanie, les adresses postales classiques sont rares ; le système accepte directement un lien de localisation WhatsApp (<code>maps.google.com/?q=lat,lng</code>), calcule le quartier de Nouakchott et applique le tarif de livraison correspondant.</li>
+          <li><strong>Fond de carte hybride :</strong> Utilise <strong>OpenStreetMap / MapLibre GL</strong> par défaut (<strong>0 € de frais mensuels</strong>, cartes de Nouakchott et Nouadhibou complètes) avec option Google Maps API si souhaité.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 06 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 7 : DIAGRAMME DE CLASSES UML (MODELE METIER & ENTITES MULTI-TENANT) ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 06 &bull; Diagramme de Classes UML (Modèle Métier)</span>
+        <h2 class="section-title">Diagramme de Classes UML : Modèle Métier Restauration, Retail &amp; Multi-Tenant</h2>
+      </div>
+      <span class="section-badge">Modélisation UML Métier</span>
+    </div>
+
+    <p>
+      Ce diagramme de classes structure les <strong>entités logiques centrales</strong> du SaaS POS (Restauration &amp; Market). Chaque classe métier intègre l'isolation multi-tenant (<code>tenantId</code>) et supporte la synchronisation bidirectionnelle entre la base locale SQLite et le Cloud PostgreSQL.
+    </p>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:4px;">
+        SCHÉMA 6 : DIAGRAMME DE CLASSES DU DOMAINE POS (MULTI-TENANT, COMMANDE, KDS, PAIEMENTS &amp; STOCKS)
+      </div>
+      <svg viewBox="0 0 820 220" width="100%" height="188" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Classe Tenant / Etablissement -->
+        <rect x="12" y="8" width="170" height="92" rx="4" fill="#F8FAFC" stroke="#0A2540" stroke-width="1.4"/>
+        <rect x="12" y="8" width="170" height="18" rx="4" fill="#0A2540"/>
+        <text x="97" y="21" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Entity&raquo; Tenant / Store</text>
+        <text x="18" y="38" fill="#0F172A" font-size="6.8">+ tenantId: ULID [PK]</text>
+        <text x="18" y="49" fill="#0F172A" font-size="6.8">+ name: string (Le Sultan / Al-Baraka)</text>
+        <text x="18" y="60" fill="#0F172A" font-size="6.8">+ currency: string = "MRU"</text>
+        <text x="18" y="71" fill="#0F172A" font-size="6.8">+ licenseKey: RSASignature</text>
+        <text x="18" y="82" fill="#0F172A" font-size="6.8">+ licenseExpiresAt: DateTime</text>
+        <text x="18" y="93" fill="#059669" font-size="6.8">+ isOfflineLeaseValid(): bool</text>
+
+        <!-- Classe Order / Ticket -->
+        <rect x="225" y="8" width="190" height="106" rx="4" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+        <rect x="225" y="8" width="190" height="18" rx="4" fill="#1E40AF"/>
+        <text x="320" y="21" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Aggregate Root&raquo; Order</text>
+        <text x="231" y="38" fill="#0F172A" font-size="6.8">+ orderId: ULID [PK]</text>
+        <text x="231" y="49" fill="#0F172A" font-size="6.8">+ ticketNumber: string (T-08 / C1-412)</text>
+        <text x="231" y="60" fill="#0F172A" font-size="6.8">+ channel: DINE_IN | TAKEAWAY | DELIVERY</text>
+        <text x="231" y="71" fill="#0F172A" font-size="6.8">+ status: OPEN | KITCHEN | READY | PAID</text>
+        <text x="231" y="82" fill="#0F172A" font-size="6.8">+ totalAmountMRU: Decimal</text>
+        <text x="231" y="93" fill="#2563EB" font-size="6.8">+ syncStatus: LOCAL_WAL | CLOUD_SYNCED</text>
+        <text x="231" y="104" fill="#059669" font-size="6.8">+ calculateTotalTTC(): Decimal</text>
+
+        <!-- Relations 1..* -->
+        <line x1="182" y1="45" x2="225" y2="45" stroke="#0A2540" stroke-width="1.5"/>
+        <text x="190" y="40" font-size="6.5" fill="#64748B">1</text>
+        <text x="215" y="40" font-size="6.5" fill="#64748B">1..*</text>
+
+        <!-- Classe OrderItem -->
+        <rect x="460" y="8" width="175" height="106" rx="4" fill="#F8FAFC" stroke="#0A2540" stroke-width="1.4"/>
+        <rect x="460" y="8" width="175" height="18" rx="4" fill="#0A2540"/>
+        <text x="547" y="21" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Entity&raquo; OrderItem</text>
+        <text x="466" y="38" fill="#0F172A" font-size="6.8">+ itemId: ULID [PK]</text>
+        <text x="466" y="49" fill="#0F172A" font-size="6.8">+ productId: ULID [FK]</text>
+        <text x="466" y="60" fill="#0F172A" font-size="6.8">+ quantity: Decimal (kg ou unité)</text>
+        <text x="466" y="71" fill="#0F172A" font-size="6.8">+ unitPriceMRU: Decimal</text>
+        <text x="466" y="82" fill="#0F172A" font-size="6.8">+ modifiers: JSON (cuisson, sans oignon)</text>
+        <text x="466" y="93" fill="#0F172A" font-size="6.8">+ kdsStation: GRILL | PIZZA | BAR</text>
+        <text x="466" y="104" fill="#059669" font-size="6.8">+ getSubtotal(): Decimal</text>
+
+        <line x1="415" y1="52" x2="460" y2="52" stroke="#2563EB" stroke-width="1.5"/>
+        <text x="422" y="47" font-size="6.5" fill="#64748B">1</text>
+        <text x="450" y="47" font-size="6.5" fill="#64748B">1..*</text>
+
+        <!-- Classe Product / Item -->
+        <rect x="665" y="8" width="145" height="106" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1.4"/>
+        <rect x="665" y="8" width="145" height="18" rx="4" fill="#065F46"/>
+        <text x="737" y="21" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Entity&raquo; Product</text>
+        <text x="671" y="38" fill="#0F172A" font-size="6.8">+ productId: ULID [PK]</text>
+        <text x="671" y="49" fill="#0F172A" font-size="6.8">+ nameFR: string</text>
+        <text x="671" y="60" fill="#0F172A" font-size="6.8">+ nameAR: string (RTL)</text>
+        <text x="671" y="71" fill="#0F172A" font-size="6.8">+ barcodeEAN: string (13 digits)</text>
+        <text x="671" y="82" fill="#0F172A" font-size="6.8">+ isWeighed: bool (Balance COM)</text>
+        <text x="671" y="93" fill="#0F172A" font-size="6.8">+ currentStock: Decimal</text>
+        <text x="671" y="104" fill="#059669" font-size="6.8">+ deductStockDelta(qty)</text>
+
+        <line x1="635" y1="52" x2="665" y2="52" stroke="#0A2540" stroke-width="1.5"/>
+        <text x="640" y="47" font-size="6.5" fill="#64748B">0..*</text>
+        <text x="655" y="47" font-size="6.5" fill="#64748B">1</text>
+
+        <!-- Ligne du bas : Payment & Split -->
+        <rect x="225" y="125" width="190" height="88" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+        <rect x="225" y="125" width="190" height="18" rx="4" fill="#92400E"/>
+        <text x="320" y="138" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Entity&raquo; PaymentTransaction</text>
+        <text x="231" y="153" fill="#0F172A" font-size="6.8">+ paymentId: ULID [PK]</text>
+        <text x="231" y="163" fill="#0F172A" font-size="6.8">+ method: CASH | BANKILY | MASRIVI | KARNI</text>
+        <text x="231" y="173" fill="#0F172A" font-size="6.8">+ amountPaidMRU: Decimal</text>
+        <text x="231" y="183" fill="#0F172A" font-size="6.8">+ walletRef: string (SMS 4 digits / QR)</text>
+        <text x="231" y="193" fill="#0F172A" font-size="6.8">+ cashierId: ULID [FK]</text>
+        <text x="231" y="203" fill="#059669" font-size="6.8">+ reconcileWithZReport(): bool</text>
+
+        <line x1="320" y1="114" x2="320" y2="125" stroke="#2563EB" stroke-width="1.5"/>
+        <text x="325" y="121" font-size="6.5" fill="#64748B">1..*</text>
+
+        <!-- Classe Customer / Karni -->
+        <rect x="460" y="125" width="175" height="88" rx="4" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.4"/>
+        <rect x="460" y="125" width="175" height="18" rx="4" fill="#5B21B6"/>
+        <text x="547" y="138" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Entity&raquo; Customer (Karni)</text>
+        <text x="466" y="153" fill="#0F172A" font-size="6.8">+ customerId: ULID [PK]</text>
+        <text x="466" y="163" fill="#0F172A" font-size="6.8">+ fullName: string</text>
+        <text x="466" y="173" fill="#0F172A" font-size="6.8">+ phoneWhatsApp: string (+222...)</text>
+        <text x="466" y="183" fill="#0F172A" font-size="6.8">+ creditLimitMRU: Decimal</text>
+        <text x="466" y="193" fill="#0F172A" font-size="6.8">+ currentDebtMRU: Decimal</text>
+        <text x="466" y="203" fill="#059669" font-size="6.8">+ canChargeCredit(amount): bool</text>
+
+        <line x1="415" y1="168" x2="460" y2="168" stroke="#D97706" stroke-width="1.5" stroke-dasharray="2,2"/>
+        <text x="425" y="163" font-size="6.5" fill="#64748B">0..1</text>
+
+        <!-- Classe Table / Salle -->
+        <rect x="12" y="125" width="170" height="88" rx="4" fill="#F8FAFC" stroke="#0A2540" stroke-width="1.4"/>
+        <rect x="12" y="125" width="170" height="18" rx="4" fill="#0A2540"/>
+        <text x="97" y="138" fill="#FFFFFF" font-size="7.6" font-weight="800" text-anchor="middle">&laquo;Entity&raquo; TableSession</text>
+        <text x="18" y="153" fill="#0F172A" font-size="6.8">+ tableId: string (T-08, VIP-1)</text>
+        <text x="18" y="163" fill="#0F172A" font-size="6.8">+ zone: TERRASSE | SALLE | KHAIMA</text>
+        <text x="18" y="173" fill="#0F172A" font-size="6.8">+ currentOrderId: ULID [FK]</text>
+        <text x="18" y="183" fill="#0F172A" font-size="6.8">+ seatedCovers: int</text>
+        <text x="18" y="193" fill="#0F172A" font-size="6.8">+ waiterId: ULID</text>
+        <text x="18" y="203" fill="#059669" font-size="6.8">+ transferTable(newTableId)</text>
+
+        <line x1="182" y1="168" x2="225" y2="60" stroke="#2563EB" stroke-width="1.5" stroke-dasharray="2,2"/>
+      </svg>
+    </div>
+
+    <h3><span class="h3-dot"></span>7.A.1 Principes Métier Clés Représentés dans le Diagramme</h3>
+    <div class="grid-2">
+      <div class="card-white">
+        <div class="card-title">1. Multi-Paiements &amp; Division d'Addition (Split)</div>
+        <ul>
+          <li>La relation <code>Order (1) &rarr; (1..*) PaymentTransaction</code> permet de ventiler naturellement une addition de 1 600 MRU en plusieurs lignes : <strong>1 000 MRU en Bankily + 600 MRU en Cash</strong>.</li>
+          <li>Chaque transaction de paiement enregistre son canal (Cash, Bankily, Masrivi, ou imputation sur le <strong>Carnet de Crédit Karni</strong> du client).</li>
+        </ul>
+      </div>
+      <div class="card-accent">
+        <div class="card-title">2. Déstockage Différentiel &amp; Pesée Balance</div>
+        <ul>
+          <li>L'entité <code>Product</code> gère à la fois les unités fixes (ex: canette) et les <strong>quantités décimales</strong> transmises par la balance de boucherie/marché (ex: <code>quantity: 1.450 kg</code>).</li>
+          <li>La méthode <code>deductStockDelta()</code> utilise des deltas additifs pour réconcilier les ventes hors-ligne sans écraser les stocks Cloud.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 07 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 8 : DIAGRAMMES DE SEQUENCE UML (ENCAISSEMENT OFFLINE & BANKILY LIVE) ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 07 &bull; Diagrammes de Séquence UML (Flux Opérationnels)</span>
+        <h2 class="section-title">Diagrammes de Séquence UML : Encaissement Offline &amp; Paiement Bankily Live</h2>
+      </div>
+      <span class="section-badge">Cinématiques d'Exécution UML</span>
+    </div>
+
+    <p>
+      Ces deux diagrammes de séquence détaillent le <strong>flux chronologique des messages</strong> entre le Caissier, l'Application Caisse Locale, le Moteur SQLite, les Imprimantes et la passerelle Fintech mauritanienne.
+    </p>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:3px;">
+        SÉQUENCE 1 : PRISE DE COMMANDE &amp; ENCAISSEMENT CASH EN MODE 100 % HORS-LIGNE (ZÉRO INTERNET)
+      </div>
+      <svg viewBox="0 0 820 102" width="100%" height="90" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Acteurs -->
+        <text x="65" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">👤 Caissier</text>
+        <text x="230" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">💻 Caisse UI</text>
+        <text x="410" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">🗄️ SQLite Local (WAL)</text>
+        <text x="590" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">🍳 KDS Cuisine (LAN)</text>
+        <text x="740" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">🧾 Imprimante ESC/POS</text>
+
+        <!-- Lignes de vie -->
+        <line x1="65" y1="16" x2="65" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="230" y1="16" x2="230" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="410" y1="16" x2="410" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="590" y1="16" x2="590" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="740" y1="16" x2="740" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- Messages -->
+        <line x1="65" y1="28" x2="230" y2="28" stroke="#0F172A" stroke-width="1.2"/>
+        <text x="145" y="25" font-size="6.8" fill="#0F172A" text-anchor="middle">1. Sélectionne Plats + "Envoyer Cuisine"</text>
+
+        <line x1="230" y1="40" x2="590" y2="40" stroke="#D97706" stroke-width="1.2"/>
+        <text x="410" y="37" font-size="6.8" fill="#92400E" text-anchor="middle">2. WebSocket LAN (:8443) &rarr; Nouvel Ordre Cuisine (&lt;0,1s)</text>
+
+        <line x1="65" y1="56" x2="230" y2="56" stroke="#0F172A" stroke-width="1.2"/>
+        <text x="145" y="53" font-size="6.8" fill="#0F172A" text-anchor="middle">3. Encaissement : 1 600 MRU Espèces</text>
+
+        <line x1="230" y1="68" x2="410" y2="68" stroke="#16A34A" stroke-width="1.2"/>
+        <text x="320" y="65" font-size="6.8" fill="#065F46" text-anchor="middle">4. BEGIN TRANSACTION &rarr; INSERT Order + INSERT OutboxQueue &rarr; COMMIT</text>
+
+        <line x1="230" y1="84" x2="740" y2="84" stroke="#2563EB" stroke-width="1.2"/>
+        <text x="485" y="81" font-size="6.8" fill="#1E40AF" text-anchor="middle">5. Commande ESC/POS Raster (GS v 0) &rarr; Imprime Ticket 80mm Bilingue FR/AR + Ouvre Tiroir RJ11 (50ms)</text>
+      </svg>
+    </div>
+
+    <div class="diagram-box">
+      <div style="font-weight:800; color:var(--primary); font-size:8.2pt; margin-bottom:3px;">
+        SÉQUENCE 2 : ENCAISSEMENT PAR QR CODE DYNAMIQUE BANKILY / MASRIVI (VALIDATION LIVE EN 1,5 SECONDE)
+      </div>
+      <svg viewBox="0 0 820 102" width="100%" height="90" xmlns="http://www.w3.org/2000/svg" style="font-family:'Inter',sans-serif;">
+        <!-- Acteurs -->
+        <text x="65" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">👤 Client</text>
+        <text x="215" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">💻 Caisse / 2e Écran</text>
+        <text x="385" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">🏦 Serveur Bankily / Masrivi</text>
+        <text x="585" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">☁️ Passerelle Cloud SaaS</text>
+        <text x="740" y="12" fill="#0A2540" font-size="7.5" font-weight="700" text-anchor="middle">🧾 Imprimante Caisse</text>
+
+        <!-- Lignes de vie -->
+        <line x1="65" y1="16" x2="65" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="215" y1="16" x2="215" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="385" y1="16" x2="385" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="585" y1="16" x2="585" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="740" y1="16" x2="740" y2="100" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- Messages -->
+        <line x1="215" y1="28" x2="65" y2="28" stroke="#2563EB" stroke-width="1.2"/>
+        <text x="140" y="25" font-size="6.8" fill="#1E40AF" text-anchor="middle">1. Génère &amp; Affiche QR Code Dynamique (Montant: 1 600 MRU + Ref: 4821)</text>
+
+        <line x1="65" y1="44" x2="385" y2="44" stroke="#0F172A" stroke-width="1.2"/>
+        <text x="225" y="41" font-size="6.8" fill="#0F172A" text-anchor="middle">2. Client scanne avec App Bankily &rarr; Valide le paiement PIN</text>
+
+        <line x1="385" y1="58" x2="585" y2="58" stroke="#10B981" stroke-width="1.2"/>
+        <text x="485" y="55" font-size="6.8" fill="#065F46" text-anchor="middle">3. Bankily envoie Webhook HTTPS &rarr; {ref: 4821, amount: 1600, status: SUCCESS}</text>
+
+        <line x1="585" y1="72" x2="215" y2="72" stroke="#10B981" stroke-width="1.2"/>
+        <text x="400" y="69" font-size="6.8" fill="#065F46" text-anchor="middle">4. Notification WebSocket Live &rarr; Écran caisse passe au Vert "Payé ✔"</text>
+
+        <line x1="215" y1="86" x2="740" y2="86" stroke="#0F172A" stroke-width="1.2"/>
+        <text x="475" y="83" font-size="6.8" fill="#0F172A" text-anchor="middle">5. Clôture automatique du ticket &rarr; Impression immédiate de la facture finale</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 08 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 9 : BUDGET HORS-DEVELOPPEMENT (PARTIE 1) - DOMAINES, DNS & SERVEURS CLOUD ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 08 &bull; Dépenses Hors-Développement (1/3) : Serveurs &amp; Domaines</span>
+        <h2 class="section-title">Coûts d'Infrastructure : Uniquement le Strict Nécessaire pour Démarrer</h2>
+      </div>
+      <span class="section-badge">Hébergement &amp; Domaine</span>
+    </div>
+
+    <p>
+      Ce chapitre détaille <strong>exclusivement les dépenses techniques indispensables</strong> pour faire fonctionner la plateforme SaaS pour <strong>M. Taha Chouaib</strong>. Tous les services superflus ont été éliminés pour garantir le coût d'exploitation le plus bas possible.
+    </p>
+
+    <h3><span class="h3-dot"></span>8.1 Nom de Domaine &amp; Sécurité : Un Seul Achat Annuel (~12 € / an)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%;">Composant Réseau</th>
+          <th style="width:28%;">Solution Retenue</th>
+          <th style="width:20%;">Coût Réel (HT)</th>
+          <th style="width:22%;">Statut &amp; Utilité</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Nom de Domaine (<code>.com</code>)</strong><br><em>Ex: full-tek.com / full-tek.mr</em></td>
+          <td>Cloudflare Registrar / Namecheap</td>
+          <td><strong>~12 € / an</strong><br>(soit <strong>~44 MRU / mois</strong>)</td>
+          <td><strong style="color:var(--accent-dark);">INDISPENSABLE</strong><br>Adresse officielle unique.</td>
+        </tr>
+        <tr>
+          <td><strong>Certificat SSL HTTPS (Cadenas de sécurité)</strong></td>
+          <td>Let's Encrypt / Cloudflare SSL</td>
+          <td><strong>0 € (Gratuit)</strong></td>
+          <td>Inclus à vie sans frais.</td>
+        </tr>
+        <tr>
+          <td><strong>Protection Anti-Attaque &amp; DNS</strong></td>
+          <td>Cloudflare Free Plan</td>
+          <td><strong>0 € (Gratuit)</strong></td>
+          <td>Inclus à vie sans frais.</td>
+        </tr>
+        <tr>
+          <td><strong>Messagerie Pro (Email de contact)</strong></td>
+          <td>Cloudflare Email Routing &rarr; Gmail</td>
+          <td><strong>0 € (Gratuit)</strong></td>
+          <td>Redirection automatique.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3><span class="h3-dot"></span>8.2 Serveur Cloud VPS : Pourquoi 4,50 € / mois suffisent largement ?</h3>
+    <p>
+      Grâce à notre architecture <strong>Edge Local Offline-First</strong>, <strong>les caisses locales font 95 % des calculs au restaurant</strong>. Le serveur Cloud n'a besoin que d'une puissance minimale pour synchroniser les données :
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:26%;">Serveur Retenu</th>
+          <th style="width:34%;">Ressources Matérielles</th>
+          <th style="width:20%;">Prix Mensuel</th>
+          <th style="width:20%;">Capacité Magasins</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background:#ECFDF5; font-weight:700;">
+          <td><strong>Hetzner Cloud VPS (CX22)</strong><br><span class="badge badge-green">Recommandé</span></td>
+          <td>2 vCPU AMD EPYC, 4 Go RAM, 40 Go SSD NVMe ultra-rapide (Datacenter Allemagne).</td>
+          <td><strong style="color:var(--accent-dark);">~4,50 € / mois</strong><br>(<strong>~198 MRU / mois</strong>)</td>
+          <td>Gère de <strong>1 à 25 restaurants ou supermarchés</strong> sans problème.</td>
+        </tr>
+        <tr>
+          <td><strong>Sauvegardes Externes S3 (Backblaze B2)</strong></td>
+          <td>Stockage distant chiffré des clôtures Z et catalogues.</td>
+          <td><strong>~0,30 € / mois</strong><br>(~13 MRU / mois)</td>
+          <td>Sécurité maximale anti-perte.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card-accent">
+      <div class="card-title">Bilan Hébergement &amp; Domaine : Seulement ~242 MRU par mois ! <span class="badge badge-green">Coût Minimal</span></div>
+      <p style="margin:0; font-size:7.8pt;">
+        En prenant le <strong>Domaine .com (1 €/mois) + le VPS Hetzner (4,50 €/mois) + Sauvegardes S3 (0,30 €/mois)</strong>, vos frais d'infrastructure complets sont de <strong>~5,80 € / mois (environ 255 MRU / mois)</strong>.
+      </p>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 09 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 10 : DISTRIBUTION DIRECTE SANS STORES (PWA & APK) ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 09 &bull; Dépenses Hors-Développement (2/3) : Zéro Stores (PWA &amp; APK)</span>
+        <h2 class="section-title">Distribution Directe Gratuite : Zéro Frais Apple Store &amp; Google Play</h2>
+      </div>
+      <span class="section-badge">100 % Sans Stores &bull; 0 €</span>
+    </div>
+
+    <p>
+      Pour un logiciel de caisse professionnel (B2B), <strong>les stores publics (App Store à 99 $/an et Google Play à 25 $) sont totalement inutiles</strong>. Nous utilisons une <strong>distribution directe professionnelle</strong> qui est <strong>100 % gratuite</strong>, plus rapide et sans aucune contrainte :
+    </p>
+
+    <h3><span class="h3-dot"></span>9.1 Les Solutions Gratuites Retenues pour Chaque Appareil</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:25%;">Appareil Utilisé</th>
+          <th style="width:30%;">Mode d'Installation Retenu</th>
+          <th style="width:15%;">Coût Réel</th>
+          <th style="width:30%;">Avantage Opérationnel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Caisses Tactiles Windows (10/11)</strong></td>
+          <td>Installateur direct <code>.exe</code> / <code>.msi</code> sur clé USB ou lien direct.</td>
+          <td><strong>0 € (Gratuit)</strong></td>
+          <td>Installé en 2 minutes sur n'importe quel écran tactile ou PC sans intermédiaire.</td>
+        </tr>
+        <tr>
+          <td><strong>Tablettes Android (Caisses, KDS, PDA)</strong></td>
+          <td>Fichier <code>APK</code> Android en téléchargement direct.</td>
+          <td><strong>0 € (Gratuit)</strong></td>
+          <td>Zéro compte Google nécessaire. Fonctionne même sur les tablettes sans Play Store.</td>
+        </tr>
+        <tr>
+          <td><strong>Smartphones (iPhone &amp; Android des Patrons)</strong></td>
+          <td><strong>Technologie PWA (Progressive Web App) :</strong> Icône sur l'écran d'accueil en 1 clic.</td>
+          <td><strong>0 € (Gratuit)</strong></td>
+          <td>S'ouvre en plein écran comme une application native. Zéro frais Apple Store (0 € au lieu de 99 $/an).</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid-2">
+      <div class="card-white">
+        <div class="card-title">Avantages de la Distribution Directe PWA &amp; APK</div>
+        <ul>
+          <li><strong>Mises à jour instantanées :</strong> Aucune attente de validation de 3 à 7 jours imposée par Apple ou Google.</li>
+          <li><strong>Zéro commission intermédiaire :</strong> Vous gardez 100 % de l'argent de vos abonnements (Bankily, Masrivi, Cash).</li>
+          <li><strong>Simplicité pour le client :</strong> Pas besoin d'identifiant Apple ID ni de mot de passe Google pour faire tourner la caisse.</li>
+        </ul>
+      </div>
+      <div class="card-accent">
+        <div class="card-title">Services Complémentaires 100 % Gratuits Inclus</div>
+        <ul>
+          <li><strong>Cartes GPS Nouakchott :</strong> <strong>OpenStreetMap</strong> &rarr; <strong>0 € / mois</strong> (remplace les cartes payantes).</li>
+          <li><strong>Alertes WhatsApp Automatiques :</strong> Connecteur WhatsApp Web hébergé sur votre VPS &rarr; <strong>0 € / mois</strong> (remplace les SMS payants).</li>
+          <li><strong>Zéro frais de transactions logicielles :</strong> Les paiements Bankily/Masrivi vont directement sur le compte du restaurant.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3><span class="h3-dot"></span>9.2 Synthèse des Équipements Logiciels &amp; Frais de Distribution</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:34%;">Canal Logiciel Déployé</th>
+          <th style="width:36%;">Technologie de Déploiement Retenue</th>
+          <th style="width:30%;">Frais d'Éditeur / Abonnement</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Application Caisse &amp; Kiosk</strong></td>
+          <td>Exécutable Windows natif + APK Android direct</td>
+          <td><strong style="color:var(--accent-dark);">0 € (Zéro frais récurrent)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Application Mobile Propriétaire</strong></td>
+          <td>Progressive Web App (iOS &amp; Android universel)</td>
+          <td><strong style="color:var(--accent-dark);">0 € (Zéro frais récurrent)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Passerelle WhatsApp &amp; Cartographie</strong></td>
+          <td>OpenStreetMap + Serveur WhatsApp local</td>
+          <td><strong style="color:var(--accent-dark);">0 € (Zéro frais récurrent)</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 10 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 11 : BUDGET MATERIEL SUR SITE (PAR RESTAURANT / MARKET CLIENT) ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 10 &bull; Dépenses Matérielles sur Site (3/3) : Équipements POS</span>
+        <h2 class="section-title">Coûts du Matériel Physique en Restaurant / Market (Packs Équipements)</h2>
+      </div>
+      <span class="section-badge">Matériel Caisse, Réseau &amp; Imprimantes</span>
+    </div>
+
+    <div class="card-accent" style="margin-bottom:7px;">
+      <div class="card-title">Point Financier Important : Qui paie le matériel des caisses ?</div>
+      <p style="margin:0; font-size:7.8pt;">
+        <strong>Ce budget matériel n'est PAS une charge pour M. Taha Chouaib</strong> (sauf pour son propre restaurant pilote ou son kit de démonstration commerciale). Pour tous les clients abonnés au SaaS, <strong>le matériel est payé par le restaurant/market client</strong>. Mieux encore : M. Taha Chouaib peut importer ou fournir des « Packs Matériels Clés en Main » et réaliser <strong>20 % à 35 % de marge immédiate sur chaque caisse vendue</strong> en plus de l'abonnement mensuel !
+      </p>
+    </div>
+
+    <h3><span class="h3-dot"></span>10.1 Prix Unitaires Indicatifs des Équipements Homologués par notre Architecture</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28%;">Équipement Matériel</th>
+          <th style="width:34%;">Spécifications Techniques Recommandées</th>
+          <th style="width:18%;">Prix Achat Estimé (€)</th>
+          <th style="width:20%;">Équivalent indicatif MRU</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Terminal Point de Vente Tactile (TPV Caisse 15,6")</strong></td>
+          <td>Écran tactile capacitif 15,6" (Simple ou Double écran client), Intel i5 / N100 ou Android Pro, 8 Go RAM, 256 Go SSD, ports USB/LAN/COM (ex: Sunmi, iMin, PartnerTech).</td>
+          <td><strong>240 € à 390 €</strong><br><em>(ou PC/Tablette existant : 0 €)</em></td>
+          <td><strong>~10 500 à 17 200 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Imprimante Thermique 80mm Haute Vitesse</strong></td>
+          <td>Protocole ESC/POS, coupe-papier automatique, double interface <strong>USB + Ethernet LAN</strong>, prise RJ11 tiroir (ex: Epson TM-T20III, Xprinter, Rongta).</td>
+          <td><strong>55 € à 110 €</strong><br>par imprimante</td>
+          <td><strong>~2 400 à 4 850 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Tiroir-Caisse Métallique Sécurisé (RJ11)</strong></td>
+          <td>Acier renforcé, 4 à 5 compartiments billets MRU + 8 pièces, serrure 3 positions, câble RJ11 24V branché sur l'imprimante.</td>
+          <td><strong>35 € à 50 €</strong></td>
+          <td><strong>~1 550 à 2 200 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Routeur Local Gigabit + Onduleur (UPS)</strong></td>
+          <td>Routeur Wi-Fi 6 / 4 ports Gigabit LAN dédié au POS + <strong>Onduleur UPS 650VA–1000VA</strong> (protège le routeur et la caisse des micro-coupures SONELEC).</td>
+          <td><strong>65 € à 95 €</strong><br>(Routeur + Onduleur)</td>
+          <td><strong>~2 850 à 4 200 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Douchette Code-Barres 1D/2D (Pour Market)</strong></td>
+          <td>Lecteur laser/imager USB sans fil ou filaire, lit les codes EAN-13 produits et les QR Codes sur écran téléphone.</td>
+          <td><strong>25 € à 45 €</strong></td>
+          <td><strong>~1 100 à 2 000 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Balance Électronique Poids-Prix (Boucherie/Market)</strong></td>
+          <td>Portée 15 kg / 30 kg (précision 2g/5g), sortie RS232/USB vers caisse ou impression d'étiquettes code-barres poids.</td>
+          <td><strong>90 € à 220 €</strong></td>
+          <td><strong>~4 000 à 9 700 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Écran Cuisine KDS / TV File d'Attente</strong></td>
+          <td>Tablette durcie 14"–15" ou TV 32"–43" HDMI avec Mini-PC/Android TV Box connectée en Ethernet/Wi-Fi au réseau local.</td>
+          <td><strong>120 € à 210 €</strong></td>
+          <td><strong>~5 300 à 9 200 MRU</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3><span class="h3-dot"></span>10.2 Trois Configurations Matérielles Types par Taille d'Établissement</h3>
+    <div class="grid-3">
+      <div class="card-white">
+        <div class="card-title">Kit 1 : Snack / Café (1 Poste)</div>
+        <ul>
+          <li>1 Caisse tactile (ou tablette/PC)</li>
+          <li>1 Imprimante thermique 80mm</li>
+          <li>1 Tiroir-caisse métallique RJ11</li>
+          <li>1 Petit onduleur de protection</li>
+          <li><strong>Budget matériel : ~350 à 520 €</strong> (~15 500 à 23 000 MRU).</li>
+        </ul>
+      </div>
+      <div class="card-blue">
+        <div class="card-title">Kit 2 : Resto / Market (2 Caisses)</div>
+        <ul>
+          <li>2 Caisses tactiles synchronisées LAN</li>
+          <li>2 Imprimantes 80mm (Caisse + Cuisine)</li>
+          <li>1 Écran KDS ou Balance/Scanner EAN</li>
+          <li>1 Routeur Gigabit + Onduleur UPS</li>
+          <li><strong>Budget matériel : ~780 à 1 150 €</strong> (~34 000 à 50 500 MRU).</li>
+        </ul>
+      </div>
+      <div class="card-gold">
+        <div class="card-title">Kit 3 : Grand Resto VIP / Multi-Postes</div>
+        <ul>
+          <li>3 Caisses + 2 Tablettes Serveurs PDA</li>
+          <li>3 Imprimantes (Caisse, Grill, Bar)</li>
+          <li>1 Écran KDS Cuisine + 1 Écran TV Salle</li>
+          <li>Routeur Pro + Switch LAN + 2 Onduleurs</li>
+          <li><strong>Budget matériel : ~1 450 à 2 100 €</strong> (~64 000 à 92 000 MRU).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 11 / 12</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 12 : SYNTHESE BUDGETAIRE GLOBALE (TCO) & VALIDATION ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>DOSSIER D'ARCHITECTURE &amp; BUDGET HORS-DÉVELOPPEMENT &mdash; SAAS POS MAURITANIE</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 11 &bull; Synthèse Budgétaire Globale (TCO) &amp; Validation</span>
+        <h2 class="section-title">Récapitulatif des Dépenses Réelles Nécessaires &amp; Rentabilité Maximale</h2>
+      </div>
+      <span class="section-badge">Uniquement le Nécessaire &bull; 0 € Stores</span>
+    </div>
+
+    <p>
+      Ce tableau synthétise <strong>l'intégralité des dépenses techniques réelles hors développement</strong> nécessaires pour lancer et exploiter le SaaS de <strong>M. Taha Chouaib</strong> (avec distribution directe sans stores) :
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:34%;">Poste de Dépense Nécessaire</th>
+          <th style="width:16%;">Périodicité</th>
+          <th style="width:24%;">Coût en Euros (€)</th>
+          <th style="width:26%;">Équivalent en Ouguiyas (MRU)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1. Nom de Domaine International (<code>.com</code>)</strong><br><em>Seul achat annuel obligatoire (Cloudflare)</em></td>
+          <td>1 fois / an</td>
+          <td><strong>~12 € / an</strong></td>
+          <td><strong>~530 MRU / an</strong><br>(soit ~44 MRU / mois)</td>
+        </tr>
+        <tr>
+          <td><strong>2. Serveur Cloud VPS Ultra-Économique (Hetzner CX22)</strong><br><em>2 vCPU AMD, 4 Go RAM NVMe + PostgreSQL + Redis</em></td>
+          <td>Mensuel</td>
+          <td><strong>~4,50 € / mois</strong></td>
+          <td><strong>~198 MRU / mois</strong></td>
+        </tr>
+        <tr>
+          <td><strong>3. Sauvegardes Externes Chiffrées S3 (Backblaze B2)</strong><br><em>Snapshots quotidiens automatiques</em></td>
+          <td>Mensuel</td>
+          <td><strong>~0,30 € / mois</strong></td>
+          <td><strong>~13 MRU / mois</strong></td>
+        </tr>
+        <tr>
+          <td><strong>4. Sécurité SSL HTTPS, DNS &amp; Pare-feu (Cloudflare)</strong></td>
+          <td>Permanent</td>
+          <td><strong>0 € (Gratuit à vie)</strong></td>
+          <td><strong>0 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>5. Distribution Mobile PWA (iOS iPhone/iPad) &amp; APK (Android)</strong><br><em>Zéro abonnement Apple Store ni Google Play</em></td>
+          <td>Permanent</td>
+          <td><strong>0 € (100 % Gratuit)</strong></td>
+          <td><strong>0 MRU</strong></td>
+        </tr>
+        <tr>
+          <td><strong>6. Passerelle WhatsApp &amp; Cartes GPS (OpenStreetMap)</strong></td>
+          <td>Permanent</td>
+          <td><strong>0 € (Inclus sur votre VPS)</strong></td>
+          <td><strong>0 MRU</strong></td>
+        </tr>
+        <tr style="background:#ECFDF5; font-weight:700;">
+          <td><strong>TOTAL CHARGES FIXES MENSUELLES RÉELLES</strong><br><em>Tout compris (Domaine .com + Serveur VPS + Backups S3)</em></td>
+          <td><strong>Budget Mensuel Réel</strong></td>
+          <td><strong style="color:var(--accent-dark); font-size:9.5pt;">~5,80 € / mois</strong><br><em>(~70 € sur toute l'Année 1 !)</em></td>
+          <td><strong style="color:var(--accent-dark); font-size:9.5pt;">~255 MRU / mois</strong><br><em>(~3 080 MRU sur toute l'Année 1 !)</em></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid-4" style="margin: 7px 0;">
+      <div class="kpi-box">
+        <div class="kpi-val">~255 MRU</div>
+        <div class="kpi-lbl">Coût Total Cloud / Mois</div>
+      </div>
+      <div class="kpi-box" style="border-top-color:var(--blue-tech);">
+        <div class="kpi-val">0 €</div>
+        <div class="kpi-lbl">Frais Apple &amp; Google Stores</div>
+      </div>
+      <div class="kpi-box" style="border-top-color:var(--gold);">
+        <div class="kpi-val">12 € / an</div>
+        <div class="kpi-lbl">Seul Achat Annuel (.com)</div>
+      </div>
+      <div class="kpi-box" style="border-top-color:var(--purple);">
+        <div class="kpi-val">&gt; 97 %</div>
+        <div class="kpi-lbl">Marge Nette sur 1er Abonnement</div>
+      </div>
+    </div>
+
+    <div class="card-accent" style="margin-bottom:7px;">
+      <div class="card-title">Verdict Stratégique pour M. Taha Chouaib : Un Modèle Financier Imbattable</div>
+      <p style="margin:0; font-size:7.8pt;">
+        Grâce à ces choix techniques ciblés, <strong>vos charges fixes réelles sont réduites à seulement ~255 MRU par mois (environ 5,80 €/mois)</strong> ! Avec un seul restaurant abonné à votre formule Starter (3 500 MRU/mois), <strong>vous couvrez 13 fois l'intégralité de vos frais de serveurs et de domaine</strong>. Vous n'avez aucun abonnement récurrent imposé par Apple ou Google, aucun intermédiaire financier, et vous conservez 100 % de votre trésorerie dès le premier jour.
+      </p>
+    </div>
+
+    <div style="margin-top:5px; border:2px solid var(--primary); border-radius:8px; padding:9px 13px; background:linear-gradient(135deg, #F8FAFC 0%, #ECFDF5 100%);">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--slate-300); padding-bottom:5px; margin-bottom:7px;">
+        <div>
+          <span style="font-size:7pt; text-transform:uppercase; letter-spacing:1px; color:var(--accent-dark); font-weight:800;">Validation du Modèle Technique &amp; Financier Ultra-Optimisé</span>
+          <div style="font-size:9.6pt; font-weight:800; color:var(--primary);">Bon pour Accord sur l'Infrastructure Sans Stores &amp; Serveur Low-Cost</div>
+        </div>
+        <span class="badge badge-green" style="font-size:7pt; padding:3px 9px;">Budget Validé : ~255 MRU/mois</span>
+      </div>
+      <div class="grid-2" style="margin-bottom:0;">
+        <div style="background:#FFFFFF; border:1px dashed var(--slate-400); border-radius:6px; padding:7px 11px; height:54px;">
+          <div style="font-size:7.2pt; font-weight:700; color:var(--primary);">LE CLIENT &amp; INVESTISSEUR DU PROJET SAAS :</div>
+          <div style="font-size:8.6pt; font-weight:800; color:var(--gold); margin-top:2px;">M. Taha Chouaib</div>
+          <div style="font-size:6.6pt; color:var(--slate-500); margin-top:4px;">Date &amp; Signature : ........................................................................</div>
+        </div>
+        <div style="background:#FFFFFF; border:1px dashed var(--slate-400); border-radius:6px; padding:7px 11px; height:54px;">
+          <div style="font-size:7.2pt; font-weight:700; color:var(--primary);">DIRECTION ARCHITECTURE &amp; INGÉNIERIE :</div>
+          <div style="font-size:8.1pt; font-weight:700; color:var(--slate-700); margin-top:2px;">Équipe Technique &mdash; Architecture Optimisée</div>
+          <div style="font-size:6.6pt; color:var(--slate-500); margin-top:4px;">Date &amp; Signature : ........................................................................</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Dossier d'Architecture &amp; Coûts d'Infrastructure (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 12 / 12</span>
+  </div>
+</div>
+
+</body>
+</html>
+"""
+
+output_dir = r"d:\_Documents\Bureau\caissamrr"
+html_path = os.path.join(output_dir, "Architecture_et_Couts_Serveurs_SaaS_POS_Taha_Chouaib.html")
+pdf_path = os.path.join(output_dir, "Architecture_et_Couts_Serveurs_SaaS_POS_Taha_Chouaib.pdf")
+
+with open(html_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"HTML written to: {html_path}")
+
+chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+browser = chrome_path if os.path.exists(chrome_path) else edge_path
+
+cmd = [
+    browser,
+    "--headless=new",
+    "--disable-gpu",
+    "--no-pdf-header-footer",
+    "--print-to-pdf-no-header",
+    f"--print-to-pdf={pdf_path}",
+    html_path
+]
+
+subprocess.run(cmd, check=True)
+print(f"PDF successfully generated at: {pdf_path}")

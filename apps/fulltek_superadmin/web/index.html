@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <base href="/">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="theme-color" content="#0F1B20">
+  <meta name="description" content="Full·Tek Control — Super Admin Mobile (Mauritanie)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Full·Tek Control">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>Full·Tek Control — Super Admin (Flutter)</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      margin: 0; padding: 0; height: 100%; background: #0B161B;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      color: #F4F7F8; overflow: hidden;
+    }
+    #ft-web-splash {
+      position: fixed; inset: 0; z-index: 99999;
+      background: radial-gradient(ellipse 90% 80% at 50% 42%, #17303A 0%, #0B161B 70%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      transition: opacity 0.45s cubic-bezier(0.2, 0, 0, 1), visibility 0.45s cubic-bezier(0.2, 0, 0, 1);
+    }
+    #ft-web-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+    .sp-ring {
+      position: relative; width: 112px; height: 112px; border-radius: 30px;
+      background: linear-gradient(145deg, rgba(38, 70, 83, 0.55), rgba(15, 27, 32, 0.9));
+      border: 1px solid rgba(233, 162, 59, 0.45);
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6), 0 0 40px rgba(233, 162, 59, 0.2);
+      display: grid; place-items: center;
+    }
+    .sp-ring::after {
+      content: ""; position: absolute; inset: -8px; border-radius: 36px;
+      border: 2px solid transparent; border-top-color: #E9A23B; border-right-color: rgba(233, 162, 59, 0.3);
+      animation: spOrbit 1.4s linear infinite;
+    }
+    @keyframes spOrbit { to { transform: rotate(360deg); } }
+    .sp-p { transform-origin: left center; opacity: 0; animation: spPrint 0.7s cubic-bezier(0.2, 0, 0, 1) forwards; }
+    .sp-p1 { animation-delay: 0.08s; }
+    .sp-p2 { animation-delay: 0.22s; filter: drop-shadow(0 0 10px rgba(233, 162, 59, 0.85)); }
+    .sp-p3 { animation-delay: 0.36s; }
+    @keyframes spPrint { from { opacity: 0; transform: scaleX(0.2); } to { opacity: 1; transform: scaleX(1); } }
+    .sp-title { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+    .sp-title b { color: #E9A23B; }
+    .sp-sub { font-size: 12.5px; color: #93ABB5; }
+    .sp-bar { width: 190px; height: 4px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+    .sp-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #E9A23B, #2E9E5B); animation: spFill 2.2s cubic-bezier(0.2, 0, 0, 1) forwards; }
+    @keyframes spFill { to { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div id="ft-web-splash" role="status" aria-live="polite">
+    <div class="sp-ring">
+      <svg width="62" height="62" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+        <rect class="sp-p sp-p1" x="14" y="20" width="72" height="14" rx="7" fill="#FFFFFF"/>
+        <rect class="sp-p sp-p2" x="14" y="43" width="48" height="14" rx="7" fill="#E9A23B"/>
+        <rect class="sp-p sp-p3" x="14" y="66" width="28" height="14" rx="7" fill="#FFFFFF"/>
+      </svg>
+    </div>
+    <div class="sp-title">Full·Tek <b>Control</b></div>
+    <div class="sp-sub">Console Super-Admin · M. Taha Chouaib</div>
+    <div class="sp-bar" aria-hidden="true"><i></i></div>
+  </div>
+
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('ft-web-splash');
+      if (el) {
+        el.classList.add('hide');
+        setTimeout(function () { el.remove(); }, 500);
+      }
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

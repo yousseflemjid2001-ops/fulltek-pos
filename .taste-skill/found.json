@@ -1,0 +1,26 @@
+{
+ "note": "Live search results (photos.mjs search): candidates, each looked at full size before use and listed in the build report as a stand-in.",
+ "photos": [
+  {
+   "id": "f202909794",
+   "source": "commons",
+   "url": "https://upload.wikimedia.org/wikipedia/commons/2/2c/ROCOCO_%28A_COLOURFUL_SHOP_IN_GLASTHULE%29-159848.jpg",
+   "width": 7363,
+   "height": 4909,
+   "ratio": 1.5,
+   "orientation": "landscape",
+   "by": "William Murphy",
+   "licence": "CC BY-SA 2.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+   "page": "https://commons.wikimedia.org/wiki/File:ROCOCO_(A_COLOURFUL_SHOP_IN_GLASTHULE)-159848.jpg",
+   "alt": "ROCOCO (A COLOURFUL SHOP IN GLASTHULE)-159848",
+   "subject": "stand-in",
+   "tone": "mid",
+   "calm": "none",
+   "standIn": true,
+   "query": "restaurant cafe supermarket pharmacy",
+   "series": "rococo a colourful",
+   "at": "2026-11-15T14:17:39.420Z"
+  }
+ ]
+}

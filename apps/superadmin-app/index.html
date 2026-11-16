@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1B20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Full·Tek Control — Super Admin Mobile (Mauritanie)</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230F1B20'/%3E%3Crect x='18' y='24' width='64' height='12' rx='6' fill='%23FFFFFF'/%3E%3Crect x='18' y='44' width='44' height='12' rx='6' fill='%23E9A23B'/%3E%3Crect x='18' y='64' width='26' height='12' rx='6' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   FULL·TEK CONTROL — SUPER ADMIN MOBILE PWA (UI/UX PRO MAX + MODÈLE 11)
+   ========================================================================== */
+:root {
+  --bg: #081115;
+  --night: #0F1B20;
+  --night-2: #14252C;
+  --night-3: #1B323C;
+  --petrol: #264653;
+  --ochre: #E9A23B;
+  --boss: #C99A2E;
+  --resto: #E4572E;
+  --market: #2E9E5B;
+  --pharma: #1B8FD9;
+  --danger: #EF4444;
+  --warn: #F59E0B;
+
+  --ink: #F4F7F8;
+  --ink-2: #CFE0E6;
+  --muted: #93ABB5;
+  --glass: rgba(20, 37, 44, 0.78);
+  --glass-hi: rgba(31, 56, 66, 0.72);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-hi: rgba(233, 162, 59, 0.35);
+
+  --f-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --f-ar: 'Cairo', 'Segoe UI', system-ui, sans-serif;
+  --f-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+}
+
+*, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font: 500 15px/1.55 var(--f-sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--ochre); outline-offset: 2px; }
+
+/* RTL ARABE */
+html[dir=rtl] { --f-sans: var(--f-ar); }
+html[dir=rtl] body { font-family: var(--f-ar); line-height: 1.65; }
+html[dir=rtl] :is(body, h1, h2, h3, h4, p, span, a, button, small, strong, b, label, input, select, div) { letter-spacing: 0 !important; }
+html[dir=rtl] .num, html[dir=rtl] [dir=ltr] { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+html[dir=rtl] .flip-rtl { transform: scaleX(-1); }
+
+/* FOND AMBIANT DESKTOP + SHELL MOBILE */
+.ambient-bg {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(620px circle at 12% 8%, rgba(38, 70, 83, 0.42), transparent 60%),
+    radial-gradient(520px circle at 88% 82%, rgba(233, 162, 59, 0.14), transparent 60%),
+    linear-gradient(180deg, #071014 0%, #0B161B 100%);
+}
+.app-shell {
+  position: relative; z-index: 1;
+  width: min(100%, 480px);
+  min-height: 100dvh;
+  margin-inline: auto;
+  background: linear-gradient(180deg, rgba(15, 27, 32, 0.96) 0%, rgba(11, 21, 26, 0.99) 100%);
+  border-inline: 1px solid var(--line);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(82px + env(safe-area-inset-bottom));
+}
+@media (max-width: 500px) { .app-shell { border-inline: 0; box-shadow: none; } }
+
+/* SPLASH ANIMÉ MODÈLE 11 */
+.splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: radial-gradient(ellipse 90% 80% at 50% 42%, #17303A 0%, #0B161B 70%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  transition: opacity 0.55s var(--ease), visibility 0.55s var(--ease), transform 0.55s var(--ease);
+}
+.splash.done { opacity: 0; visibility: hidden; transform: scale(1.03); pointer-events: none; }
+.splash-ring {
+  position: relative; width: 112px; height: 112px; border-radius: 30px;
+  background: linear-gradient(145deg, rgba(38, 70, 83, 0.55), rgba(15, 27, 32, 0.9));
+  border: 1px solid rgba(233, 162, 59, 0.45);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6), 0 0 40px rgba(233, 162, 59, 0.2);
+  display: grid; place-items: center;
+}
+.splash-ring::after {
+  content: ""; position: absolute; inset: -8px; border-radius: 36px;
+  border: 2px solid transparent; border-top-color: var(--ochre); border-right-color: rgba(233, 162, 59, 0.3);
+  animation: spinOrbit 1.4s linear infinite;
+}
+@keyframes spinOrbit { to { transform: rotate(360deg); } }
+.sp-p { transform-origin: left center; opacity: 0; animation: pillPrint 0.7s var(--ease) forwards; }
+.sp-p1 { animation-delay: 0.08s; }
+.sp-p2 { animation-delay: 0.22s; filter: drop-shadow(0 0 10px rgba(233, 162, 59, 0.85)); }
+.sp-p3 { animation-delay: 0.36s; }
+@keyframes pillPrint { from { opacity: 0; transform: scaleX(0.2); } to { opacity: 1; transform: scaleX(1); } }
+.splash-title { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+.splash-title b { color: var(--ochre); }
+.splash-sub { font-size: 12.5px; color: var(--muted); }
+.splash-bar { width: 190px; height: 4px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.splash-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--ochre), var(--market)); animation: splashFill 1.25s var(--ease) forwards; }
+@keyframes splashFill { to { width: 100%; } }
+
+/* TOP APP BAR */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+  background: rgba(15, 27, 32, 0.85);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.brand-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-pill-icon {
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
+  background: linear-gradient(145deg, #1E3843, #112027);
+  border: 1px solid rgba(233, 162, 59, 0.4);
+  display: grid; place-items: center;
+  box-shadow: 0 8px 18px -6px rgba(233, 162, 59, 0.45);
+}
+.brand-txt { min-width: 0; }
+.brand-txt strong { display: block; font-size: 15px; font-weight: 800; line-height: 1.15; white-space: nowrap; }
+.brand-txt strong span { color: var(--ochre); }
+.brand-txt small { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #4ADE80; font-weight: 700; }
+.pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); animation: livePulse 2s infinite; }
+@keyframes livePulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+.top-actions { display: flex; align-items: center; gap: 6px; }
+.lang-seg {
+  display: inline-flex; padding: 2px; border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+}
+.lang-seg button {
+  min-height: 36px; min-width: 34px; padding: 0 8px; border-radius: var(--r-pill);
+  font-size: 11px; font-weight: 700; color: var(--muted); transition: all 0.2s var(--ease);
+}
+.lang-seg button[aria-pressed=true] { background: var(--petrol); color: #FFFFFF; }
+.btn-fab-top {
+  min-width: 44px; min-height: 44px; border-radius: 14px;
+  background: linear-gradient(135deg, #F4B95E 0%, var(--ochre) 60%, #D18118 100%);
+  color: #101916; display: grid; place-items: center; font-weight: 800;
+  box-shadow: 0 10px 24px -8px rgba(233, 162, 59, 0.75);
+  transition: transform 0.2s var(--ease);
+}
+.btn-fab-top:active { transform: scale(0.93); }
+
+/* MAIN CONTENT & TAB TRANSITIONS */
+.main { flex: 1; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.view { display: none; flex-direction: column; gap: 14px; }
+.view.active { display: flex; animation: viewEnter 0.34s var(--ease) both; }
+@keyframes viewEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* STAGGERED CARDS */
+.card {
+  background: linear-gradient(165deg, rgba(26, 48, 57, 0.75) 0%, rgba(15, 27, 32, 0.92) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 16px 36px -20px rgba(0, 0, 0, 0.8);
+}
+.view.active .card { animation: cardPop 0.42s var(--ease) both; }
+.view.active .card:nth-child(2) { animation-delay: 0.05s; }
+.view.active .card:nth-child(3) { animation-delay: 0.10s; }
+.view.active .card:nth-child(4) { animation-delay: 0.15s; }
+@keyframes cardPop { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* HERO MRR CARD */
+.mrr-hero {
+  position: relative; overflow: hidden;
+  background: linear-gradient(145deg, #1A3642 0%, #102128 65%, #1A2D25 100%);
+  border: 1px solid var(--line-hi);
+}
+.mrr-hero::before {
+  content: ""; position: absolute; width: 190px; height: 190px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(233, 162, 59, 0.28), transparent 70%);
+  inset: -70px -40px auto auto; pointer-events: none;
+}
+.mrr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.mrr-lbl { font-size: 12px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.05em; }
+.delta-pill {
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: var(--r-pill);
+  background: rgba(46, 158, 91, 0.2); border: 1px solid rgba(46, 158, 91, 0.45);
+  color: #4ADE80; font-size: 11.5px; font-weight: 800;
+}
+.mrr-val { margin: 8px 0 12px; font: 800 32px/1.1 var(--f-sans); color: #FFFFFF; }
+.mrr-val small { font-size: 15px; font-weight: 700; color: var(--ochre); margin-inline-start: 4px; }
+
+.kpi-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kpi-mini {
+  background: rgba(0, 0, 0, 0.26); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 9px 6px; text-align: center; transition: transform 0.2s var(--ease), border-color 0.2s;
+}
+.kpi-mini:active { transform: scale(0.96); }
+.kpi-mini b { display: block; font-size: 17px; font-weight: 800; line-height: 1.1; }
+.kpi-mini span { display: block; font-size: 10.5px; color: var(--muted); margin-top: 3px; font-weight: 600; }
+
+/* SECTION HEADER */
+.sec-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.sec-h h2, .sec-h h3 { margin: 0; font-size: 15px; font-weight: 800; color: #FFFFFF; }
+.sec-h small { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+
+/* CHART BARRES INTERACTIF */
+.chart-bars { display: flex; align-items: flex-end; gap: 8px; height: 118px; padding-top: 12px; }
+.cb-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; cursor: pointer; }
+.cb-bar-wrap { width: 100%; height: 84px; display: flex; align-items: flex-end; justify-content: center; background: rgba(255, 255, 255, 0.03); border-radius: 10px; padding: 3px; }
+.cb-bar {
+  width: 100%; border-radius: 8px;
+  background: linear-gradient(180deg, var(--ochre) 0%, rgba(233, 162, 59, 0.35) 100%);
+  transform-origin: bottom; transition: height 0.65s var(--ease), filter 0.2s;
+}
+.cb-col.active .cb-bar { background: linear-gradient(180deg, #4ADE80 0%, var(--market) 100%); filter: drop-shadow(0 0 10px rgba(46, 158, 91, 0.6)); }
+.cb-col span { font-size: 10.5px; color: var(--muted); font-weight: 700; }
+.chart-tip {
+  margin-top: 10px; padding: 8px 12px; border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center; font-size: 12.5px;
+}
+.chart-tip b { color: var(--ochre); font-family: var(--f-mono); }
+
+/* PAYMENT SPLIT BAR */
+.split-bar { height: 10px; border-radius: 99px; overflow: hidden; display: flex; gap: 2px; background: rgba(255, 255, 255, 0.05); margin: 10px 0; }
+.split-bar i { display: block; height: 100%; border-radius: 99px; }
+.split-legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px; color: var(--ink-2); }
+.split-legend div { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+
+/* CHIPS FILTRE + SEARCH */
+.search-box {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; min-height: 46px; border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+}
+.search-box:focus-within { border-color: var(--ochre); }
+.search-box svg { width: 18px; height: 18px; color: var(--muted); flex: none; }
+.search-box input { width: 100%; background: none; border: 0; outline: 0; font-size: 14px; color: #FFFFFF; }
+.search-box input::placeholder { color: var(--muted); }
+
+.chips-row { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips-row::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; min-height: 38px; padding: 0 14px; border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+  font-size: 12.5px; font-weight: 700; color: var(--ink-2);
+  display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s var(--ease);
+}
+.chip[aria-pressed=true] { background: rgba(233, 162, 59, 0.18); border-color: var(--ochre); color: var(--ochre); }
+.chip:active { transform: scale(0.95); }
+
+/* STORE / ACTION CARDS */
+.store-list { display: flex; flex-direction: column; gap: 10px; }
+.store-card {
+  position: relative; overflow: hidden;
+  background: linear-gradient(160deg, rgba(24, 45, 54, 0.85), rgba(14, 25, 30, 0.95));
+  border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+.store-card::before {
+  content: ""; position: absolute; inset-block: 10px; inset-inline-start: 0; width: 4px;
+  border-radius: 0 4px 4px 0; background: var(--mod-c, var(--ochre));
+}
+html[dir=rtl] .store-card::before { border-radius: 4px 0 0 4px; }
+.store-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-inline-start: 6px; }
+.store-name { font-size: 15px; font-weight: 800; color: #FFFFFF; line-height: 1.25; }
+.store-meta { font-size: 12px; color: var(--muted); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+.badge-st {
+  flex: none; padding: 4px 10px; border-radius: var(--r-pill); font-size: 11px; font-weight: 800;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.st-ok { background: rgba(46, 158, 91, 0.18); color: #4ADE80; border-color: rgba(46, 158, 91, 0.4); }
+.st-trial { background: rgba(27, 143, 217, 0.18); color: #7DD3FC; border-color: rgba(27, 143, 217, 0.4); }
+.st-warn { background: rgba(245, 158, 11, 0.18); color: #FCD34D; border-color: rgba(245, 158, 11, 0.45); }
+.st-exp { background: rgba(239, 68, 68, 0.2); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.45); }
+.st-lock { background: rgba(148, 163, 184, 0.18); color: #CBD5E1; border-color: rgba(148, 163, 184, 0.35); }
+
+.store-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-inline-start: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.store-price { font-size: 13px; font-weight: 800; color: var(--ochre); }
+.store-btns { display: flex; gap: 6px; }
+.btn-xs {
+  min-height: 40px; padding: 0 12px; border-radius: 12px;
+  font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;
+  transition: transform 0.18s var(--ease), background 0.2s;
+}
+.btn-xs:active { transform: scale(0.95); }
+.btn-wa { background: rgba(37, 211, 102, 0.16); border: 1px solid rgba(37, 211, 102, 0.4); color: #4ADE80; }
+.btn-ochre { background: var(--ochre); color: #121A15; font-weight: 800; }
+.btn-ghost { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); color: #FFFFFF; }
+.btn-danger { background: rgba(239, 68, 68, 0.16); border: 1px solid rgba(239, 68, 68, 0.4); color: #FCA5A5; }
+
+/* OFFLINE 8-DIGIT CODE GENERATOR */
+.code-display {
+  margin-top: 10px; padding: 14px; border-radius: var(--r-md);
+  background: rgba(8, 17, 21, 0.85); border: 1px dashed var(--ochre);
+  text-align: center;
+}
+.code-digits {
+  font: 800 28px/1.1 var(--f-mono); color: var(--ochre); letter-spacing: 0.16em !important;
+  margin: 4px 0; direction: ltr; unicode-bidi: isolate; display: inline-block;
+}
+
+/* FLEET & SERVER HEALTH */
+.gauges-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gauge-box {
+  background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 12px 8px; text-align: center;
+}
+.gauge-ring { width: 54px; height: 54px; margin: 0 auto 6px; transform: rotate(-90deg); }
+.gauge-ring circle { fill: none; stroke-width: 5.5; stroke-linecap: round; }
+.gauge-bg { stroke: rgba(255, 255, 255, 0.08); }
+.gauge-fg { stroke: var(--gc, var(--market)); transition: stroke-dashoffset 0.8s var(--ease); }
+.gauge-box b { display: block; font-size: 13.5px; font-weight: 800; color: #FFFFFF; }
+.gauge-box small { display: block; font-size: 10.5px; color: var(--muted); }
+
+/* AUDIT LOG */
+.audit-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+}
+.audit-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.audit-ic {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  display: grid; place-items: center; background: rgba(233, 162, 59, 0.14); color: var(--ochre);
+}
+.audit-body { min-width: 0; flex: 1; }
+.audit-body b { display: block; font-size: 13px; color: #FFFFFF; }
+.audit-body span { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* BOTTOM NAVIGATION */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: min(100%, 480px); z-index: 50;
+  padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(12, 23, 28, 0.92);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+}
+.nav-tab {
+  min-height: 52px; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 10.5px; font-weight: 700; color: var(--muted);
+  transition: color 0.2s, background 0.2s, transform 0.15s var(--ease);
+}
+.nav-tab svg { width: 20px; height: 20px; transition: transform 0.25s var(--ease); }
+.nav-tab[aria-selected=true] { color: var(--ochre); background: rgba(233, 162, 59, 0.12); }
+.nav-tab[aria-selected=true] svg { transform: translateY(-1px) scale(1.06); }
+.nav-tab:active { transform: scale(0.94); }
+
+/* BOTTOM SHEET MODAL */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(5, 10, 13, 0.78); backdrop-filter: blur(8px);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.sheet-backdrop.open { display: flex; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.sheet {
+  width: min(100%, 480px); max-height: 90dvh; overflow-y: auto;
+  background: linear-gradient(180deg, #162B34 0%, #0E1B21 100%);
+  border-top: 1px solid var(--line-hi);
+  border-radius: 26px 26px 0 0;
+  padding: 12px 18px calc(22px + env(safe-area-inset-bottom));
+  animation: sheetUp 0.34s var(--ease);
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-handle { width: 42px; height: 4px; border-radius: 99px; background: rgba(255, 255, 255, 0.22); margin: 0 auto 14px; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.sheet-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.sheet-close { min-width: 44px; min-height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.06); display: grid; place-items: center; }
+
+.form-grid { display: grid; gap: 12px; }
+.fld label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 5px; }
+.fld input, .fld select {
+  width: 100%; min-height: 46px; padding: 0 13px; border-radius: 12px;
+  background: rgba(0, 0, 0, 0.34); border: 1px solid var(--line); color: #FFFFFF; font-size: 14px;
+}
+.fld input:focus, .fld select:focus { outline: none; border-color: var(--ochre); }
+.fld select option { background: #13252C; color: #FFFFFF; }
+.mod-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mod-opt {
+  min-height: 54px; padding: 8px 6px; border-radius: 14px; text-align: center;
+  background: rgba(255, 255, 255, 0.04); border: 1.5px solid var(--line);
+  font-size: 12px; font-weight: 800; transition: all 0.2s var(--ease);
+}
+.mod-opt[aria-pressed=true] { border-color: var(--mc); background: color-mix(in srgb, var(--mc) 18%, transparent); color: #FFFFFF; }
+.btn-primary-full {
+  width: 100%; min-height: 50px; border-radius: 14px;
+  background: linear-gradient(135deg, #F4B95E 0%, var(--ochre) 60%, #D18118 100%);
+  color: #101916; font-size: 15px; font-weight: 800;
+  box-shadow: 0 14px 28px -10px rgba(233, 162, 59, 0.65);
+  transition: transform 0.18s var(--ease);
+}
+.btn-primary-full:active { transform: scale(0.98); }
+
+/* TOAST */
+.toast {
+  position: fixed; top: calc(74px + env(safe-area-inset-top)); left: 50%; transform: translate(-50%, -14px);
+  z-index: 200; width: min(calc(100% - 32px), 430px);
+  padding: 12px 14px; border-radius: 14px;
+  background: #17342D; border: 1px solid rgba(74, 222, 128, 0.5); color: #ECFDF5;
+  font-size: 13px; font-weight: 700; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; gap: 10px;
+  opacity: 0; visibility: hidden; transition: all 0.28s var(--ease); pointer-events: none;
+}
+.toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .splash { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="ambient-bg" aria-hidden="true"></div>
+
+<!-- SPLASH SCREEN -->
+<div class="splash" id="splash" role="status" aria-live="polite">
+  <div class="splash-ring">
+    <svg width="62" height="62" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <rect class="sp-p sp-p1" x="14" y="20" width="72" height="14" rx="7" fill="#FFFFFF"/>
+      <rect class="sp-p sp-p2" x="14" y="43" width="48" height="14" rx="7" fill="#E9A23B"/>
+      <rect class="sp-p sp-p3" x="14" y="66" width="28" height="14" rx="7" fill="#FFFFFF"/>
+    </svg>
+  </div>
+  <div class="splash-title">Full·Tek <b>Control</b></div>
+  <div class="splash-sub" data-i="sp_sub">Console Super-Admin · M. Taha Chouaib</div>
+  <div class="splash-bar" aria-hidden="true"><i></i></div>
+</div>
+
+<div class="app-shell">
+  <!-- TOP APP BAR -->
+  <header class="topbar">
+    <div class="brand-id">
+      <div class="brand-pill-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 100 100" fill="none">
+          <rect x="14" y="20" width="72" height="14" rx="7" fill="#FFFFFF"/>
+          <rect x="14" y="43" width="48" height="14" rx="7" fill="#E9A23B"/>
+          <rect x="14" y="66" width="28" height="14" rx="7" fill="#FFFFFF"/>
+        </svg>
+      </div>
+      <div class="brand-txt">
+        <strong>Full·Tek <span>Control</span></strong>
+        <small><i class="pulse-dot"></i><span data-i="cloud_ok">Cloud Mauritanie · En ligne</span></small>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <div class="lang-seg" role="group" aria-label="Langue">
+        <button type="button" data-lang="fr" aria-pressed="true">FR</button>
+        <button type="button" data-lang="ar" aria-pressed="false">AR</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+      <button type="button" class="btn-fab-top" id="btn-open-new" aria-label="Nouvelle boutique">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- VIEWS -->
+  <main class="main">
+    <!-- 1. DASHBOARD COCKPIT -->
+    <section class="view active" id="v-home" aria-label="Tableau de bord Super-Admin">
+      <div class="card mrr-hero">
+        <div class="mrr-top">
+          <span class="mrr-lbl" data-i="mrr_lbl">Revenu Mensuel Récurrent (MRR)</span>
+          <span class="delta-pill" dir="ltr">+18.4%</span>
+        </div>
+        <div class="mrr-val"><span class="num" id="kpi-mrr" dir="ltr">0</span> <small data-i="cur">MRU</small></div>
+        <div class="kpi-pills">
+          <div class="kpi-mini"><b id="kpi-active" class="num" style="color:#4ADE80">0</b><span data-i="st_active">Actives</span></div>
+          <div class="kpi-mini"><b id="kpi-trial" class="num" style="color:#7DD3FC">0</b><span data-i="st_trial">Essai 15j</span></div>
+          <div class="kpi-mini"><b id="kpi-warn" class="num" style="color:#FCD34D">0</b><span data-i="st_warn">J-5 / J-2</span></div>
+          <div class="kpi-mini"><b id="kpi-exp" class="num" style="color:#FCA5A5">0</b><span data-i="st_exp">Expirées</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="chart_h">Croissance SaaS (6 mois)</h2>
+          <small data-i="chart_sub">Appuyer sur un mois</small>
+        </div>
+        <div class="chart-bars" id="mrr-chart"></div>
+        <div class="chart-tip"><span id="chart-lbl">Novembre 2026</span><b id="chart-val" dir="ltr">482 500 MRU</b></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="pay_split_h">Encaissements Abonnements</h2>
+          <small dir="ltr">MRU</small>
+        </div>
+        <div class="split-bar" aria-hidden="true">
+          <i style="width:52%;background:var(--ochre)"></i>
+          <i style="width:28%;background:var(--pharma)"></i>
+          <i style="width:12%;background:var(--market)"></i>
+          <i style="width:8%;background:#94A3B8"></i>
+        </div>
+        <div class="split-legend">
+          <div><span><i class="dot" style="background:var(--ochre)"></i> Bankily</span><b class="num">52%</b></div>
+          <div><span><i class="dot" style="background:var(--pharma)"></i> Masrivi</span><b class="num">28%</b></div>
+          <div><span><i class="dot" style="background:var(--market)"></i> Sedad</span><b class="num">12%</b></div>
+          <div><span><i class="dot" style="background:#94A3B8"></i> <span data-i="cash_lbl">Espèces</span></span><b class="num">8%</b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="urgent_h">Actions Urgentes (Échéances)</h2>
+          <small id="urgent-cnt" class="num">0</small>
+        </div>
+        <div class="store-list" id="urgent-list"></div>
+      </div>
+    </section>
+
+    <!-- 2. BOUTIQUES / TENANTS -->
+    <section class="view" id="v-stores" aria-label="Boutiques clientes">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="store-search" data-i-ph="search_ph" placeholder="Rechercher boutique, ville, téléphone...">
+      </div>
+      <div class="chips-row" role="group" aria-label="Filtres boutiques">
+        <button type="button" class="chip" data-filter="all" aria-pressed="true" data-i="flt_all">Toutes</button>
+        <button type="button" class="chip" data-filter="resto" aria-pressed="false">Resto</button>
+        <button type="button" class="chip" data-filter="market" aria-pressed="false">Market</button>
+        <button type="button" class="chip" data-filter="pharma" aria-pressed="false">Pharma</button>
+        <button type="button" class="chip" data-filter="warn" aria-pressed="false" data-i="flt_due">Échéance / Expirées</button>
+      </div>
+      <div class="store-list" id="all-stores-list"></div>
+    </section>
+
+    <!-- 3. PAIEMENTS & LICENCES OFFLINE -->
+    <section class="view" id="v-licenses" aria-label="Abonnements et Licences Offline">
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="off_gen_h">Code Déblocage Hors-Ligne (8 chiffres)</h2>
+          <small data-i="off_gen_s">Lease 30j sans Internet</small>
+        </div>
+        <div class="form-grid">
+          <div class="fld">
+            <label for="off-store" data-i="sel_store">Boutique cliente</label>
+            <select id="off-store"></select>
+          </div>
+          <div class="fld">
+            <label for="off-days" data-i="sel_dur">Durée à débloquer</label>
+            <select id="off-days">
+              <option value="30">+30 jours (1 mois)</option>
+              <option value="90">+90 jours (3 mois)</option>
+              <option value="365">+365 jours (1 an)</option>
+            </select>
+          </div>
+          <button type="button" class="btn-primary-full" id="btn-gen-code" data-i="btn_gen">Générer le code à 8 chiffres</button>
+        </div>
+        <div class="code-display" id="code-box" style="display:none">
+          <small data-i="code_lbl">CODE DE SECOURS CAISSE</small>
+          <div class="code-digits" id="code-val">4829-1743</div>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+            <button type="button" class="btn-xs btn-ghost" id="btn-copy-code" data-i="copy_btn">Copier</button>
+            <a class="btn-xs btn-wa" id="btn-wa-code" href="#" target="_blank" rel="noopener" data-i="send_wa">Envoyer WhatsApp</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="pending_pay_h">Paiements à valider (Bankily / Masrivi)</h2>
+          <small id="pay-cnt" class="num">0</small>
+        </div>
+        <div class="store-list" id="payments-list"></div>
+      </div>
+    </section>
+
+    <!-- 4. PARC & MONITORING -->
+    <section class="view" id="v-fleet" aria-label="Monitoring du parc et serveurs">
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="vps_h">Santé Cloud &amp; Sync (Hetzner VPS)</h2>
+          <small style="color:#4ADE80" dir="ltr">99.98% UP</small>
+        </div>
+        <div class="gauges-grid">
+          <div class="gauge-box">
+            <svg class="gauge-ring" viewBox="0 0 60 60"><circle class="gauge-bg" cx="30" cy="30" r="24"/><circle class="gauge-fg" cx="30" cy="30" r="24" style="--gc:var(--market)" stroke-dasharray="150.8" stroke-dashoffset="108"/></svg>
+            <b class="num">28%</b><small>CPU</small>
+          </div>
+          <div class="gauge-box">
+            <svg class="gauge-ring" viewBox="0 0 60 60"><circle class="gauge-bg" cx="30" cy="30" r="24"/><circle class="gauge-fg" cx="30" cy="30" r="24" style="--gc:var(--pharma)" stroke-dasharray="150.8" stroke-dashoffset="78"/></svg>
+            <b class="num">48%</b><small>RAM</small>
+          </div>
+          <div class="gauge-box">
+            <svg class="gauge-ring" viewBox="0 0 60 60"><circle class="gauge-bg" cx="30" cy="30" r="24"/><circle class="gauge-fg" cx="30" cy="30" r="24" style="--gc:var(--ochre)" stroke-dasharray="150.8" stroke-dashoffset="12"/></svg>
+            <b class="num">14 ms</b><small>PostgreSQL</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="fleet_h">Caisses Déployées (Temps Réel)</h2>
+          <small data-i="fleet_s">Mauritanie</small>
+        </div>
+        <div class="store-list" id="fleet-list"></div>
+      </div>
+    </section>
+
+    <!-- 5. AUDIT & PROFIL SUPER-ADMIN -->
+    <section class="view" id="v-audit" aria-label="Journal d'audit et paramètres">
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="admin_h">Super-Admin · M. Taha Chouaib</h2>
+          <span class="badge-st st-ok">ROOT</span>
+        </div>
+        <div style="display:grid;gap:8px;font-size:13px;color:var(--ink-2)">
+          <div style="display:flex;justify-content:space-between"><span data-i="adm_tel">WhatsApp Officiel</span><b class="num" dir="ltr">+222 42 74 42 42</b></div>
+          <div style="display:flex;justify-content:space-between"><span data-i="adm_bk">Code Marchand Bankily</span><b class="num" dir="ltr">FT-22242</b></div>
+          <div style="display:flex;justify-content:space-between"><span data-i="adm_ms">Code Marchand Masrivi</span><b class="num" dir="ltr">MS-4274</b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h">
+          <h2 data-i="audit_h">Journal d'Audit Sécurisé</h2>
+          <small id="audit-cnt" class="num">0</small>
+        </div>
+        <div id="audit-list"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- BOTTOM NAVIGATION -->
+<nav class="bottom-nav" role="tablist" aria-label="Navigation Super-Admin">
+  <button type="button" class="nav-tab" role="tab" data-view="v-home" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
+    <span data-i="nav_home">Cockpit</span>
+  </button>
+  <button type="button" class="nav-tab" role="tab" data-view="v-stores" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8"/></svg>
+    <span data-i="nav_stores">Boutiques</span>
+  </button>
+  <button type="button" class="nav-tab" role="tab" data-view="v-licenses" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+    <span data-i="nav_pay">Licences</span>
+  </button>
+  <button type="button" class="nav-tab" role="tab" data-view="v-fleet" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h.01"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M5 13a10 10 0 0 1 14 0"/><path d="M1.5 9.5a15 15 0 0 1 21 0"/></svg>
+    <span data-i="nav_fleet">Parc</span>
+  </button>
+  <button type="button" class="nav-tab" role="tab" data-view="v-audit" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span data-i="nav_audit">Audit</span>
+  </button>
+</nav>
+
+<!-- SHEET: CRÉER UNE NOUVELLE BOUTIQUE -->
+<div class="sheet-backdrop" id="sheet-new" role="dialog" aria-modal="true" aria-labelledby="sheet-new-title">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h3 id="sheet-new-title" data-i="new_h">Nouvelle Boutique (1 clic)</h3>
+      <button type="button" class="sheet-close" id="close-new" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form class="form-grid" id="form-new-store">
+      <div class="fld">
+        <label data-i="mod_lbl">Module métier</label>
+        <div class="mod-picker" role="group">
+          <button type="button" class="mod-opt" data-mod="resto" style="--mc:var(--resto)" aria-pressed="true">Resto</button>
+          <button type="button" class="mod-opt" data-mod="market" style="--mc:var(--market)" aria-pressed="false">Market</button>
+          <button type="button" class="mod-opt" data-mod="pharma" style="--mc:var(--pharma)" aria-pressed="false">Pharma</button>
+        </div>
+      </div>
+      <div class="fld">
+        <label for="ns-name" data-i="ns_name_l">Nom du commerce *</label>
+        <input id="ns-name" required placeholder="Ex : Supermarché Al-Amal">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fld">
+          <label for="ns-city" data-i="ns_city_l">Ville / Quartier</label>
+          <select id="ns-city">
+            <option value="Tevragh Zeina">Tevragh Zeina</option>
+            <option value="Ksar">Ksar</option>
+            <option value="Arafat">Arafat</option>
+            <option value="Nouadhibou">Nouadhibou</option>
+            <option value="Atar">Atar</option>
+            <option value="Rosso">Rosso</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label for="ns-phone" data-i="ns_wa_l">WhatsApp gérant *</label>
+          <input id="ns-phone" type="tel" dir="ltr" required placeholder="+222 46 12 34 56">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fld">
+          <label for="ns-plan" data-i="ns_plan_l">Formule</label>
+          <select id="ns-plan">
+            <option value="trial">Essai 15j (0 MRU)</option>
+            <option value="start">Start (1 500 MRU)</option>
+            <option value="pro" selected>Pro (3 000 MRU)</option>
+            <option value="ent">Entreprise (5 500 MRU)</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label for="ns-tills" data-i="ns_tills_l">Nombre de caisses</label>
+          <select id="ns-tills">
+            <option value="1">1 caisse</option>
+            <option value="2" selected>2 caisses</option>
+            <option value="4">4 caisses</option>
+            <option value="8">8 caisses</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary-full" data-i="ns_submit">Créer &amp; Générer accès</button>
+    </form>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" style="flex:none;color:#4ADE80"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/></svg>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const fmt = n => Number(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  let lang = 'fr', curFilter = 'all', newMod = 'resto';
+
+  // DICTIONNAIRE TRILINGUE
+  const I18N = {
+    fr: {
+      dir: 'ltr', cur: 'MRU',
+      sp_sub: 'Console Super-Admin · M. Taha Chouaib',
+      cloud_ok: 'Cloud Mauritanie · En ligne',
+      mrr_lbl: 'Revenu Mensuel Récurrent (MRR)',
+      st_active: 'Actives', st_trial: 'Essai 15j', st_warn: 'J-5 / J-2', st_exp: 'Expirées',
+      chart_h: 'Croissance SaaS (6 mois)', chart_sub: 'Appuyer sur un mois',
+      pay_split_h: 'Encaissements Abonnements', cash_lbl: 'Espèces',
+      urgent_h: 'Actions Urgentes (Échéances)',
+      search_ph: 'Rechercher boutique, ville, téléphone...',
+      flt_all: 'Toutes', flt_due: 'Échéance / Expirées',
+      off_gen_h: 'Code Déblocage Hors-Ligne (8 chiffres)', off_gen_s: 'Lease 30j sans Internet',
+      sel_store: 'Boutique cliente', sel_dur: 'Durée à débloquer', btn_gen: 'Générer le code à 8 chiffres',
+      code_lbl: 'CODE DE SECOURS CAISSE', copy_btn: 'Copier', send_wa: 'Envoyer WhatsApp',
+      pending_pay_h: 'Paiements à valider (Bankily / Masrivi)',
+      vps_h: 'Santé Cloud & Sync (Hetzner VPS)', fleet_h: 'Caisses Déployées (Temps Réel)', fleet_s: 'Mauritanie',
+      admin_h: 'Super-Admin · M. Taha Chouaib', adm_tel: 'WhatsApp Officiel', adm_bk: 'Code Marchand Bankily', adm_ms: 'Code Marchand Masrivi',
+      audit_h: 'Journal d\'Audit Sécurisé',
+      nav_home: 'Cockpit', nav_stores: 'Boutiques', nav_pay: 'Licences', nav_fleet: 'Parc', nav_audit: 'Audit',
+      new_h: 'Nouvelle Boutique (1 clic)', mod_lbl: 'Module métier', ns_name_l: 'Nom du commerce *',
+      ns_city_l: 'Ville / Quartier', ns_wa_l: 'WhatsApp gérant *', ns_plan_l: 'Formule', ns_tills_l: 'Nombre de caisses',
+      ns_submit: 'Créer & Générer accès',
+      btn_extend: '+30 jours', btn_wa: 'Relancer', btn_lock: 'Suspendre', btn_unlock: 'Réactiver',
+      btn_val: 'Valider +30j', btn_support: 'Support',
+      tills: 'caisses', online: 'En ligne', offline: 'Mode LAN',
+      b_active: 'Actif · {d}j', b_trial: 'Essai · {d}j', b_warn: 'Échéance J-{d}', b_exp: 'Expiré', b_lock: 'Suspendu',
+      msg_extended: 'Licence prolongée (+30j) pour {name}',
+      msg_created: 'Boutique {name} créée (Code PIN : {pin})',
+      msg_locked: '{name} suspendu à distance',
+      msg_unlocked: '{name} réactivé',
+      msg_paid: 'Paiement {pm} validé · +30j appliqués',
+      msg_code: 'Code offline généré pour {name}',
+      msg_copied: 'Code copié dans le presse-papiers',
+      msg_sup: 'Session support ouverte pour {name} (tracée)',
+      wa_rem: 'Bonjour {name}, votre abonnement Full·Tek POS arrive à échéance ({amount} MRU). Règlement Bankily : FT-22242 ou Masrivi : MS-4274. Merci — M. Taha (+222 42 74 42 42).',
+      wa_code: 'Bonjour {name}, voici votre code de déblocage hors-ligne Full·Tek (+{days} jours) : {code}.'
+    },
+    ar: {
+      dir: 'rtl', cur: 'أوقية',
+      sp_sub: 'لوحة المشرف العام · السيد طه شعيب',
+      cloud_ok: 'سحابة موريتانيا · متصل',
+      mrr_lbl: 'الإيرادات الشهرية المتكررة (MRR)',
+      st_active: 'نشطة', st_trial: 'تجربة 15ي', st_warn: 'قرب الانتهاء', st_exp: 'منتهية',
+      chart_h: 'نمو الاشتراكات (6 أشهر)', chart_sub: 'اضغط على شهر',
+      pay_split_h: 'تحصيل الاشتراكات', cash_lbl: 'نقدي',
+      urgent_h: 'إجراءات عاجلة (تنتهي قريباً)',
+      search_ph: 'ابحث عن متجر، مدينة، رقم هاتف...',
+      flt_all: 'الكل', flt_due: 'قريبة / منتهية',
+      off_gen_h: 'رمز فك القفل بدون إنترنت (8 أرقام)', off_gen_s: 'تمديد 30 يوماً أوفلاين',
+      sel_store: 'المتجر', sel_dur: 'مدة التمديد', btn_gen: 'توليد رمز من 8 أرقام',
+      code_lbl: 'رمز الطوارئ للكاشير', copy_btn: 'نسخ', send_wa: 'إرسال عبر واتساب',
+      pending_pay_h: 'مدفوعات بانتظار التأكيد',
+      vps_h: 'حالة السحابة والمزامنة (VPS)', fleet_h: 'الصناديق النشطة (مباشر)', fleet_s: 'موريتانيا',
+      admin_h: 'المشرف العام · السيد طه شعيب', adm_tel: 'الواتساب الرسمي', adm_bk: 'رمز تاجر بنكيلي', adm_ms: 'رمز تاجر مصرفي',
+      audit_h: 'سجل التدقيق والأمان',
+      nav_home: 'الرئيسية', nav_stores: 'المتاجر', nav_pay: 'التراخيص', nav_fleet: 'الصناديق', nav_audit: 'التدقيق',
+      new_h: 'إنشاء متجر جديد (بنقرة واحدة)', mod_lbl: 'النشاط', ns_name_l: 'اسم المتجر *',
+      ns_city_l: 'المدينة / الحي', ns_wa_l: 'واتساب المدير *', ns_plan_l: 'الباقة', ns_tills_l: 'عدد الصناديق',
+      ns_submit: 'إنشاء وتوليد بيانات الدخول',
+      btn_extend: '+30 يوماً', btn_wa: 'تذكير', btn_lock: 'إيقاف', btn_unlock: 'تفعيل',
+      btn_val: 'تأكيد +30ي', btn_support: 'دعم فني',
+      tills: 'صناديق', online: 'متصل', offline: 'شبكة محلية',
+      b_active: 'نشط · {d}ي', b_trial: 'تجربة · {d}ي', b_warn: 'متبقي {d}ي', b_exp: 'منتهي', b_lock: 'موقوف',
+      msg_extended: 'تم تمديد الترخيص (+30 يوماً) لـ {name}',
+      msg_created: 'تم إنشاء {name} (رمز PIN: {pin})',
+      msg_locked: 'تم إيقاف {name} عن بُعد',
+      msg_unlocked: 'تم إعادة تفعيل {name}',
+      msg_paid: 'تم تأكيد الدفع عبر {pm} وتمديد 30 يوماً',
+      msg_code: 'تم توليد رمز أوفلاين لـ {name}',
+      msg_copied: 'تم نسخ الرمز',
+      msg_sup: 'تم فتح جلسة دعم فني لـ {name}',
+      wa_rem: 'السلام عليكم {name}، اشتراككم في نظام Full·Tek POS قارب على الانتهاء ({amount} أوقية). يمكنكم الدفع عبر بنكيلي (FT-22242) أو مصرفي (MS-4274). السيد طه.',
+      wa_code: 'السلام عليكم {name}، رمز تفعيل الكاشير بدون إنترنت (+{days} يوماً) هو: {code}.'
+    },
+    en: {
+      dir: 'ltr', cur: 'MRU',
+      sp_sub: 'Super-Admin Console · Mr. Taha Chouaib',
+      cloud_ok: 'Mauritania Cloud · Online',
+      mrr_lbl: 'Monthly Recurring Revenue (MRR)',
+      st_active: 'Active', st_trial: '15d Trial', st_warn: 'D-5 / D-2', st_exp: 'Expired',
+      chart_h: 'SaaS Growth (6 months)', chart_sub: 'Tap a month',
+      pay_split_h: 'Subscription Payments', cash_lbl: 'Cash',
+      urgent_h: 'Urgent Actions (Due soon)',
+      search_ph: 'Search store, city, phone...',
+      flt_all: 'All', flt_due: 'Due / Expired',
+      off_gen_h: 'Offline Unlock Code (8 digits)', off_gen_s: '30d Lease without Internet',
+      sel_store: 'Client store', sel_dur: 'Duration', btn_gen: 'Generate 8-digit code',
+      code_lbl: 'REGISTER UNLOCK CODE', copy_btn: 'Copy', send_wa: 'Send WhatsApp',
+      pending_pay_h: 'Payments to Verify (Bankily / Masrivi)',
+      vps_h: 'Cloud & Sync Health (Hetzner VPS)', fleet_h: 'Deployed Registers (Live)', fleet_s: 'Mauritania',
+      admin_h: 'Super-Admin · Mr. Taha Chouaib', adm_tel: 'Official WhatsApp', adm_bk: 'Bankily Merchant Code', adm_ms: 'Masrivi Merchant Code',
+      audit_h: 'Immutable Audit Log',
+      nav_home: 'Cockpit', nav_stores: 'Stores', nav_pay: 'Licenses', nav_fleet: 'Fleet', nav_audit: 'Audit',
+      new_h: 'New Store (1-Click)', mod_lbl: 'Business module', ns_name_l: 'Business name *',
+      ns_city_l: 'City / District', ns_wa_l: 'Owner WhatsApp *', ns_plan_l: 'Plan', ns_tills_l: 'Registers',
+      ns_submit: 'Create & Generate Access',
+      btn_extend: '+30 days', btn_wa: 'Remind', btn_lock: 'Suspend', btn_unlock: 'Reactivate',
+      btn_val: 'Approve +30d', btn_support: 'Support',
+      tills: 'tills', online: 'Online', offline: 'LAN Mode',
+      b_active: 'Active · {d}d', b_trial: 'Trial · {d}d', b_warn: 'Due D-{d}', b_exp: 'Expired', b_lock: 'Suspended',
+      msg_extended: 'License extended (+30d) for {name}',
+      msg_created: 'Store {name} created (PIN: {pin})',
+      msg_locked: '{name} remotely suspended',
+      msg_unlocked: '{name} reactivated',
+      msg_paid: '{pm} payment approved · +30d added',
+      msg_code: 'Offline code generated for {name}',
+      msg_copied: 'Code copied to clipboard',
+      msg_sup: 'Support session logged for {name}',
+      wa_rem: 'Hello {name}, your Full·Tek POS subscription is due ({amount} MRU). Bankily: FT-22242 or Masrivi: MS-4274. Thank you — Mr. Taha.',
+      wa_code: 'Hello {name}, here is your Full·Tek offline unlock code (+{days} days): {code}.'
+    }
+  };
+
+  // DONNÉES INITIALES RÉELLES MAURITANIE
+  let stores = [
+    { id: 1, name: 'Dar El-Karam Resto', mod: 'resto', city: 'Tevragh Zeina', phone: '+222 46 11 22 33', plan: 'pro', mrr: 3000, tills: 3, daysLeft: 2, status: 'warn', net: 'on', pendingSync: 0 },
+    { id: 2, name: 'Al-Baraka Market', mod: 'market', city: 'Ksar', phone: '+222 44 88 19 02', plan: 'pro', mrr: 3000, tills: 4, daysLeft: 24, status: 'active', net: 'on', pendingSync: 0 },
+    { id: 3, name: 'Pharmacie Chinguetti', mod: 'pharma', city: 'Tevragh Zeina', phone: '+222 42 33 77 10', plan: 'ent', mrr: 5500, tills: 5, daysLeft: 18, status: 'active', net: 'off', pendingSync: 42 },
+    { id: 4, name: 'Boucherie El-Wiam', mod: 'market', city: 'Arafat', phone: '+222 36 55 41 12', plan: 'start', mrr: 1500, tills: 1, daysLeft: 0, status: 'expired', net: 'on', pendingSync: 0 },
+    { id: 5, name: 'Café Khaima Nouadhibou', mod: 'resto', city: 'Nouadhibou', phone: '+222 48 90 14 25', plan: 'trial', mrr: 0, tills: 2, daysLeft: 9, status: 'trial', net: 'on', pendingSync: 0 },
+    { id: 6, name: 'Pharmacie Atar Centre', mod: 'pharma', city: 'Atar', phone: '+222 45 64 31 09', plan: 'pro', mrr: 3000, tills: 2, daysLeft: 4, status: 'warn', net: 'off', pendingSync: 19 },
+    { id: 7, name: 'Épicerie Rosso Express', mod: 'market', city: 'Rosso', phone: '+222 33 21 89 44', plan: 'start', mrr: 1500, tills: 1, daysLeft: 27, status: 'active', net: 'on', pendingSync: 0 }
+  ];
+
+  let pendingPays = [
+    { id: 'P-901', storeId: 1, storeName: 'Dar El-Karam Resto', method: 'Bankily', ref: 'BK-884210', amount: 3000, time: '14:12' },
+    { id: 'P-902', storeId: 4, storeName: 'Boucherie El-Wiam', method: 'Masrivi', ref: 'MS-190442', amount: 1500, time: '11:45' },
+    { id: 'P-903', storeId: 6, storeName: 'Pharmacie Atar Centre', method: 'Sedad', ref: 'SD-773105', amount: 3000, time: '09:30' }
+  ];
+
+  let auditLogs = [
+    { title: 'Validation Bankily +30j · Al-Baraka Market', sub: 'M. Taha · Réf. BK-77310 · +3 000 MRU', time: 'Aujourd\'hui 13:20' },
+    { title: 'Code Offline 8 chiffres · Pharmacie Atar', sub: 'M. Taha · Lease +30j généré', time: 'Hier 19:05' },
+    { title: 'Provisioning · Café Khaima Nouadhibou', sub: 'M. Taha · Essai gratuit 15j · 2 caisses', time: 'Hier 16:40' }
+  ];
+
+  const monthsData = [
+    { m: 'Juin', v: 265000 }, { m: 'Juil', v: 310000 }, { m: 'Août', v: 348000 },
+    { m: 'Sept', v: 392000 }, { m: 'Oct', v: 438000 }, { m: 'Nov', v: 482500 }
+  ];
+  let selMonth = 5;
+
+  const MOD_COL = { resto: 'var(--resto)', market: 'var(--market)', pharma: 'var(--pharma)' };
+  const t = k => I18N[lang][k] || I18N.fr[k] || k;
+
+  function showToast(msg) {
+    const el = $('#toast'); $('#toast-msg').textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._tm);
+    el._tm = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+
+  function addAudit(title, sub) {
+    const now = new Date();
+    const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    auditLogs.unshift({ title, sub, time: hm });
+    renderAudit();
+  }
+
+  function badgeHTML(s) {
+    if (s.status === 'locked') return `<span class="badge-st st-lock">${t('b_lock')}</span>`;
+    if (s.status === 'expired' || s.daysLeft <= 0) return `<span class="badge-st st-exp">${t('b_exp')}</span>`;
+    if (s.status === 'trial') return `<span class="badge-st st-trial">${t('b_trial').replace('{d}', s.daysLeft)}</span>`;
+    if (s.status === 'warn' || s.daysLeft <= 5) return `<span class="badge-st st-warn">${t('b_warn').replace('{d}', s.daysLeft)}</span>`;
+    return `<span class="badge-st st-ok">${t('b_active').replace('{d}', s.daysLeft)}</span>`;
+  }
+
+  function waUrl(s) {
+    const cleanPhone = s.phone.replace(/\D/g, '');
+    const msg = t('wa_rem').replace('{name}', s.name).replace('{amount}', fmt(s.mrr || 1500));
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+  }
+
+  function animateNum(el, target) {
+    const start = parseInt(el.dataset.val || '0', 10);
+    el.dataset.val = target;
+    const t0 = performance.now(), dur = 480;
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      const cur = Math.round(start + (target - start) * (1 - Math.pow(1 - p, 3)));
+      el.textContent = fmt(cur);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function renderAll() {
+    const active = stores.filter(s => s.status === 'active').length;
+    const trial = stores.filter(s => s.status === 'trial').length;
+    const warn = stores.filter(s => s.status === 'warn' || (s.status === 'active' && s.daysLeft <= 5)).length;
+    const exp = stores.filter(s => s.status === 'expired' || s.status === 'locked').length;
+    const totalMrr = 465000 + stores.reduce((acc, s) => acc + (s.status !== 'locked' && s.status !== 'expired' ? s.mrr : 0), 0);
+
+    animateNum($('#kpi-mrr'), totalMrr);
+    $('#kpi-active').textContent = active;
+    $('#kpi-trial').textContent = trial;
+    $('#kpi-warn').textContent = warn;
+    $('#kpi-exp').textContent = exp;
+
+    // Chart
+    const maxV = Math.max(...monthsData.map(x => x.v));
+    $('#mrr-chart').innerHTML = monthsData.map((x, idx) => {
+      const h = Math.round((x.v / maxV) * 100);
+      return `<div class="cb-col ${idx === selMonth ? 'active' : ''}" data-m-idx="${idx}"><div class="cb-bar-wrap"><div class="cb-bar" style="height:${h}%"></div></div><span>${x.m}</span></div>`;
+    }).join('');
+    $$('[data-m-idx]').forEach(c => c.onclick = () => {
+      selMonth = +c.dataset.mIdx;
+      const d = monthsData[selMonth];
+      $('#chart-lbl').textContent = d.m + ' 2026';
+      $('#chart-val').textContent = fmt(d.v) + ' ' + t('cur');
+      $$('.cb-col').forEach((el, i) => el.classList.toggle('active', i === selMonth));
+    });
+
+    // Urgent list
+    const urg = stores.filter(s => s.status === 'warn' || s.status === 'expired');
+    $('#urgent-cnt').textContent = urg.length;
+    $('#urgent-list').innerHTML = urg.map(s => `
+      <div class="store-card" style="--mod-c:${MOD_COL[s.mod]}">
+        <div class="store-top">
+          <div><div class="store-name">${s.name}</div><div class="store-meta">${s.city} · <span class="num">${s.phone}</span></div></div>
+          ${badgeHTML(s)}
+        </div>
+        <div class="store-foot">
+          <span class="store-price"><span class="num">${fmt(s.mrr || 1500)}</span> ${t('cur')}</span>
+          <div class="store-btns">
+            <a class="btn-xs btn-wa" href="${waUrl(s)}" target="_blank" rel="noopener">${t('btn_wa')}</a>
+            <button type="button" class="btn-xs btn-ochre" data-extend="${s.id}">${t('btn_extend')}</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // All stores
+    const q = ($('#store-search')?.value || '').trim().toLowerCase();
+    const filtered = stores.filter(s => {
+      const matchF = curFilter === 'all' || (curFilter === 'warn' ? (s.status === 'warn' || s.status === 'expired') : s.mod === curFilter);
+      const matchQ = !q || s.name.toLowerCase().includes(q) || s.city.toLowerCase().includes(q) || s.phone.includes(q);
+      return matchF && matchQ;
+    });
+    $('#all-stores-list').innerHTML = filtered.map(s => `
+      <div class="store-card" style="--mod-c:${MOD_COL[s.mod]}">
+        <div class="store-top">
+          <div><div class="store-name">${s.name}</div><div class="store-meta">${s.mod.toUpperCase()} · ${s.city} · <span class="num">${s.tills}</span> ${t('tills')}</div></div>
+          ${badgeHTML(s)}
+        </div>
+        <div class="store-foot">
+          <span class="store-price"><span class="num">${fmt(s.mrr)}</span> ${t('cur')}</span>
+          <div class="store-btns">
+            <button type="button" class="btn-xs ${s.status === 'locked' ? 'btn-ochre' : 'btn-danger'}" data-toggle-lock="${s.id}">${s.status === 'locked' ? t('btn_unlock') : t('btn_lock')}</button>
+            <button type="button" class="btn-xs btn-ghost" data-extend="${s.id}">${t('btn_extend')}</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Offline select
+    $('#off-store').innerHTML = stores.map(s => `<option value="${s.id}">${s.name} (${s.city})</option>`).join('');
+
+    // Pending payments
+    $('#pay-cnt').textContent = pendingPays.length;
+    $('#payments-list').innerHTML = pendingPays.map(p => `
+      <div class="store-card" style="--mod-c:var(--ochre)">
+        <div class="store-top">
+          <div><div class="store-name">${p.storeName}</div><div class="store-meta">${p.method} · <span class="num">${p.ref}</span> · <span class="num">${p.time}</span></div></div>
+          <span class="badge-st st-warn"><span class="num">${fmt(p.amount)}</span> ${t('cur')}</span>
+        </div>
+        <div class="store-foot">
+          <span class="store-meta">${p.id}</span>
+          <button type="button" class="btn-xs btn-ochre" data-val-pay="${p.id}">${t('btn_val')}</button>
+        </div>
+      </div>
+    `).join('');
+
+    // Fleet list
+    $('#fleet-list').innerHTML = stores.map(s => `
+      <div class="store-card" style="--mod-c:${MOD_COL[s.mod]}">
+        <div class="store-top">
+          <div><div class="store-name">${s.name}</div><div class="store-meta">${s.city} · <span class="num">${s.tills}</span> ${t('tills')}${s.net === 'off' ? ` · <span class="num">${s.pendingSync}</span> sync` : ''}</div></div>
+          <span class="badge-st ${s.net === 'on' ? 'st-ok' : 'st-warn'}">${s.net === 'on' ? t('online') : t('offline')}</span>
+        </div>
+        <div class="store-foot">
+          <span class="store-meta"><span class="num">${s.phone}</span></span>
+          <button type="button" class="btn-xs btn-ghost" data-support="${s.id}">${t('btn_support')}</button>
+        </div>
+      </div>
+    `).join('');
+
+    bindActions();
+    renderAudit();
+  }
+
+  function renderAudit() {
+    $('#audit-cnt').textContent = auditLogs.length;
+    $('#audit-list').innerHTML = auditLogs.map(a => `
+      <div class="audit-item">
+        <div class="audit-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <div class="audit-body"><b>${a.title}</b><span>${a.sub} · <span class="num">${a.time}</span></span></div>
+      </div>
+    `).join('');
+  }
+
+  function bindActions() {
+    $$('[data-extend]').forEach(b => b.onclick = () => {
+      const s = stores.find(x => x.id === +b.dataset.extend);
+      if (!s) return;
+      s.daysLeft += 30; s.status = 'active';
+      addAudit(`Licence +30j · ${s.name}`, `M. Taha · Prolongation manuelle`);
+      showToast(t('msg_extended').replace('{name}', s.name));
+      renderAll();
+    });
+    $$('[data-toggle-lock]').forEach(b => b.onclick = () => {
+      const s = stores.find(x => x.id === +b.dataset.toggleLock);
+      if (!s) return;
+      if (s.status === 'locked') {
+        s.status = s.daysLeft > 5 ? 'active' : 'warn';
+        addAudit(`Réactivation · ${s.name}`, `M. Taha · Déverrouillage Cloud`);
+        showToast(t('msg_unlocked').replace('{name}', s.name));
+      } else {
+        s.status = 'locked';
+        addAudit(`Suspension · ${s.name}`, `M. Taha · Verrouillage à distance`);
+        showToast(t('msg_locked').replace('{name}', s.name));
+      }
+      renderAll();
+    });
+    $$('[data-val-pay]').forEach(b => b.onclick = () => {
+      const idx = pendingPays.findIndex(p => p.id === b.dataset.valPay);
+      if (idx === -1) return;
+      const p = pendingPays.splice(idx, 1)[0];
+      const s = stores.find(x => x.id === p.storeId);
+      if (s) { s.daysLeft += 30; s.status = 'active'; }
+      addAudit(`Paiement ${p.method} · ${p.storeName}`, `Réf. ${p.ref} · +${fmt(p.amount)} MRU`);
+      showToast(t('msg_paid').replace('{pm}', p.method));
+      renderAll();
+    });
+    $$('[data-support]').forEach(b => b.onclick = () => {
+      const s = stores.find(x => x.id === +b.dataset.support);
+      if (!s) return;
+      addAudit(`Support Sécurisé · ${s.name}`, `Accès diagnostic tracé · ${s.city}`);
+      showToast(t('msg_sup').replace('{name}', s.name));
+    });
+  }
+
+  // NAVIGATION PAR ONGLETS
+  $$('.nav-tab').forEach(tab => tab.onclick = () => {
+    const id = tab.dataset.view;
+    $$('.nav-tab').forEach(x => x.setAttribute('aria-selected', x === tab));
+    $$('.view').forEach(v => v.classList.toggle('active', v.id === id));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // FILTRES & RECHERCHE
+  $('#store-search').oninput = () => renderAll();
+  $$('[data-filter]').forEach(c => c.onclick = () => {
+    curFilter = c.dataset.filter;
+    $$('[data-filter]').forEach(x => x.setAttribute('aria-pressed', x === c));
+    renderAll();
+  });
+
+  // GÉNÉRATEUR CODE OFFLINE 8 CHIFFRES
+  $('#btn-gen-code').onclick = () => {
+    const s = stores.find(x => x.id === +$('#off-store').value);
+    const days = $('#off-days').value;
+    if (!s) return;
+    const n1 = String(1000 + ((s.id * 1731 + +days * 47 + Math.floor(Math.random() * 900)) % 9000));
+    const n2 = String(1000 + ((s.id * 2917 + +days * 83 + Math.floor(Math.random() * 900)) % 9000));
+    const code = `${n1}-${n2}`;
+    $('#code-val').textContent = code;
+    $('#code-box').style.display = 'block';
+    const waText = t('wa_code').replace('{name}', s.name).replace('{days}', days).replace('{code}', code);
+    $('#btn-wa-code').href = `https://wa.me/${s.phone.replace(/\D/g, '')}?text=${encodeURIComponent(waText)}`;
+    addAudit(`Code Offline ${code} · ${s.name}`, `+${days} jours sans Internet`);
+    showToast(t('msg_code').replace('{name}', s.name));
+  };
+  $('#btn-copy-code').onclick = () => {
+    navigator.clipboard?.writeText($('#code-val').textContent).catch(() => {});
+    showToast(t('msg_copied'));
+  };
+
+  // SHEET NOUVELLE BOUTIQUE
+  const sheet = $('#sheet-new');
+  $('#btn-open-new').onclick = () => sheet.classList.add('open');
+  $('#close-new').onclick = () => sheet.classList.remove('open');
+  sheet.onclick = e => { if (e.target === sheet) sheet.classList.remove('open'); };
+  $$('[data-mod]').forEach(m => m.onclick = () => {
+    newMod = m.dataset.mod;
+    $$('[data-mod]').forEach(x => x.setAttribute('aria-pressed', x === m));
+  });
+  $('#form-new-store').onsubmit = e => {
+    e.preventDefault();
+    const name = $('#ns-name').value.trim(), phone = $('#ns-phone').value.trim();
+    if (!name || !phone) return;
+    const plan = $('#ns-plan').value;
+    const mrrMap = { trial: 0, start: 1500, pro: 3000, ent: 5500 };
+    const pin = String(1000 + Math.floor(Math.random() * 8999));
+    stores.unshift({
+      id: Date.now(), name, mod: newMod, city: $('#ns-city').value, phone,
+      plan, mrr: mrrMap[plan] || 0, tills: +$('#ns-tills').value,
+      daysLeft: plan === 'trial' ? 15 : 30, status: plan === 'trial' ? 'trial' : 'active',
+      net: 'on', pendingSync: 0
+    });
+    sheet.classList.remove('open');
+    e.target.reset();
+    addAudit(`Provisioning · ${name}`, `${newMod.toUpperCase()} · PIN ${pin}`);
+    showToast(t('msg_created').replace('{name}', name).replace('{pin}', pin));
+    renderAll();
+  };
+
+  // SWITCHER LANGUE TRILINGUE
+  $$('[data-lang]').forEach(b => b.onclick = () => {
+    lang = b.dataset.lang;
+    const d = I18N[lang];
+    document.documentElement.lang = lang;
+    document.documentElement.dir = d.dir;
+    $$('[data-lang]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    $$('[data-i]').forEach(el => { if (d[el.dataset.i]) el.textContent = d[el.dataset.i]; });
+    $$('[data-i-ph]').forEach(el => { if (d[el.dataset.iPh]) el.placeholder = d[el.dataset.iPh]; });
+    $('#chart-val').textContent = fmt(monthsData[selMonth].v) + ' ' + d.cur;
+    renderAll();
+  });
+
+  // INIT SPLASH + RENDER + SW
+  renderAll();
+  setTimeout(() => { $('#splash')?.classList.add('done'); }, 1350);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

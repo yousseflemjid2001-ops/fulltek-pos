@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+
+# Flutter / Dart / Android / iOS
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+**/build/
+**/.dart_tool/
+**/.gradle/
+**/android/.gradle/
+**/android/local.properties
+**/ios/Pods/
+**/ios/.symlinks/
+*.apk
+*.aab
+*.iml
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,987 @@
+import os
+import subprocess
+
+html_content = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Architecture de Développement &amp; Plan d'Exécution Multi-Agents — Full-Tek POS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --primary: #0A2540;
+    --primary-light: #133B63;
+    --accent: #00A86B;
+    --accent-dark: #007A4D;
+    --gold: #D97706;
+    --gold-brand: #E9A23B;
+    --gold-light: #FEF3C7;
+    --blue-tech: #2563EB;
+    --blue-light: #EFF6FF;
+    --emerald-light: #ECFDF5;
+    --purple: #7C3AED;
+    --purple-light: #F5F3FF;
+    --slate-900: #0F172A;
+    --slate-800: #1E293B;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748B;
+    --slate-300: #CBD5E1;
+    --slate-200: #E2E8F0;
+    --slate-100: #F1F5F9;
+    --slate-50: #F8FAFC;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0mm;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--slate-800);
+    background: #FFFFFF;
+    margin: 0;
+    padding: 0;
+    font-size: 8.4pt;
+    line-height: 1.40;
+  }
+
+  h1, h2, h3, h4, .heading-font {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 7.5pt;
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #0F172A;
+  }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    padding: 9mm 13mm 8mm 13mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    page-break-after: always;
+    overflow: hidden;
+    position: relative;
+    background: #FFFFFF;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+  }
+
+  .page-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  /* COVER PAGE */
+  .cover-page {
+    width: 210mm;
+    height: 297mm;
+    background: linear-gradient(145deg, #040D1A 0%, #0A2540 52%, #0B3B2E 100%);
+    color: #FFFFFF;
+    padding: 18mm 17mm 15mm 17mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+
+  .cover-bg-pattern {
+    position: absolute;
+    top: -70px;
+    right: -70px;
+    width: 520px;
+    height: 520px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,168,107,0.22) 0%, rgba(233,162,59,0.10) 45%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cover-bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+  }
+
+  .cover-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    padding-bottom: 12px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .doc-ref {
+    font-size: 7.8pt;
+    color: #94A3B8;
+    background: rgba(255,255,255,0.07);
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .cover-hero {
+    position: relative;
+    z-index: 2;
+  }
+
+  .cover-tag {
+    display: inline-block;
+    background: rgba(0, 168, 107, 0.2);
+    border: 1px solid #00D68F;
+    color: #34D399;
+    font-weight: 700;
+    font-size: 8.2pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 5px 13px;
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+
+  .cover-title {
+    font-size: 25pt;
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0 0 12px 0;
+    letter-spacing: -0.5px;
+    color: #FFFFFF;
+  }
+
+  .cover-title span.highlight { color: #34D399; }
+  .cover-title span.gold { color: #E9A23B; }
+
+  .cover-subtitle {
+    font-size: 10.4pt;
+    line-height: 1.50;
+    color: #CBD5E1;
+    max-width: 96%;
+    font-weight: 400;
+    margin-bottom: 18px;
+  }
+
+  .cover-pillars {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 11px;
+  }
+
+  .cover-pillar-card {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 3px solid #34D399;
+    border-radius: 8px;
+    padding: 11px 13px;
+  }
+
+  .cover-pillar-card.gold-border { border-left-color: #E9A23B; }
+
+  .cover-pillar-title {
+    font-weight: 700;
+    font-size: 9.2pt;
+    color: #FFFFFF;
+    margin-bottom: 4px;
+  }
+
+  .cover-pillar-desc {
+    font-size: 8pt;
+    color: #94A3B8;
+    line-height: 1.38;
+  }
+
+  .cover-client-box {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 100%);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr 1.1fr 1.15fr;
+    gap: 12px;
+  }
+
+  .client-meta-label {
+    font-size: 6.8pt;
+    text-transform: uppercase;
+    letter-spacing: 1.0px;
+    color: #94A3B8;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  .client-meta-value {
+    font-size: 10.6pt;
+    font-weight: 800;
+    color: #E9A23B;
+  }
+
+  .client-meta-sub {
+    font-size: 7.5pt;
+    color: #E2E8F0;
+    margin-top: 2px;
+  }
+
+  .cover-footer {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.14);
+    padding-top: 10px;
+    font-size: 7.6pt;
+    color: #94A3B8;
+  }
+
+  /* HEADERS & FOOTERS */
+  .doc-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1.5px solid var(--slate-200);
+    padding-bottom: 5px;
+    margin-bottom: 8px;
+    font-size: 7.2pt;
+    color: var(--slate-500);
+    font-weight: 600;
+  }
+
+  .doc-topbar .client-tag {
+    color: var(--primary);
+    background: var(--slate-100);
+    border: 1px solid var(--slate-200);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+
+  .doc-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1.5px solid var(--slate-200);
+    padding-top: 5px;
+    margin-top: 6px;
+    font-size: 7.1pt;
+    color: var(--slate-500);
+    font-weight: 500;
+  }
+
+  .page-num-pill {
+    background: var(--primary);
+    color: #34D399;
+    font-weight: 700;
+    padding: 1.5px 8px;
+    border-radius: 10px;
+    font-size: 7.1pt;
+  }
+
+  .section-header {
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--primary) 0%, #10365C 100%);
+    color: #FFFFFF;
+    padding: 8px 13px;
+    border-radius: 7px;
+    border-left: 4px solid var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .section-num {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #34D399;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 1px;
+  }
+
+  .section-title {
+    font-size: 11.6pt;
+    font-weight: 800;
+    margin: 0;
+    color: #FFFFFF;
+  }
+
+  .section-badge {
+    font-size: 7pt;
+    background: rgba(255,255,255,0.12);
+    color: #E2E8F0;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  h3 {
+    font-size: 9.4pt;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 7px 0 5px 0;
+    padding-bottom: 3px;
+    border-bottom: 1.5px solid var(--slate-200);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  h3 .h3-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  p {
+    margin: 0 0 6px 0;
+    text-align: justify;
+  }
+
+  ul {
+    margin: 3px 0 4px 0;
+    padding-left: 15px;
+  }
+
+  li {
+    margin-bottom: 2.5px;
+  }
+
+  li strong {
+    color: var(--primary);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 7px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 7px; }
+  .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 7px; }
+
+  .card {
+    background: var(--slate-50);
+    border: 1px solid var(--slate-200);
+    border-radius: 6px;
+    padding: 7px 10px;
+  }
+
+  .card-white {
+    background: #FFFFFF;
+    border: 1px solid var(--slate-200);
+    border-radius: 6px;
+    padding: 7px 10px;
+  }
+
+  .card-accent {
+    background: var(--emerald-light);
+    border: 1px solid #A7F3D0;
+    border-left: 3.5px solid var(--accent);
+    border-radius: 6px;
+    padding: 7px 10px;
+  }
+
+  .card-gold {
+    background: var(--gold-light);
+    border: 1px solid #FDE68A;
+    border-left: 3.5px solid var(--gold);
+    border-radius: 6px;
+    padding: 7px 10px;
+  }
+
+  .card-blue {
+    background: var(--blue-light);
+    border: 1px solid #BFDBFE;
+    border-left: 3.5px solid var(--blue-tech);
+    border-radius: 6px;
+    padding: 7px 10px;
+  }
+
+  .card-purple {
+    background: var(--purple-light);
+    border: 1px solid #DDD6FE;
+    border-left: 3.5px solid var(--purple);
+    border-radius: 6px;
+    padding: 7px 10px;
+  }
+
+  .card-title {
+    font-weight: 700;
+    font-size: 8.6pt;
+    color: var(--primary);
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 1.5px 6px;
+    font-size: 6.7pt;
+    font-weight: 700;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .badge-green { background: #D1FAE5; color: #065F46; }
+  .badge-blue { background: #DBEAFE; color: #1E40AF; }
+  .badge-amber { background: #FEF3C7; color: #92400E; }
+  .badge-purple { background: #EDE9FE; color: #5B21B6; }
+
+  /* STEP CARDS */
+  .step-card {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: #FFFFFF;
+    border: 1px solid var(--slate-200);
+    border-left: 4px solid var(--accent);
+    border-radius: 7px;
+    padding: 7.5px 11px;
+    margin-bottom: 6.5px;
+  }
+
+  .step-num {
+    min-width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #34D399;
+    font-weight: 800;
+    font-size: 9pt;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  .step-content h4 {
+    margin: 0 0 3px 0;
+    font-size: 8.8pt;
+    color: var(--primary);
+    font-weight: 800;
+  }
+
+  .step-content p, .step-content ul {
+    margin: 0;
+    font-size: 8pt;
+    color: var(--slate-700);
+  }
+
+  /* THEME SWATCHES */
+  .theme-chip {
+    border: 1px solid var(--slate-200);
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: #FFFFFF;
+  }
+
+  .theme-bar {
+    height: 7px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  /* MONOREPO TREE */
+  .tree-box {
+    background: #0F172A;
+    color: #E2E8F0;
+    border-radius: 8px;
+    padding: 10px 13px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 7.1pt;
+    line-height: 1.46;
+    border: 1px solid #334155;
+    white-space: pre;
+    overflow: hidden;
+  }
+
+  .tree-dir { color: #38BDF8; font-weight: 700; }
+  .tree-file { color: #F8FAFC; }
+  .tree-comment { color: #94A3B8; }
+  .tree-accent { color: #34D399; font-weight: 600; }
+
+  /* TABLES */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0 7px 0;
+    font-size: 7.7pt;
+  }
+
+  th {
+    background: var(--primary);
+    color: #FFFFFF;
+    font-weight: 700;
+    text-align: left;
+    padding: 5px 7px;
+    border: 1px solid var(--primary);
+    font-size: 7.6pt;
+  }
+
+  td {
+    padding: 4.5px 7px;
+    border: 1px solid var(--slate-200);
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td {
+    background: var(--slate-50);
+  }
+
+  .wave-box {
+    border: 1px solid var(--slate-200);
+    border-radius: 7px;
+    padding: 7px 10px;
+    margin-bottom: 6.5px;
+    background: #FFFFFF;
+  }
+
+  .wave-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--slate-200);
+    font-weight: 800;
+    font-size: 8.6pt;
+    color: var(--primary);
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 1 : COVER PAGE ==================== -->
+<div class="cover-page">
+  <div class="cover-bg-pattern"></div>
+  <div class="cover-bg-grid"></div>
+
+  <div class="cover-top-bar">
+    <div>
+      <!-- Logo Modèle 11 (Pilules) Officiel -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="185" height="46">
+        <g>
+          <rect x="10" y="18" width="78" height="16" rx="8" fill="#FFFFFF"/>
+          <rect x="10" y="43" width="52" height="16" rx="8" fill="#E9A23B"/>
+          <rect x="10" y="68" width="30" height="16" rx="8" fill="#FFFFFF"/>
+        </g>
+        <text x="120" y="56" font-family="'Segoe UI',Arial,sans-serif" font-size="44" text-anchor="start" fill="#FFFFFF">
+          <tspan font-weight="800">Full·</tspan><tspan font-weight="800" fill="#FFFFFF">Tek</tspan>
+        </text>
+        <text x="121" y="82" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="700" letter-spacing="5" fill="#94A3B8">SUITE POS</text>
+      </svg>
+    </div>
+    <div class="doc-ref">Réf : ARCH-DEV-FULLTEK-2026 &bull; Plan d'Exécution Multi-Agents</div>
+  </div>
+
+  <div class="cover-hero">
+    <div class="cover-tag">Architecture de Développement &amp; Feuille de Route Technique</div>
+    <h1 class="cover-title">
+      Architecture <span class="highlight">Full-Tek POS</span> &amp; Plan d'Exécution <span class="gold">Multi-Agents</span>
+    </h1>
+    <div class="cover-subtitle">
+      Blueprint d'ingénierie logicielle pour la suite SaaS &amp; Offline-First <strong>Full-Tek</strong> (<em>Resto &middot; Market &middot; Pharma &middot; Boss</em>), conçu pour une livraison rapide, modulaire et démontrable dès les premiers jours auprès des commerçants et restaurateurs de <strong>Mauritanie</strong>.
+    </div>
+
+    <div class="cover-pillars">
+      <div class="cover-pillar-card">
+        <div class="cover-pillar-title">1. Identité Visuelle &amp; 5 Thèmes Intégrés</div>
+        <div class="cover-pillar-desc">Logo officiel <strong>Modèle 11 (« Pilules »)</strong> animé (Slide) avec ses variantes <em>Resto, Market, Pharma, Boss</em> et 5 thèmes UI commutables en 1 clic : 01 Émeraude Night, 04 Aurora Glass, 06 Ocean Fintech, 07 Mauritanie Prestige et 11 Nordic Minimal.</div>
+      </div>
+      <div class="cover-pillar-card gold-border">
+        <div class="cover-pillar-title">2. Socle Offline-First &amp; Hub LAN</div>
+        <div class="cover-pillar-desc">Base locale chiffrée (<code>IndexedDB / Dexie.js</code> + <code>SQLite WAL</code>) couplée à un mini-serveur WebSocket local (&lt; 0,1 s) reliant Caisse Principale, Tablettes Serveurs et Écran Cuisine (KDS) sans Internet.</div>
+      </div>
+      <div class="cover-pillar-card">
+        <div class="cover-pillar-title">3. Sécurité RBAC, FEFO &amp; Paiements MRU</div>
+        <div class="cover-pillar-desc">Matrice de <strong>9 rôles RBAC</strong> avec code PIN et journal d'audit, gestion stricte des lots et dates d'expiration <strong>FEFO</strong> (alerte bloquante périmés), et encaissement natif Cash, Bankily, Masrivi, Sedad &amp; Karni.</div>
+      </div>
+      <div class="cover-pillar-card gold-border">
+        <div class="cover-pillar-title">4. Exécution Parallèle par 4 Agents IA</div>
+        <div class="cover-pillar-desc">Organisation en monorepo propre orchestrée en <strong>3 vagues parallèles</strong> par 4 agents spécialisés (<code>backend-architect</code>, <code>frontend-pos-ui</code>, <code>offline-edge-hardware</code>, <code>qa-devops</code>).</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-client-box">
+    <div>
+      <div class="client-meta-label">Client &amp; Propriétaire</div>
+      <div class="client-meta-value">M. Taha Chouaib</div>
+      <div class="client-meta-sub">Mauritanie (MRU)</div>
+    </div>
+    <div>
+      <div class="client-meta-label">Suite Produits</div>
+      <div class="client-meta-value" style="color:#34D399;">4 Modules</div>
+      <div class="client-meta-sub">Resto &middot; Market &middot; Pharma &middot; Boss</div>
+    </div>
+    <div>
+      <div class="client-meta-label">Identité &amp; Langues</div>
+      <div class="client-meta-value" style="color:#FFFFFF;">Logo 11 + 5 Thèmes</div>
+      <div class="client-meta-sub">Trilingue FR / AR (RTL) / EN</div>
+    </div>
+    <div>
+      <div class="client-meta-label">Méthode d'Exécution</div>
+      <div class="client-meta-value" style="color:#38BDF8;">3 Vagues &middot; 4 Agents</div>
+      <div class="client-meta-sub">Monorepo &amp; PWA Offline</div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div>CONFIDENTIEL &mdash; Architecture Technique Full-Tek POS &bull; Préparé pour M. Taha Chouaib</div>
+    <div>Page 01 / 04</div>
+  </div>
+</div>
+
+<!-- ==================== PAGE 2 : SECTION 1 - STRATEGIE EN 5 ETAPES ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>ARCHITECTURE DE DÉVELOPPEMENT &amp; PLAN MULTI-AGENTS &mdash; FULL-TEK POS</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 01</span>
+        <h2 class="section-title">Par Quoi Commencer ? La Stratégie Gagnante en 5 Étapes</h2>
+      </div>
+      <span class="section-badge">Démo Fonctionnelle Rapide</span>
+    </div>
+
+    <p>
+      L'erreur classique sur un logiciel de caisse est de commencer par des détails secondaires avant d'avoir le <strong>cœur de données et l'écran de vente</strong>. Pour livrer vite, proprement et pouvoir <strong>montrer une démo fonctionnelle au client dès les premiers jours</strong>, le développement suit cet ordre exact en 5 étapes :
+    </p>
+
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4>Le Socle Commun : Design System (Logo 11 + 5 Thèmes) &amp; Schéma de Base de Données</h4>
+        <ul>
+          <li>Créer le monorepo avec les <strong>variables CSS des 5 thèmes</strong> (changement de thème en 1 clic) et le composant SVG du <strong>Logo Modèle 11 (« Pilules »)</strong> avec son animation <code>Slide</code> et ses variantes <em>Resto, Market, Pharma, Boss</em>.</li>
+          <li>Figer le schéma de données (<code>schema.prisma</code> + tables locales <code>Dexie.js</code>) incluant dès le départ : Multi-tenant (<code>tenant_id</code>), Utilisateurs &amp; <strong>9 rôles RBAC</strong> (<code>Role</code>, <code>Permission</code>, <code>AuditLog</code>, <code>pin_code</code>), Produits, Catégories, <strong>Lots &amp; Dates d'expiration (<code>StockBatch</code> pour FEFO)</strong>, Commandes (<code>Order</code>, <code>OrderItem</code>), Paiements Mauritanie (<code>PaymentTransaction</code> : Cash, Bankily, Masrivi, Sedad, Karni) et Clôture Z.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card" style="border-left-color: var(--gold);">
+      <div class="step-num" style="background:#92400E; color:#FDE68A;">2</div>
+      <div class="step-content">
+        <h4>Le Cœur Visible : L'Écran de Caisse Tactile + Moteur Local Offline</h4>
+        <ul>
+          <li>Construire l'interface de caisse (<strong>Resto + Market / Pharma</strong>) branchée directement sur la base locale (<code>IndexedDB / SQLite</code>).</li>
+          <li><strong>Pourquoi commencer par là ?</strong> Dès la fin de cette étape, vous pouvez ouvrir l'application devant le client, changer entre les 5 thèmes, scanner ou cliquer des produits, voir le <strong>blocage d'un produit expiré (FEFO)</strong>, encaisser en Cash/Bankily et imprimer un reçu thermique 80 mm !</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card" style="border-left-color: var(--blue-tech);">
+      <div class="step-num" style="background:#1E3A8A; color:#93C5FD;">3</div>
+      <div class="step-content">
+        <h4>Le Hub Local LAN (Tablettes Serveurs + Écran Cuisine KDS sans Internet)</h4>
+        <ul>
+          <li>Activer le mini-serveur WebSocket local pour que la <strong>Caisse Principale</strong>, les <strong>Tablettes Serveurs</strong> (plan de salle) et l'<strong>Écran Cuisine (KDS)</strong> communiquent en temps réel (<strong>&lt; 0,1 s</strong>) sur le Wi-Fi du restaurant même quand Internet est coupé.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card" style="border-left-color: var(--purple);">
+      <div class="step-num" style="background:#4C1D95; color:#DDD6FE;">4</div>
+      <div class="step-content">
+        <h4>Le Backend Cloud Multi-Tenant, RBAC &amp; Synchronisation</h4>
+        <ul>
+          <li>Connecter l'API Cloud (<code>/api/auth</code>, <code>/api/sync/push</code>, <code>/api/sync/pull</code>, <code>/api/tenants</code>) pour synchroniser automatiquement les ventes locales vers PostgreSQL dès qu'Internet est disponible.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step-card" style="border-left-color: var(--primary);">
+      <div class="step-num" style="background:#0A2540; color:#FFFFFF;">5</div>
+      <div class="step-content">
+        <h4>Les Portails de Pilotage : App « Full-Tek Boss » &amp; Console Super-Admin</h4>
+        <ul>
+          <li>Tableau de bord mobile temps réel du propriétaire (CA du jour, alertes péremption J-30/J-7, validation PIN à distance) et <strong>Console Super-Admin de M. Taha Chouaib</strong> (création des boutiques clientes, gestion des abonnements MRR et licences offline 30 jours).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3><span class="h3-dot"></span>1.1 Identité Officielle &amp; 5 Thèmes UI Intégrés (Commutables en 1 Clic)</h3>
+    <div class="grid-5">
+      <div class="theme-chip">
+        <div class="theme-bar" style="background:linear-gradient(90deg, #064E3B, #10B981);"></div>
+        <div style="font-weight:800; font-size:7.8pt; color:var(--primary);">Thème 01</div>
+        <div style="font-size:7pt; color:var(--slate-600);">Émeraude Night</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-bar" style="background:linear-gradient(90deg, #4C1D95, #22D3EE);"></div>
+        <div style="font-weight:800; font-size:7.8pt; color:var(--primary);">Thème 04</div>
+        <div style="font-size:7pt; color:var(--slate-600);">Aurora Glass</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-bar" style="background:linear-gradient(90deg, #0A2540, #2563EB);"></div>
+        <div style="font-weight:800; font-size:7.8pt; color:var(--primary);">Thème 06</div>
+        <div style="font-size:7pt; color:var(--slate-600);">Ocean Fintech</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-bar" style="background:linear-gradient(90deg, #1E293B, #E9A23B);"></div>
+        <div style="font-weight:800; font-size:7.8pt; color:var(--primary);">Thème 07</div>
+        <div style="font-size:7pt; color:var(--slate-600);">Mauritanie Prestige</div>
+      </div>
+      <div class="theme-chip">
+        <div class="theme-bar" style="background:linear-gradient(90deg, #334155, #94A3B8);"></div>
+        <div style="font-weight:800; font-size:7.8pt; color:var(--primary);">Thème 11</div>
+        <div style="font-size:7pt; color:var(--slate-600);">Nordic Minimal</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Architecture Technique Full-Tek POS (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 02 / 04</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 3 : SECTION 2 - ARBORESCENCE MONOREPO ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>ARCHITECTURE DE DÉVELOPPEMENT &amp; PLAN MULTI-AGENTS &mdash; FULL-TEK POS</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Section 02</span>
+        <h2 class="section-title">Arborescence Technique du Projet (Monorepo Propre &amp; Modulaire)</h2>
+      </div>
+      <span class="section-badge">Structure Code Source</span>
+    </div>
+
+    <p>
+      L'ensemble de la plateforme <strong>Full-Tek POS</strong> est structuré en un <strong>monorepo modulaire</strong> partageant les types métier critiques (<code>RBAC</code>, <code>FEFO</code>, <code>MRU</code>, dictionnaires trilingues <code>FR/AR/EN</code>, tokens des 5 thèmes) entre les applications web, le serveur local LAN et l'API Cloud.
+    </p>
+
+    <div class="tree-box"><span class="tree-accent">full-tek-pos/</span>
+├── <span class="tree-file">docker-compose.yml</span>              <span class="tree-comment"># PostgreSQL 16 + Redis + API Cloud + Web PWA + Nginx</span>
+├── <span class="tree-dir">packages/</span>
+│   └── <span class="tree-dir">shared/</span>                     <span class="tree-comment"># Types TypeScript partagés (RBAC, FEFO, MRU, i18n FR/AR/EN, DTOs Sync)</span>
+│       ├── <span class="tree-file">src/rbac.ts</span>             <span class="tree-comment"># Matrice des 9 rôles &amp; permissions granulaires</span>
+│       ├── <span class="tree-file">src/fefo.ts</span>             <span class="tree-comment"># Algorithme FEFO &amp; validation des dates d'expiration</span>
+│       ├── <span class="tree-dir">src/i18n/</span>               <span class="tree-comment"># Dictionnaires complets 3 langues : fr.ts, ar.ts (RTL), en.ts (English)</span>
+│       └── <span class="tree-file">src/themes.ts</span>           <span class="tree-comment"># Tokens des 5 thèmes (Modèles 01, 04, 06, 07, 11)</span>
+│
+├── <span class="tree-dir">apps/</span>
+│   ├── <span class="tree-dir">landing-web/</span>                <span class="tree-comment"># Site Vitrine &amp; Page d'Accueil Animée (full-tek.com — style caissa.tn)</span>
+│   │   └── <span class="tree-dir">src/</span>
+│   │       ├── <span class="tree-dir">hero/</span>               <span class="tree-comment"># Bienvenue animée (Logo N°11 Slide), aperçu interactif des 5 Thèmes</span>
+│   │       ├── <span class="tree-dir">products/</span>           <span class="tree-comment"># Fiches commerciales : Full-Tek Resto, Market, Pharma &amp; Boss</span>
+│   │       ├── <span class="tree-dir">features/</span>           <span class="tree-comment"># Démonstration Offline-First, Bankily/Masrivi, RBAC &amp; Dates FEFO</span>
+│   │       ├── <span class="tree-dir">pricing/</span>            <span class="tree-comment"># Tarifs MRU, Packs Matériels &amp; Essai Gratuit 15 jours</span>
+│   │       └── <span class="tree-dir">cta/</span>                <span class="tree-comment"># Boutons « Connexion Caisse » (app.) &amp; « Demande Démo WhatsApp »</span>
+│   │
+│   ├── <span class="tree-dir">superadmin-app/</span>             <span class="tree-comment"># Application dédiée Super-Admin (M. Taha Chouaib) — admin.full-tek.com</span>
+│   │   ├── <span class="tree-file">public/manifest.json</span>    <span class="tree-comment"># Icône dédiée « Full-Tek Control » sur le téléphone du Super-Admin</span>
+│   │   └── <span class="tree-dir">src/</span>
+│   │       ├── <span class="tree-dir">tenants/</span>            <span class="tree-comment"># Création 1-clic de boutiques (Resto / Market / Pharma) &amp; Quotas caisses</span>
+│   │       ├── <span class="tree-dir">subscriptions/</span>      <span class="tree-comment"># Gestion Abonnements MRR, Facturation MRU, Validation Bankily/Masrivi</span>
+│   │       ├── <span class="tree-dir">licenses/</span>           <span class="tree-comment"># Prolongation (+30j), Suspension à distance &amp; Codes de secours Offline</span>
+│   │       ├── <span class="tree-dir">whatsapp-reminders/</span> <span class="tree-comment"># Relances d'échéance automatisées WhatsApp (J-5, J-2, Expiré)</span>
+│   │       └── <span class="tree-dir">fleet-monitoring/</span>   <span class="tree-comment"># Suivi en direct des caisses connectées &amp; Santé du VPS</span>
+│   │
+│   ├── <span class="tree-dir">web-pos/</span>                    <span class="tree-comment"># Application PWA Client (Caisse Resto/Market/Pharma + KDS + App Boss)</span>
+│   │   ├── <span class="tree-file">public/manifest.json</span>    <span class="tree-comment"># Configuration PWA installable hors-ligne (0 € Stores)</span>
+│   │   └── <span class="tree-dir">src/</span>
+│   │       ├── <span class="tree-dir">assets/logos/</span>       <span class="tree-comment"># SVG du Logo N°11 Pilules (Clair, Sombre, Animé, Resto/Market/Pharma/Boss)</span>
+│   │       ├── <span class="tree-dir">db/</span>                 <span class="tree-comment"># Moteur Offline-First (Dexie.js IndexedDB + File SyncQueue)</span>
+│   │       ├── <span class="tree-dir">modules/</span>
+│   │       │   ├── <span class="tree-dir">auth-rbac/</span>      <span class="tree-comment"># Login, Clavier PIN hors-ligne, Gestion des 9 rôles &amp; Journal d'Audit</span>
+│   │       │   ├── <span class="tree-dir">pos-resto/</span>      <span class="tree-comment"># Caisse tactile Resto, Plan de salle, Division de note, VIP Khaima</span>
+│   │       │   ├── <span class="tree-dir">pos-market/</span>     <span class="tree-comment"># Caisse Market/Pharma, Scan EAN/Balance, Blocage Périmés FEFO</span>
+│   │       │   ├── <span class="tree-dir">kds-kitchen/</span>    <span class="tree-comment"># Écran Cuisine temps réel (tickets, chronomètre, prêt)</span>
+│   │       │   ├── <span class="tree-dir">stock-batches/</span>  <span class="tree-comment"># Réception par lot, Dates d'expiration, Alertes J-90/J-30/J-7</span>
+│   │       │   ├── <span class="tree-dir">payments-mru/</span>   <span class="tree-comment"># Paiement mixte (Cash + Bankily/Masrivi/Sedad) + Karni + Clôture Z</span>
+│   │       │   ├── <span class="tree-dir">boss-mobile/</span>    <span class="tree-comment"># Vue mobile Propriétaire (KPIs live, approbations à distance)</span>
+│   │       │   └── <span class="tree-dir">super-admin/</span>    <span class="tree-comment"># Console de M. Taha Chouaib (Clients SaaS, Licences 30j, MRR)</span>
+│   │       └── <span class="tree-dir">services/</span>
+│   │           ├── <span class="tree-file">sync-agent.ts</span>   <span class="tree-comment"># Synchronisation automatique en arrière-plan (LAN &amp; Cloud)</span>
+│   │           └── <span class="tree-file">printer-esc.ts</span>  <span class="tree-comment"># Impression Ticket 80mm FR/AR + Ouverture Tiroir RJ11</span>
+│   │
+│   ├── <span class="tree-dir">edge-hub/</span>                   <span class="tree-comment"># Mini-serveur local LAN (Node/Fastify + SQLite WAL + WebSocket LAN)</span>
+│   │   └── <span class="tree-dir">src/</span>                    <span class="tree-comment"># Relais ultra-léger entre Caisse Maître, Tablettes Serveurs, KDS &amp; Imprimante IP</span>
+│   │
+│   └── <span class="tree-dir">cloud-api/</span>                  <span class="tree-comment"># Backend Cloud Multi-Tenant (Node/NestJS ou Fastify + Prisma + PostgreSQL)</span>
+│       ├── <span class="tree-file">prisma/schema.prisma</span>    <span class="tree-comment"># Schéma complet avec tenant_id, RBAC, StockBatch, Orders, AuditLog</span>
+│       └── <span class="tree-dir">src/</span>                    <span class="tree-comment"># API REST + Webhooks Bankily/Masrivi + Sync Delta + Licences</span></div>
+
+    <div class="grid-2" style="margin-top:8px; margin-bottom:0;">
+      <div class="card-accent">
+        <div class="card-title">Distribution PWA Sans Frais de Stores (0 €)</div>
+        <p style="margin:0; font-size:7.8pt;">
+          Grâce aux fichiers <code>manifest.json</code> dédiés sur <code>web-pos</code> et <code>superadmin-app</code>, chaque application s'installe en 1 clic sur Android, iOS, Windows ou terminal Sunmi avec fonctionnement hors-ligne complet.
+        </p>
+      </div>
+      <div class="card-blue">
+        <div class="card-title">Séparation Claire des Domaines</div>
+        <p style="margin:0; font-size:7.8pt;">
+          <code>full-tek.com</code> (vitrine commerciale), <code>app.full-tek.com</code> (caisse &amp; app Boss) et <code>admin.full-tek.com</code> (contrôle exclusif de M. Taha Chouaib) sont découplés tout en partageant le socle <code>packages/shared</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Architecture Technique Full-Tek POS (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 03 / 04</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 4 : SECTIONS 3 & 4 - AGENTS IA & PLAN DE TACHES ==================== -->
+<div class="page">
+  <div class="page-body">
+    <div class="doc-topbar">
+      <span>ARCHITECTURE DE DÉVELOPPEMENT &amp; PLAN MULTI-AGENTS &mdash; FULL-TEK POS</span>
+      <span class="client-tag">Client : M. Taha Chouaib</span>
+    </div>
+
+    <div class="section-header">
+      <div>
+        <span class="section-num">Sections 03 &amp; 04</span>
+        <h2 class="section-title">Équipe de 4 Agents IA Spécialisés &amp; Plan d'Exécution par Vagues</h2>
+      </div>
+      <span class="section-badge">Parallélisation Optimale</span>
+    </div>
+
+    <h3><span class="h3-dot"></span>3. L'Équipe de 4 Agents IA Spécialisés (Déjà Configurés &amp; Prêts)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:20%;">Agent Configuré</th>
+          <th style="width:26%;">Rôle &amp; Responsabilité</th>
+          <th style="width:54%;">Fichiers &amp; Modules Pris en Charge</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>backend-architect</code></td>
+          <td><strong>Architecte Backend &amp; BDD Multi-Tenant</strong></td>
+          <td><code>schema.prisma</code>, API Auth/JWT/PIN, Matrice RBAC (9 rôles), Logique stock par lots &amp; FEFO, Endpoints de synchronisation <code>/api/sync</code>, Licences SaaS.</td>
+        </tr>
+        <tr>
+          <td><code>frontend-pos-ui</code></td>
+          <td><strong>Lead Frontend UI/UX, Thèmes &amp; Écrans</strong></td>
+          <td>Intégration du <strong>Logo N°11 (Pilules)</strong>, Moteur des <strong>5 Thèmes (1, 4, 6, 7, 11)</strong>, Écrans Caisse Resto, Market, Pharma, KDS, Gestion Utilisateurs/RBAC, Alertes Péremption, App Boss &amp; Super-Admin.</td>
+        </tr>
+        <tr>
+          <td><code>offline-edge-hardware</code></td>
+          <td><strong>Ingénieur Offline, Réseau LAN &amp; Matériel</strong></td>
+          <td>Base locale <code>Dexie/SQLite</code>, File d'attente <code>SyncQueue</code>, Serveur WebSocket LAN (Tablettes &harr; Caisse &harr; KDS sans Internet), Ticket thermique 80mm FR/AR, Décodage balances poids/prix.</td>
+        </tr>
+        <tr>
+          <td><code>qa-devops</code></td>
+          <td><strong>Ingénieur QA, Tests Métier &amp; Docker VPS</strong></td>
+          <td><code>docker-compose.yml</code>, Nginx SSL, Scripts Backup S3, Tests de sécurité RBAC, Tests de blocage d'articles expirés en caisse et Clôture Z aveugle.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3><span class="h3-dot"></span>4. Plan de Tâches Prêt à Exécuter (Par Vagues Parallèles)</h3>
+
+    <div class="wave-box" style="border-left:4px solid var(--accent);">
+      <div class="wave-header">
+        <span>Vague 1 &mdash; Fondations (Exécution immédiate en parallèle)</span>
+        <span class="badge badge-green">Socle &amp; Démo Rapide</span>
+      </div>
+      <ul>
+        <li><strong>Task 1.1 (<code>backend-architect</code>) :</strong> Initialiser le monorepo, les types partagés (<code>packages/shared</code>) incluant la matrice complète des <strong>9 rôles RBAC</strong> et le schéma Prisma multi-tenant (<code>schema.prisma</code>) avec gestion des <strong>Lots &amp; Dates d'expiration (<code>StockBatch</code>)</strong>.</li>
+        <li><strong>Task 1.2 (<code>frontend-pos-ui</code>) :</strong> Initialiser le site vitrine animé <code>apps/landing-web</code> (<code>full-tek.com</code>), l'application client <code>apps/web-pos</code> (<code>app.full-tek.com</code>) et la base de <code>apps/superadmin-app</code> (<code>admin.full-tek.com</code>) avec le <strong>Logo N°11 (Pilules)</strong> animé, le sélecteur instantané des <strong>5 Thèmes (01, 04, 06, 07, 11)</strong> et le commutateur <strong>Trilingue FR | AR (RTL) | EN</strong>.</li>
+        <li><strong>Task 1.3 (<code>offline-edge-hardware</code>) :</strong> Créer la base locale Offline-First (<code>IndexedDB / Dexie</code>) pré-remplie avec un jeu de données de démonstration réaliste (Restaurant + Supermarché + Pharmacie avec lots proches d'expiration et lots expirés) + moteur d'impression ticket 80mm.</li>
+      </ul>
+    </div>
+
+    <div class="wave-box" style="border-left:4px solid var(--gold);">
+      <div class="wave-header">
+        <span>Vague 2 &mdash; Modules Caisse, RBAC &amp; Stock FEFO</span>
+        <span class="badge badge-amber">Cœur Métier &amp; Conformité</span>
+      </div>
+      <ul>
+        <li><strong>Task 2.1 (<code>frontend-pos-ui</code>) :</strong> Coder les écrans <strong>Caisse Resto</strong> (plan de salle, tablettes, KDS) et <strong>Caisse Market / Pharmacie</strong> (scan code-barres, sélection automatique du lot FEFO, alerte rouge bloquante si produit périmé, substitution générique DCI).</li>
+        <li><strong>Task 2.2 (<code>frontend-pos-ui</code>) :</strong> Coder l'écran <strong>Gestion des Utilisateurs &amp; Droits d'Accès (RBAC)</strong> (les 9 profils, cases à cocher des permissions, code PIN, journal d'audit) et l'écran <strong>Gestion des Lots &amp; Dates d'Expiration</strong> (filtres J-90 / J-30 / J-7, démarque).</li>
+        <li><strong>Task 2.3 (<code>offline-edge-hardware</code>) :</strong> Coder l'encaissement Mauritanie (Cash MRU, Bankily, Masrivi, Sedad, paiement mixte, carnet de crédit <strong>Karni</strong> et <strong>Clôture Z aveugle</strong>).</li>
+      </ul>
+    </div>
+
+    <div class="wave-box" style="border-left:4px solid var(--blue-tech); margin-bottom:0;">
+      <div class="wave-header">
+        <span>Vague 3 &mdash; Hub LAN, Cloud API, App Boss &amp; Super-Admin</span>
+        <span class="badge badge-blue">Mise en Production SaaS</span>
+      </div>
+      <ul>
+        <li><strong>Task 3.1 (<code>backend-architect</code> + <code>offline-edge-hardware</code>) :</strong> Coder le Hub LAN WebSocket et l'API Cloud de synchronisation delta (<code>/api/sync</code>).</li>
+        <li><strong>Task 3.2 (<code>superadmin-app-dev</code> + <code>frontend-pos-ui</code>) :</strong> Finaliser la <strong>Page d'Accueil / Site Vitrine Animé (<code>apps/landing-web</code> — style <code>caissa.tn</code>)</strong> présentant les 4 produits (<em>Resto, Market, Pharma, Boss</em>), les tarifs MRU et les boutons <em>Connexion / Essai gratuit WhatsApp</em> ; et finaliser l'<strong>Application Dédiée Super-Admin (<code>apps/superadmin-app</code> — Full-Tek Control)</strong> pour M. Taha Chouaib ainsi que la vue mobile <strong>Full-Tek Boss</strong>.</li>
+        <li><strong>Task 3.3 (<code>qa-devops</code>) :</strong> Préparer le <code>docker-compose.yml</code> de production pour le VPS Hetzner et vérifier tous les parcours critiques.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>CONFIDENTIEL &mdash; Architecture Technique Full-Tek POS (M. Taha Chouaib)</span>
+    <span class="page-num-pill">Page 04 / 04</span>
+  </div>
+</div>
+
+</body>
+</html>
+"""
+
+output_dir = r"d:\_Documents\Bureau\caissamrr"
+html_path = os.path.join(output_dir, "Architecture_Developpement_Full-Tek_POS_Taha_Chouaib.html")
+pdf_path = os.path.join(output_dir, "Architecture_Developpement_Full-Tek_POS_Taha_Chouaib.pdf")
+
+with open(html_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"HTML written to: {html_path}")
+
+chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+browser = chrome_path if os.path.exists(chrome_path) else edge_path
+
+cmd = [
+    browser,
+    "--headless=new",
+    "--disable-gpu",
+    "--no-pdf-header-footer",
+    "--print-to-pdf-no-header",
+    f"--print-to-pdf={pdf_path}",
+    html_path
+]
+
+subprocess.run(cmd, check=True)
+print(f"PDF successfully generated at: {pdf_path}")

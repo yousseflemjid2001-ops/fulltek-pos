@@ -1,0 +1,1115 @@
+<!doctype html>
+<html lang="fr" dir="ltr" data-type="software" data-ground="sand" data-buttons="arrow" data-mode="dark" data-tone="dark" style="--g-kl: 1.000; --g-k: 1.000; --g-kp: 0.080; --g-kd: 0.315;" data-motion="" class="mo-js mo-safe" data-moments-ready="2" data-ready="1"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="site-kind" content="tech">
+  <title>Full-Tek : caisse tactile, FEFO pharmacie et pilotage multi-sites</title>
+  <meta name="description" content="Caisse tactile ultra-rapide avec paiements Bankily, Masrivi, blocage FEFO pharmacie et continuité hors ligne sur réseau local pour la Mauritanie.">
+  <meta property="og:title" content="Full-Tek : caisse tactile et gestion multi-métiers">
+  <meta property="og:description" content="Encaissement en 0,08 s, sécurité FEFO stricte et résilience hors ligne pour restaurants, supermarchés et pharmacies.">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/svg+xml" href="Logos_Full-Tek/Modele_11_Pilules/logo_principal_sombre.svg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Reddit+Sans:wght@400..700&amp;family=JetBrains+Mono:wght@400..500&amp;family=Cairo:wght@500;700&amp;display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/system.css">
+  <link rel="stylesheet" href="assets/ui/cards.css">
+  <link rel="stylesheet" href="assets/motion/motion.css">
+  <link rel="stylesheet" href="assets/backgrounds/backgrounds.css">
+  <link rel="stylesheet" href="assets/diagrams/diagram.css">
+  <link rel="stylesheet" href="assets/layout/layout.css">
+  <link rel="stylesheet" href="assets/icons/icon.css">
+
+  <link rel="modulepreload" href="assets/system.js">
+  <link rel="modulepreload" href="assets/motion/motion.js">
+  <link rel="modulepreload" href="assets/layout/layout.js">
+  <link rel="modulepreload" href="assets/diagrams/diagram.js">
+  <link rel="modulepreload" href="assets/moments/moments.js">
+  <link rel="modulepreload" href="assets/moments/lib.js">
+  <link rel="modulepreload" href="assets/moments/line-carries-colour/moment.js">
+  <link rel="modulepreload" href="assets/moments/liquid-type/moment.js">
+  <script src="assets/backgrounds/backgrounds.js"></script>
+
+  <style>
+    :root {
+      --p-bg: #111111; --p-surface: #1c1c1c; --p-ink: #f2f2f2; --p-muted: #8f8f8f;
+      --p-accent: #a08672; --p-accent-ink: #111111; --p-action: #a08672; --p-action-ink: #111111;
+      --p-inv-bg: #f2f2f2; --p-inv-surface: #e0e0e0; --p-inv-ink: #111111; --p-inv-muted: #5c5c5c;
+      --p-inv-accent: #a08672; --p-inv-accent-ink: #111111; --p-inv-action: #a08672; --p-inv-action-ink: #111111;
+      --font-display: "Reddit Sans", "Cairo", system-ui, sans-serif;
+      --font-text: "Reddit Sans", "Cairo", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      --display-weight: 500;
+      --display-tracking: -0.03em;
+      --display-tracking-xl: -0.04em;
+
+      --ft-resto: #E4572E;
+      --ft-market: #2E9E5B;
+      --ft-pharma: #1B8FD9;
+      --ft-boss: #C99A2E;
+    }
+
+    /* Arabic font swap preserving numeric clarity */
+    html[dir="rtl"] body { font-family: "Cairo", "Reddit Sans", system-ui, sans-serif; }
+
+    /* Nav language pills */
+    .ft-lang-group {
+      display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+      border-radius: var(--r-btn); border: 1px solid var(--line); background: var(--surface);
+    }
+    .ft-lang-btn {
+      height: 28px; min-width: 34px; padding: 0 8px; border: 0; border-radius: calc(var(--r-btn) - 2px);
+      background: transparent; color: var(--muted); font: 500 12px/1 var(--font-mono); cursor: pointer;
+      transition: background-color .18s var(--ease), color .18s var(--ease);
+    }
+    .ft-lang-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+    .ft-lang-btn:hover { color: var(--ink); }
+
+    /* Nav logo sizing cleanly inside 72px header */
+    .nav__logo .ft-logo { height: 34px; width: auto; display: block; }
+    .footer .ft-logo { height: 40px; width: auto; display: block; }
+
+    /* Hero triptych bespoke high-craft POS UI collage cards */
+    .ft-collage-card {
+      background: var(--u-surface, #1a1a1a); color: #f2f2f2;
+      border: 1px solid rgba(255,255,255,.12);
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+      font-family: var(--font-text);
+    }
+    .ft-collage-card--light {
+      background: #f6f4ef; color: #141413; border-color: rgba(20,20,19,.12);
+    }
+    .ft-c-kicker {
+      font: 500 11px/1.2 var(--font-mono); letter-spacing: .04em; text-transform: uppercase;
+      color: var(--u-accent, #a08672); display: flex; align-items: center; justify-content: space-between;
+    }
+    .ft-c-stat { font: 600 26px/1.1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    .ft-c-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 7px 10px; border-radius: 6px; background: rgba(255,255,255,.05);
+      font: 500 12.5px/1.3 var(--font-text);
+    }
+    .ft-collage-card--light .ft-c-row { background: rgba(20,20,19,.05); }
+    .ft-c-badge {
+      display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
+      font: 600 11px/1 var(--font-mono);
+    }
+
+    /* Interactive POS App Frame (#app) following sections-library .app.ui recipe */
+    .ft-app-bar {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: var(--s-4);
+    }
+    .ft-chip-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .ft-chip {
+      height: 36px; padding: 0 12px; border-radius: var(--r-btn); border: 1px solid var(--line);
+      background: var(--surface); color: var(--muted); font: 500 13px/1 var(--font-text);
+      cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      transition: background-color .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
+    }
+    .ft-chip:hover { color: var(--ink); border-color: var(--line-strong); }
+    .ft-chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .ft-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+    .app.ui {
+      display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      margin-top: 0; background: var(--pos-bg, #191918); color: var(--pos-ink, #f2f2f2);
+      border: 1px solid var(--pos-border, rgba(255,255,255,.12)); border-radius: var(--u-r, 12px);
+      box-shadow: var(--u-shadow, 0 24px 60px -24px rgba(0,0,0,.65));
+      overflow: hidden; min-height: 460px;
+      --pos-bg: #181817; --pos-surface: #222220; --pos-ink: #f2f2f2; --pos-muted: #9e9e99;
+      --pos-line: rgba(255,255,255,.1); --pos-accent: #E4572E;
+    }
+    .app.ui[data-theme="01"] { --pos-bg: #181817; --pos-surface: #232321; --pos-ink: #f2f2f2; --pos-muted: #9d9d98; --pos-line: rgba(255,255,255,.11); }
+    .app.ui[data-theme="06"] { --pos-bg: #f6efe7; --pos-surface: #ffffff; --pos-ink: #1e1815; --pos-muted: #655950; --pos-line: rgba(30,24,21,.11); }
+    .app.ui[data-theme="07"] { --pos-bg: #0f1b17; --pos-surface: #172722; --pos-ink: #eff6f2; --pos-muted: #8cb2a4; --pos-line: rgba(239,246,242,.12); }
+    .app.ui[data-theme="11"] { --pos-bg: #edf1ec; --pos-surface: #ffffff; --pos-ink: #19211b; --pos-muted: #58655b; --pos-line: rgba(25,33,27,.11); }
+
+    .app > .app__pane { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 18px; gap: 14px; }
+    .app > .app__pane + .app__pane { border-left: 1px solid var(--pos-line); background: var(--pos-surface); }
+    @media (max-width: 1023px) {
+      .app.ui { grid-template-columns: minmax(0, 1fr); }
+      .app > .app__pane + .app__pane { border-left: 0; border-top: 1px solid var(--pos-line); }
+    }
+
+    .ft-pos-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--pos-line); font-size: 13px;
+    }
+    .ft-pos-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+    }
+    @media (max-width: 639px) { .ft-pos-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .ft-sku {
+      display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+      padding: 12px; border-radius: 8px; border: 1px solid var(--pos-line);
+      background: var(--pos-surface); color: var(--pos-ink); text-align: left; cursor: pointer;
+      transition: transform .14s var(--ease), border-color .14s var(--ease);
+    }
+    .ft-sku:hover { border-color: var(--pos-accent); transform: translateY(-1px); }
+    .ft-sku:active { transform: scale(.985); }
+    .ft-sku--danger { border-color: rgba(217, 45, 32, .55); }
+    .ft-sku__name { font: 600 13.5px/1.25 var(--font-text); }
+    .ft-sku__meta { font: 400 11.5px/1.2 var(--font-mono); color: var(--pos-muted); }
+    .ft-sku__price { font: 600 14px/1 var(--font-mono); color: var(--pos-accent); font-variant-numeric: tabular-nums; }
+
+    .ft-ticket-list {
+      display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-height: 110px; max-height: 190px; overflow-y: auto;
+    }
+    .ft-ticket-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 8px 10px; border-radius: 6px; border: 1px solid var(--pos-line); font-size: 13px;
+    }
+    .ft-alert-box {
+      padding: 10px 12px; border-radius: 8px; background: #4a1210; color: #ffd9d6;
+      border: 1px solid #d92d20; font: 500 12.5px/1.4 var(--font-text);
+    }
+    .ft-pay-panel {
+      padding: 12px; border-radius: 8px; border: 1px solid var(--pos-line);
+      background: var(--pos-bg); display: grid; gap: 10px;
+    }
+    .ft-total-line {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding-top: 10px; border-top: 1px solid var(--pos-line);
+    }
+    .ft-total-val { font: 700 24px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--pos-ink); }
+
+    .ft-thermal-paper {
+      padding: 14px; border-radius: 6px; background: #fbf9f4; color: #191918;
+      font: 500 11.5px/1.5 var(--font-mono); border-top: 3px dashed #191918;
+      animation: ft-print-slide .35s var(--ease);
+    }
+    @keyframes ft-print-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+    /* Business Suite Cards (#suites) */
+    .ft-card-logo {
+      padding: 20px; border-radius: var(--r-lg); background: var(--surface);
+      border: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      min-height: 108px;
+    }
+    .ft-suite-logo { max-width: 100%; height: 58px; width: auto; display: block; color: var(--ink); }
+
+    /* Outage Simulator & Hub Diagram (#network) */
+    .ft-net-sim {
+      display: grid; gap: 14px; padding: 20px; border-radius: var(--r-lg);
+      background: var(--card); border: 1px solid var(--line);
+    }
+    .ft-node-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+      font-size: 14px;
+    }
+    .ft-status-pill {
+      font: 600 11.5px/1 var(--font-mono); padding: 4px 10px; border-radius: 999px;
+      background: color-mix(in oklab, var(--action) 20%, transparent); color: var(--ink);
+    }
+    .ft-status-pill.is-offline { background: #d92d20; color: #ffffff; }
+    .ft-status-pill.is-ok { background: #1e7e46; color: #ffffff; }
+
+    /* Tablet 768..1023 keep security 2-col side-by-side so it fits 1 screen cleanly */
+    @media (min-width: 640px) and (max-width: 1023px) {
+      .ft-sec-left { grid-column: 1 / span 7 !important; }
+      .ft-sec-right { grid-column: 8 / span 5 !important; }
+    }
+
+    /* Security / ROI interactive tabs (#security) */
+    .ft-panel-box {
+      padding: 20px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line);
+    }
+    @media (max-width: 639px) {
+      .ft-panel-box { padding: 14px; }
+      .ft-panel-box .rows p { display: none; }
+      #suites.g2m { min-height: 200lvh; }
+    }
+    .ft-fefo-track {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px;
+    }
+    @media (max-width: 639px) { .ft-fefo-track { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .ft-fefo-step {
+      padding: 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+      display: grid; gap: 6px; font-size: 13px;
+    }
+    .ft-fefo-step.is-locked { border-color: #d92d20; background: color-mix(in oklab, #d92d20 12%, var(--bg)); }
+    .ft-rbac-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px;
+    }
+    @media (max-width: 639px) { .ft-rbac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .ft-rbac-card {
+      padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+      display: grid; gap: 4px; font-size: 13px;
+    }
+    .ft-roi-grid {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: center;
+    }
+    @media (max-width: 767px) { .ft-roi-grid { grid-template-columns: minmax(0, 1fr); } }
+    .ft-range { width: 100%; accent-color: var(--action); cursor: pointer; }
+    .ft-roi-result {
+      padding: 20px; border-radius: var(--r-md); background: var(--bg); border: 1px solid var(--action);
+      display: grid; gap: 8px;
+    }
+  </style>
+<link rel="stylesheet" href="http://127.0.0.1:5200/assets/moments/line-carries-colour/moment.css"><link rel="stylesheet" href="http://127.0.0.1:5200/assets/moments/liquid-type/moment.css"></head>
+<body>
+  <header class="nav nav--centre" data-m-nav="1">
+    <div class="wrap nav__bar">
+      <a class="skip-link" href="#main">Aller au contenu</a>
+      <a class="nav__logo" href="#hero" aria-label="Full-Tek accueil">
+        <svg class="ft-logo" viewBox="0 0 360 88" width="164" height="40" role="img" aria-label="Full-Tek SUITE POS"><style>.fpnav{transform-box:fill-box;transform-origin:left center;transition:transform .35s cubic-bezier(.22,1,.36,1)}a:hover .fpnav.p1,.ft-card:hover .fpnav.p1{transform:scaleX(.94)}a:hover .fpnav.p2,.ft-card:hover .fpnav.p2{transform:scaleX(1.16)}a:hover .fpnav.p3,.ft-card:hover .fpnav.p3{transform:scaleX(1.38)}</style><rect class="fpnav p1" x="8" y="15" width="72" height="14" rx="7" fill="currentColor"></rect><rect class="fpnav p2" x="8" y="37" width="48" height="14" rx="7" fill="#E9A23B"></rect><rect class="fpnav p3" x="8" y="59" width="28" height="14" rx="7" fill="currentColor"></rect><text x="98" y="47" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="36" letter-spacing="-1" fill="currentColor">Full·Tek</text><text x="100" y="68" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="600" font-size="11.5" letter-spacing="4.2" fill="#E9A23B">SUITE POS</text></svg>
+      </a>
+
+      <nav class="nav__links" aria-label="Navigation principale">
+        <div class="nav__item">
+          <a class="nav__link" href="#suites">
+            <span data-i18n="nav_suites">Gammes</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+          </a>
+          <button class="nav__expand" type="button" aria-label="Show Gammes links" aria-expanded="false">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+          </button>
+          <div class="nav__menu">
+            <div class="wrap grid">
+              <div class="menu-col span-3">
+                <p class="t-label">Solutions métiers</p>
+                <a href="#suites" data-load-suite="resto">Full-Tek Resto <span>Salle, KDS cuisine, addition partagée</span></a>
+                <a href="#suites" data-load-suite="market">Full-Tek Market <span>Code-barres 0,08 s, balances, gros</span></a>
+              </div>
+              <div class="menu-col span-3">
+                <p class="t-label">Contrôle et direction</p>
+                <a href="#suites" data-load-suite="pharma">Full-Tek Pharma <span>Lots FEFO, verrou péremption</span></a>
+                <a href="#suites" data-load-suite="boss">Full-Tek Boss <span>Multi-boutiques et Super-Admin</span></a>
+              </div>
+              <div class="menu-col span-6">
+                <p class="t-label">Architecture Mauritanie</p>
+                <a href="#network">Relais LAN Hors Ligne <span>Zéro coupure si la fibre tombe</span></a>
+                <a href="#app">Paiements Bankily, Masrivi, Sedad <span>Confirmation QR en 0,4 s</span></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav__item"><a class="nav__link" href="#app" data-i18n="nav_sim">Simulateur</a></div>
+        <div class="nav__item"><a class="nav__link" href="#network" data-i18n="nav_net">Réseau</a></div>
+        <div class="nav__item"><a class="nav__link" href="#pricing" data-i18n="nav_price">Tarifs</a></div>
+      </nav>
+
+      <div class="nav__actions">
+        <div class="ft-lang-group" role="group" aria-label="Langue de l'interface">
+          <button class="ft-lang-btn" type="button" data-lang="fr" aria-pressed="true">FR</button>
+          <button class="ft-lang-btn" type="button" data-lang="ar" aria-pressed="false">AR</button>
+          <button class="ft-lang-btn" type="button" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+        <a class="btn btn--secondary btn--sm" href="#app" data-load-suite="admin" data-i18n="nav_ctrl">Control</a>
+        <a class="btn btn--primary btn--sm" href="#app" data-i18n="nav_cta">Essai gratuit 15 jours <svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"></path><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"></path></svg></a>
+      </div>
+
+      <button class="nav__toggle" type="button" aria-label="Menu" aria-expanded="false"></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- SCREEN 1: HERO TRIPTYCH + GRADIENT-MESH WEBGL -->
+    <section class="hero hero--triptych" id="hero">
+      <div class="layer" data-fx="gradient-mesh" data-fx-seed="5ee80715" aria-hidden="true" style="position: relative; isolation: isolate; background-color: rgb(17, 17, 17); padding-bottom: calc(44px);" data-fx-own-bg="1" data-fx-mounted="gradient-mesh" data-ui-pause-room=""><canvas class="fx-canvas" aria-hidden="true" width="1440" height="1" style="position: absolute; inset: 0px; width: 100%; height: 100%; display: block; z-index: -1; pointer-events: none; opacity: 1; transition: opacity 0.5s; border-radius: inherit; image-rendering: auto;"></canvas><button type="button" class="ui-pause loop-pause ui-pause--below" aria-label="Pause animation" title="Pause animation"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.25" y="3.25" width="2.75" height="9.5" rx="0.9"></rect><rect x="9" y="3.25" width="2.75" height="9.5" rx="0.9"></rect></svg></button></div>
+      <div class="wrap">
+        <div class="hero-text hero__grid grid">
+          <div class="span-3">
+            <h1 data-i18n="hero_h1">Un seul noyau POS. Quatre métiers.</h1>
+            <p class="hero__lead" data-i18n="hero_lead">Encaissement 0,08 s, paiements Bankily et Masrivi, alerte FEFO et relais LAN hors ligne.</p>
+          </div>
+
+          <div class="ly-collage span-6 start-4" role="img" aria-label="Aperçu interactif des modules Full-Tek Resto, Market, Pharma et Boss" data-ui-pause-host="">
+            <!-- SET 1: RESTO + BANKILY QR + BOSS SYNC -->
+            <div class="ly-collage__set is-on" aria-hidden="false">
+              <div class="ly-piece ft-collage-card" style="left:2%; top:6%; width:58%; --u-accent:#E4572E;">
+                <div class="ft-c-kicker"><span>FULL-TEK RESTO</span><span>Table 07</span></div>
+                <div class="ft-c-row"><span>2× Méchoui Royal</span><span>7 200 MRU</span></div>
+                <div class="ft-c-row"><span>1× Jus de Bissap</span><span>600 MRU</span></div>
+                <div class="ft-c-stat">7 800 MRU</div>
+              </div>
+              <div class="ly-piece ft-collage-card ft-collage-card--light" style="left:52%; top:14%; width:44%; --u-accent:#2E9E5B;">
+                <div class="ft-c-kicker"><span>BANKILY QR</span><span>0,4 s</span></div>
+                <div class="ft-c-stat">Confirmé</div>
+                <span class="ft-c-badge" style="background:#2E9E5B;color:#fff;">TX #BK-88412</span>
+              </div>
+              <div class="ly-piece ft-collage-card" style="right:4%; bottom:4%; width:64%; --u-accent:#C99A2E;">
+                <div class="ft-c-kicker"><span>FULL-TEK BOSS · LIVE</span><span>3 boutiques</span></div>
+                <div class="ft-c-stat">482 500 MRU</div>
+                <div class="ft-c-row"><span>Nouakchott Centre</span><span>LAN Actif</span></div>
+              </div>
+            </div>
+
+            <!-- SET 2: MARKET LASER 2D + SEDAD -->
+            <div class="ly-collage__set" inert="" aria-hidden="true">
+              <div class="ly-piece ft-collage-card" style="left:4%; top:8%; width:58%; --u-accent:#2E9E5B;">
+                <div class="ft-c-kicker"><span>FULL-TEK MARKET</span><span>Scan 0,08 s</span></div>
+                <div class="ft-c-row"><span>Sac Riz Basmati 25kg</span><span>9 400 MRU</span></div>
+                <div class="ft-c-row"><span>Huile Tournesol 5L</span><span>3 150 MRU</span></div>
+                <div class="ft-c-stat">12 550 MRU</div>
+              </div>
+              <div class="ly-piece ft-collage-card ft-collage-card--light" style="right:4%; bottom:4%; width:56%; --u-accent:#C99A2E;">
+                <div class="ft-c-kicker"><span>RELAIS LOCAL</span><span>Auto-Sync</span></div>
+                <div class="ft-c-stat">100 % Intact</div>
+                <div class="ft-c-row"><span>File locale</span><span>0 ticket perdu</span></div>
+              </div>
+            </div>
+
+            <!-- SET 3: PHARMA FEFO HARD LOCK -->
+            <div class="ly-collage__set" inert="" aria-hidden="true">
+              <div class="ly-piece ft-collage-card" style="left:3%; top:8%; width:60%; --u-accent:#1B8FD9;">
+                <div class="ft-c-kicker"><span>FULL-TEK PHARMA</span><span>Contrôle FEFO</span></div>
+                <div class="ft-c-row"><span>Amoxicilline 500mg · Lot A2</span><span>Valide 2027</span></div>
+                <div class="ft-c-row" style="border:1px solid #d92d20;"><span>Insuline Lot P9</span><span>BLOQUÉ</span></div>
+              </div>
+              <div class="ly-piece ft-collage-card ft-collage-card--light" style="right:4%; bottom:4%; width:58%; --u-accent:#1B8FD9;">
+                <div class="ft-c-kicker"><span>AUDIT RBAC</span><span>9 Rôles</span></div>
+                <div class="ft-c-stat">Sécurité Lot</div>
+                <span class="ft-c-badge" style="background:#1B8FD9;color:#fff;">Traçabilité active</span>
+              </div>
+            </div>
+          <button type="button" class="ui-pause loop-pause" aria-label="Pause animation" title="Pause animation"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.25" y="3.25" width="2.75" height="9.5" rx="0.9"></rect><rect x="9" y="3.25" width="2.75" height="9.5" rx="0.9"></rect></svg></button></div>
+
+          <div class="hero__cta span-3">
+            <a class="btn btn--primary" href="#app" data-i18n="hero_cta">Lancer le simulateur <svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"></path><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"></path></svg></a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: INTERACTIVE POS APP FRAME (#app) -->
+    <section class="section" id="app" style="--hm: 2">
+      <div class="wrap">
+        <div class="section-head section-head--split">
+          <div>
+            <h2 data-i18n="app_h2">Testez la caisse réelle avant déploiement</h2>
+            <p data-i18n="app_sub">Basculez entre les quatre solutions, quatre thèmes et le réseau hors ligne.</p>
+          </div>
+        </div>
+
+        <div class="ft-app-bar" aria-label="Contrôles du simulateur">
+          <div class="ft-chip-row" role="group" aria-label="Solution métier">
+            <button class="ft-chip" type="button" data-sim-suite="resto" aria-pressed="true"><span class="ft-dot" style="background:var(--ft-resto)"></span>Resto</button>
+            <button class="ft-chip" type="button" data-sim-suite="market" aria-pressed="false"><span class="ft-dot" style="background:var(--ft-market)"></span>Market</button>
+            <button class="ft-chip" type="button" data-sim-suite="pharma" aria-pressed="false"><span class="ft-dot" style="background:var(--ft-pharma)"></span>Pharma</button>
+            <button class="ft-chip" type="button" data-sim-suite="boss" aria-pressed="false"><span class="ft-dot" style="background:var(--ft-boss)"></span>Boss</button>
+            <button class="ft-chip" type="button" data-sim-suite="admin" aria-pressed="false"><span class="ft-dot" style="background:#a08672"></span>Super-Admin</button>
+          </div>
+
+          <div class="ft-chip-row" role="group" aria-label="Thème visuel et réseau">
+            <button class="ft-chip" type="button" data-sim-theme="01" aria-pressed="true">01 Graphite</button>
+            <button class="ft-chip" type="button" data-sim-theme="06" aria-pressed="false">06 Terracotta</button>
+            <button class="ft-chip" type="button" data-sim-theme="07" aria-pressed="false">07 Émeraude</button>
+            <button class="ft-chip" type="button" data-sim-theme="11" aria-pressed="false">11 Sauge</button>
+            <button class="ft-chip" type="button" id="btn-offline-toggle" aria-pressed="false">Réseau : En ligne</button>
+          </div>
+        </div>
+
+        <div class="ui app" id="pos-app-frame" data-theme="01" role="region" aria-label="Simulateur interactif de caisse Full-Tek" style="--pos-accent: #E4572E;">
+          <div class="app__pane">
+            <div class="ft-pos-head">
+              <strong id="pos-pane-title">Full-Tek Resto · Salle &amp; KDS Cuisine</strong>
+              <span id="pos-net-badge" class="ft-status-pill is-ok">CLOUD + LAN ACTIF</span>
+            </div>
+            <div class="ft-pos-grid" id="pos-catalog">
+        <button class="ft-sku " type="button" data-sku="r1">
+          <span class="ft-sku__name">Méchoui d'agneau</span>
+          <span class="ft-sku__meta">Cuisine KDS · Table 04</span>
+          <span class="ft-sku__price">3 600 MRU</span>
+        </button>
+      
+        <button class="ft-sku " type="button" data-sku="r2">
+          <span class="ft-sku__name">Thiéboudienne Royal</span>
+          <span class="ft-sku__meta">Plat du jour · chaud</span>
+          <span class="ft-sku__price">2 400 MRU</span>
+        </button>
+      
+        <button class="ft-sku " type="button" data-sku="r3">
+          <span class="ft-sku__name">Pizza Artisanale 4S</span>
+          <span class="ft-sku__meta">Four · 12 min</span>
+          <span class="ft-sku__price">2 900 MRU</span>
+        </button>
+      
+        <button class="ft-sku " type="button" data-sku="r4">
+          <span class="ft-sku__name">Jus de Bissap frais</span>
+          <span class="ft-sku__meta">Bar · Boisson</span>
+          <span class="ft-sku__price">450 MRU</span>
+        </button>
+      
+        <button class="ft-sku " type="button" data-sku="r5">
+          <span class="ft-sku__name">Thé à la menthe (Attaya)</span>
+          <span class="ft-sku__meta">Service table</span>
+          <span class="ft-sku__price">600 MRU</span>
+        </button>
+      
+        <button class="ft-sku " type="button" data-sku="r6">
+          <span class="ft-sku__name">Note partagée ½</span>
+          <span class="ft-sku__meta">Division instantanée</span>
+          <span class="ft-sku__price">1 800 MRU</span>
+        </button>
+      </div>
+            <div id="pos-fefo-alert" class="ft-alert-box" hidden="">
+              BLOCAGE FEFO ACTIF : Lot #INS-204 expiré — vente bloquée automatiquement. Scanner un lot conforme.
+            </div>
+          </div>
+
+          <div class="app__pane">
+            <div class="ft-pos-head">
+              <strong id="pos-cart-title">Ticket en cours</strong>
+              <button class="ft-chip" type="button" id="pos-clear-btn" style="height:28px;font-size:12px;">Vider</button>
+            </div>
+            <div class="ft-ticket-list" id="pos-cart-list"><div class="ft-ticket-row" style="opacity:.7"><span>Touchez un article à gauche pour démarrer le ticket.</span></div></div>
+
+            <div class="ft-pay-panel" id="pos-pay-box">
+              <div class="ft-total-line">
+                <span>Total à encaisser</span>
+                <span class="ft-total-val" id="pos-total">0 MRU</span>
+              </div>
+              <div class="ft-chip-row">
+                <button class="btn btn--primary btn--sm" type="button" id="pos-pay-bankily">Encaisser Bankily / Masrivi</button>
+                <button class="btn btn--secondary btn--sm" type="button" id="pos-pay-cash">Espèces MRU</button>
+              </div>
+              <div id="pos-receipt-out"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: 4 BUSINESS SUITES + OFFICIAL LOGOS (bg-mist, g2 g2m) -->
+    <section class="section bg-mist g2 g2m" id="suites">
+      <div class="wrap">
+        <div class="group">
+          <div class="section-head">
+            <h2 data-i18n="suites_h2">Quatre suites dédiées à chaque comptoir</h2>
+            <p data-i18n="suites_sub">Chaque établissement démarre avec l'outil adapté à son rythme de comptoir.</p>
+          </div>
+
+          <div class="grid">
+            <article class="card card--open span-6 ft-card">
+              <div class="ft-card-logo">
+                <svg class="ft-suite-logo" viewBox="0 0 360 92" width="240" height="62" role="img" aria-label="Full-Tek Resto"><style>.fsrst{transform-box:fill-box;transform-origin:left center;transition:transform .38s cubic-bezier(.22,1,.36,1)}.ft-card:hover .fsrst.p1{transform:scaleX(.92)}.ft-card:hover .fsrst.p2{transform:scaleX(1.15)}.ft-card:hover .fsrst.p3{transform:scaleX(1.4)}</style><rect class="fsrst p1" x="8" y="16" width="70" height="14" rx="7" fill="currentColor"></rect><rect class="fsrst p2" x="8" y="39" width="46" height="14" rx="7" fill="#E4572E"></rect><rect class="fsrst p3" x="8" y="62" width="26" height="14" rx="7" fill="currentColor"></rect><text x="96" y="48" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="34" letter-spacing="-1" fill="currentColor">Full·Tek</text><g transform="translate(96,57) scale(.85)"><path fill="none" stroke="#E4572E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M7 3v6a2 2 0 0 0 4 0V3M9 3v18M17 21V3c-2.5 1.8-3.5 4.5-3.5 8H17"></path></g><text x="122" y="74" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="13" letter-spacing="3.5" fill="#E4572E">RESTO</text></svg>
+                <button class="btn btn--secondary btn--sm" type="button" data-load-suite="resto">Ouvrir Resto</button>
+              </div>
+              <h3>Restauration et salons</h3>
+              <p>Prise de commande à table, envoi cuisine KDS sans papier, division de note et suivi des boissons.</p>
+            </article>
+
+            <article class="card card--open span-6 ft-card">
+              <div class="ft-card-logo">
+                <svg class="ft-suite-logo" viewBox="0 0 360 92" width="240" height="62" role="img" aria-label="Full-Tek Market"><style>.fsmkt{transform-box:fill-box;transform-origin:left center;transition:transform .38s cubic-bezier(.22,1,.36,1)}.ft-card:hover .fsmkt.p1{transform:scaleX(.92)}.ft-card:hover .fsmkt.p2{transform:scaleX(1.15)}.ft-card:hover .fsmkt.p3{transform:scaleX(1.4)}</style><rect class="fsmkt p1" x="8" y="16" width="70" height="14" rx="7" fill="currentColor"></rect><rect class="fsmkt p2" x="8" y="39" width="46" height="14" rx="7" fill="#2E9E5B"></rect><rect class="fsmkt p3" x="8" y="62" width="26" height="14" rx="7" fill="currentColor"></rect><text x="96" y="48" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="34" letter-spacing="-1" fill="currentColor">Full·Tek</text><g transform="translate(96,57) scale(.85)"><path fill="none" stroke="#2E9E5B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M3 4h3l2.4 11h9.6l2-8H7"></path><circle cx="10" cy="19.5" r="1.6" fill="#2E9E5B"></circle><circle cx="17" cy="19.5" r="1.6" fill="#2E9E5B"></circle></g><text x="122" y="74" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="13" letter-spacing="3.5" fill="#2E9E5B">MARKET</text></svg>
+                <button class="btn btn--secondary btn--sm" type="button" data-load-suite="market">Ouvrir Market</button>
+              </div>
+              <h3>Supermarchés et grossistes</h3>
+              <p>Lecture code-barres 0,08 s, tarification détail ou carton, balance connectée et inventaire tournant.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="grid">
+            <article class="card card--open span-6 ft-card">
+              <div class="ft-card-logo">
+                <svg class="ft-suite-logo" viewBox="0 0 360 92" width="240" height="62" role="img" aria-label="Full-Tek Pharma"><style>.fsphr{transform-box:fill-box;transform-origin:left center;transition:transform .38s cubic-bezier(.22,1,.36,1)}.ft-card:hover .fsphr.p1{transform:scaleX(.92)}.ft-card:hover .fsphr.p2{transform:scaleX(1.15)}.ft-card:hover .fsphr.p3{transform:scaleX(1.4)}</style><rect class="fsphr p1" x="8" y="16" width="70" height="14" rx="7" fill="currentColor"></rect><rect class="fsphr p2" x="8" y="39" width="46" height="14" rx="7" fill="#1B8FD9"></rect><rect class="fsphr p3" x="8" y="62" width="26" height="14" rx="7" fill="currentColor"></rect><text x="96" y="48" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="34" letter-spacing="-1" fill="currentColor">Full·Tek</text><g transform="translate(96,57) scale(.85)"><path fill="#1B8FD9" d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"></path></g><text x="122" y="74" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="13" letter-spacing="3.5" fill="#1B8FD9">PHARMA</text></svg>
+                <button class="btn btn--secondary btn--sm" type="button" data-load-suite="pharma">Ouvrir Pharma</button>
+              </div>
+              <h3>Pharmacies et dépôts</h3>
+              <p>Sortie FEFO automatique par date de péremption, blocage strict des lots expirés et alertes à 90 jours.</p>
+            </article>
+
+            <article class="card card--open span-6 ft-card">
+              <div class="ft-card-logo">
+                <svg class="ft-suite-logo" viewBox="0 0 360 92" width="240" height="62" role="img" aria-label="Full-Tek Boss"><style>.fsbss{transform-box:fill-box;transform-origin:left center;transition:transform .38s cubic-bezier(.22,1,.36,1)}.ft-card:hover .fsbss.p1{transform:scaleX(.92)}.ft-card:hover .fsbss.p2{transform:scaleX(1.15)}.ft-card:hover .fsbss.p3{transform:scaleX(1.4)}</style><rect class="fsbss p1" x="8" y="16" width="70" height="14" rx="7" fill="currentColor"></rect><rect class="fsbss p2" x="8" y="39" width="46" height="14" rx="7" fill="#C99A2E"></rect><rect class="fsbss p3" x="8" y="62" width="26" height="14" rx="7" fill="currentColor"></rect><text x="96" y="48" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="34" letter-spacing="-1" fill="currentColor">Full·Tek</text><g transform="translate(96,57) scale(.85)"><rect x="3" y="12" width="5" height="9" rx="1" fill="#C99A2E"></rect><rect x="10" y="4" width="5" height="17" rx="1" fill="#C99A2E"></rect><rect x="17" y="8" width="5" height="13" rx="1" fill="#C99A2E"></rect></g><text x="122" y="74" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="13" letter-spacing="3.5" fill="#C99A2E">BOSS</text></svg>
+                <button class="btn btn--secondary btn--sm" type="button" data-load-suite="boss">Ouvrir Boss</button>
+              </div>
+              <h3>Direction et Super-Admin</h3>
+              <p>Marge nette en direct, caisse par boutique sur mobile et console Full-Tek Control pour les licences.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: NETWORK RESILIENCE + HUB DIAGRAM (bg-band bg-bleed + line-carries-colour) -->
+    <section class="section bg-band bg-bleed" id="network">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 data-moment="line-carries-colour" data-moment-opts="{&quot;from&quot;:&quot;base&quot;}" data-i18n="net_h2" class="mo-lc is-live mo-lc--base is-open" data-moment-mounted="1" style="--mo-cut: 0.0px; --mo-below: 0.0px;">Zéro arrêt quand la connexion coupe.<div class="mo-lc__stage" aria-hidden="true"><div class="mo-lc__cover"></div><div class="mo-lc__line"></div></div></h2>
+          <p data-i18n="net_sub">Le serveur local prend le relais instantanément et resynchronise dès le retour du réseau.</p>
+        </div>
+
+        <div class="grid grid--top">
+          <div class="span-5 ft-net-sim">
+            <strong>Simulateur de bascule réseau LAN</strong>
+            <div class="ft-chip-row" role="group" aria-label="État de la connexion">
+              <button class="ft-chip" type="button" data-net-mode="online" aria-pressed="true">Fibre active</button>
+              <button class="ft-chip" type="button" data-net-mode="cut" aria-pressed="false">Couper Internet</button>
+              <button class="ft-chip" type="button" data-net-mode="sync" aria-pressed="false">Resynchroniser</button>
+            </div>
+            <div class="ft-node-row"><span>Terminaux comptoir</span><span id="net-pos-st" class="ft-status-pill is-ok">0,08 s EN LIGNE</span></div>
+            <div class="ft-node-row"><span>Base locale Edge LAN</span><span id="net-lan-st" class="ft-status-pill">EN VEILLE</span></div>
+            <div class="ft-node-row"><span>Boss Mobile &amp; Control</span><span id="net-cloud-st" class="ft-status-pill is-ok">TEMPS RÉEL</span></div>
+            <p id="net-caption" class="t-small">Toutes les transactions sont chiffrées et répliquées en continu.</p>
+          </div>
+
+          <div class="panel span-7" style="--p-h: 390px;">
+            <div class="dg" data-diagram="{&quot;layout&quot;:&quot;hub&quot;,&quot;motion&quot;:{&quot;cycle&quot;:3.2},&quot;ground&quot;:&quot;glow rings&quot;,&quot;center&quot;:{&quot;label&quot;:&quot;Full-Tek Core&quot;,&quot;sub&quot;:&quot;LAN + Cloud&quot;,&quot;icon&quot;:&quot;ui:server&quot;},&quot;spokes&quot;:[{&quot;label&quot;:&quot;Bankily QR&quot;,&quot;sub&quot;:&quot;0,4 s&quot;,&quot;icon&quot;:&quot;ui:credit-card&quot;},{&quot;label&quot;:&quot;Masrivi&quot;,&quot;sub&quot;:&quot;Instantané&quot;,&quot;icon&quot;:&quot;ui:smartphone&quot;},{&quot;label&quot;:&quot;Sedad&quot;,&quot;sub&quot;:&quot;Confirmé&quot;,&quot;icon&quot;:&quot;ui:check-circle&quot;},{&quot;label&quot;:&quot;Thermal 80mm&quot;,&quot;sub&quot;:&quot;USB / IP&quot;,&quot;icon&quot;:&quot;ui:printer&quot;},{&quot;label&quot;:&quot;Douchette 2D&quot;,&quot;sub&quot;:&quot;Scan FEFO&quot;,&quot;icon&quot;:&quot;ui:scan&quot;},{&quot;label&quot;:&quot;Boss Mobile&quot;,&quot;sub&quot;:&quot;Sync Live&quot;,&quot;icon&quot;:&quot;ui:activity&quot;}]}" data-layout="hub" role="img" aria-label="Diagram: Full-Tek Core, Bankily QR, Masrivi, Sedad, Thermal 80mm, Douchette 2D, Boss Mobile" data-tier="n" data-orient="h" data-ground="light" data-dg-ground="glow rings" style="--dg-cx: 368.5px; --dg-cy: 195px;"><svg class="dg-svg" width="737" height="390" viewBox="0 0 737 390" aria-hidden="true" focusable="false"><defs><radialGradient id="dgh14"><stop offset="0" class="dg-halo__in"></stop><stop offset="1" class="dg-halo__out"></stop></radialGradient><linearGradient id="dgc15" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="dg-c0"></stop><stop offset="0.55" class="dg-c1"></stop><stop offset="1" class="dg-c2"></stop></linearGradient><linearGradient id="dgc16" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="dg-c0"></stop><stop offset="0.55" class="dg-c1"></stop><stop offset="1" class="dg-c2"></stop></linearGradient><linearGradient id="dgc17" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="dg-c0"></stop><stop offset="0.55" class="dg-c1"></stop><stop offset="1" class="dg-c2"></stop></linearGradient><linearGradient id="dgc18" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="dg-c0"></stop><stop offset="0.55" class="dg-c1"></stop><stop offset="1" class="dg-c2"></stop></linearGradient><linearGradient id="dgc19" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="dg-c0"></stop><stop offset="0.55" class="dg-c1"></stop><stop offset="1" class="dg-c2"></stop></linearGradient><linearGradient id="dgc20" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0"><stop offset="0" class="dg-c0"></stop><stop offset="0.55" class="dg-c1"></stop><stop offset="1" class="dg-c2"></stop></linearGradient></defs><g class="dg-rings"><circle cx="368.5" cy="195" r="74.1" stroke-opacity="0.902"></circle><circle cx="368.5" cy="195" r="148.2" stroke-opacity="0.659"></circle><circle cx="368.5" cy="195" r="222.3" stroke-opacity="0.415"></circle><circle cx="368.5" cy="195" r="296.4" stroke-opacity="0.171"></circle><circle cx="368.5" cy="195" r="370.5" stroke-opacity="0"></circle></g><circle class="dg-halo" cx="368.5" cy="195" r="117" fill="url(#dgh14)"></circle><g class="dg-edges"><g class="dg-e"><path class="dg-line" d="M392.2 172L490.3 76.8"></path><path class="dg-lit" d="M392.2 172L490.3 76.8" style="opacity: 0;"></path><path class="dg-glow" d="M392.2 172L490.3 76.8" stroke="url(#dgc15)" stroke-dasharray="30.1 286.1" stroke-dashoffset="286.1"></path><path class="dg-comet" d="M392.2 172L490.3 76.8" stroke="url(#dgc15)" stroke-dasharray="54.7 286.1" stroke-dashoffset="286.1"></path><circle class="dg-spark-halo" r="6" cx="-50" cy="-50"></circle><circle class="dg-spark" r="2.1" cx="-50" cy="-50"></circle></g><g class="dg-e"><path class="dg-line" d="M440 195L600.5 195"></path><path class="dg-lit" d="M440 195L600.5 195" style="opacity: 0;"></path><path class="dg-glow" d="M440 195L600.5 195" stroke="url(#dgc16)" stroke-dasharray="35.3 328.9" stroke-dashoffset="328.9"></path><path class="dg-comet" d="M440 195L600.5 195" stroke="url(#dgc16)" stroke-dasharray="64.2 328.9" stroke-dashoffset="328.9"></path><circle class="dg-spark-halo" r="6" cx="-50" cy="-50"></circle><circle class="dg-spark" r="2.1" cx="-50" cy="-50"></circle></g><g class="dg-e"><path class="dg-line" d="M392.2 218L490.3 313.2"></path><path class="dg-lit" d="M392.2 218L490.3 313.2" style="opacity: 0;"></path><path class="dg-glow" d="M392.2 218L490.3 313.2" stroke="url(#dgc17)" stroke-dasharray="30.1 286.1" stroke-dashoffset="286.1"></path><path class="dg-comet" d="M392.2 218L490.3 313.2" stroke="url(#dgc17)" stroke-dasharray="54.7 286.1" stroke-dashoffset="286.1"></path><circle class="dg-spark-halo" r="6" cx="-50" cy="-50"></circle><circle class="dg-spark" r="2.1" cx="-50" cy="-50"></circle></g><g class="dg-e"><path class="dg-line" d="M344.8 218L246.7 313.2"></path><path class="dg-lit" d="M344.8 218L246.7 313.2" style="opacity: 0;"></path><path class="dg-glow" d="M344.8 218L246.7 313.2" stroke="url(#dgc18)" stroke-dasharray="30.1 286.1" stroke-dashoffset="286.1"></path><path class="dg-comet" d="M344.8 218L246.7 313.2" stroke="url(#dgc18)" stroke-dasharray="54.7 286.1" stroke-dashoffset="286.1"></path><circle class="dg-spark-halo" r="6" cx="-50" cy="-50"></circle><circle class="dg-spark" r="2.1" cx="-50" cy="-50"></circle></g><g class="dg-e"><path class="dg-line" d="M297 195L156 195"></path><path class="dg-lit" d="M297 195L156 195" style="opacity: 0;"></path><path class="dg-glow" d="M297 195L156 195" stroke="url(#dgc19)" stroke-dasharray="31 293.8" stroke-dashoffset="293.8"></path><path class="dg-comet" d="M297 195L156 195" stroke="url(#dgc19)" stroke-dasharray="56.4 293.8" stroke-dashoffset="293.8"></path><circle class="dg-spark-halo" r="6" cx="-50" cy="-50"></circle><circle class="dg-spark" r="2.1" cx="-50" cy="-50"></circle></g><g class="dg-e"><path class="dg-line" d="M344.8 172L246.7 76.8"></path><path class="dg-lit" d="M344.8 172L246.7 76.8" style="opacity: 0;"></path><path class="dg-glow" d="M344.8 172L246.7 76.8" stroke="url(#dgc20)" stroke-dasharray="30.1 286.1" stroke-dashoffset="286.1"></path><path class="dg-comet" d="M344.8 172L246.7 76.8" stroke="url(#dgc20)" stroke-dasharray="54.7 286.1" stroke-dashoffset="286.1"></path><circle class="dg-spark-halo" r="6" cx="-50" cy="-50"></circle><circle class="dg-spark" r="2.1" cx="-50" cy="-50"></circle></g></g><g class="dg-ports"><circle class="dg-port" cx="392.2" cy="172" r="2"></circle><circle class="dg-port" cx="490.3" cy="76.8" r="2"></circle><circle class="dg-port" cx="440" cy="195" r="2"></circle><circle class="dg-port" cx="600.5" cy="195" r="2"></circle><circle class="dg-port" cx="392.2" cy="218" r="2"></circle><circle class="dg-port" cx="490.3" cy="313.2" r="2"></circle><circle class="dg-port" cx="344.8" cy="218" r="2"></circle><circle class="dg-port" cx="246.7" cy="313.2" r="2"></circle><circle class="dg-port" cx="297" cy="195" r="2"></circle><circle class="dg-port" cx="156" cy="195" r="2"></circle><circle class="dg-port" cx="344.8" cy="172" r="2"></circle><circle class="dg-port" cx="246.7" cy="76.8" r="2"></circle></g></svg><div class="dg-nodes" aria-hidden="true"><div class="dg-node dg-node--core-pill is-ink" data-id="full-tek-core" style="left: 299px; top: 174px;"><span class="dg-ic" data-icon="ui:server"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect><rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect><path d="M6 6h.01M6 18h.01"></path></g></svg></span><span class="dg-label">Full-Tek Core</span></div><div class="dg-node dg-node--pill" data-id="bankily-qr" style="left: 451px; top: 45px;"><span class="dg-ic" data-icon="ui:credit-card"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="20" height="14" x="2" y="5" rx="2"></rect><path d="M2 10h20"></path></g></svg></span><span class="dg-label">Bankily QR</span></div><div class="dg-node dg-node--pill" data-id="masrivi" style="left: 601px; top: 179px;"><span class="dg-ic" data-icon="ui:smartphone"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></g></svg></span><span class="dg-label">Masrivi</span></div><div class="dg-node dg-node--pill" data-id="sedad" style="left: 464px; top: 313px;"><span class="dg-ic dg-ic--text dg-ic--missing" data-icon="ui:check-circle">S</span><span class="dg-label">Sedad</span></div><div class="dg-node dg-node--pill" data-id="thermal-80mm" style="left: 162px; top: 313px;"><span class="dg-ic" data-icon="ui:printer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"></path><rect width="12" height="8" x="6" y="14" rx="1"></rect></g></svg></span><span class="dg-label">Thermal 80mm</span></div><div class="dg-node dg-node--pill" data-id="douchette-2d" style="left: 28px; top: 179px;"><span class="dg-ic" data-icon="ui:scan"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"></path></svg></span><span class="dg-label">Douchette 2D</span></div><div class="dg-node dg-node--pill" data-id="boss-mobile" style="left: 172px; top: 45px;"><span class="dg-ic" data-icon="ui:activity"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"></path></svg></span><span class="dg-label">Boss Mobile</span></div></div></div>
+          <button class="loop-pause dg-pause" type="button" data-corner="br" aria-pressed="false" aria-label="Pause animation" data-state="false"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 2.5h2.5v9H3.5zM8 2.5h2.5v9H8z"></path></svg></button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: STATEMENT LIQUID-TYPE + FEFO / RBAC + ROI MRU (#security) -->
+    <section class="section" id="security" style="--hm: 2">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 data-moment="liquid-type" data-i18n="sec_h2" class="mo-lt" data-moment-mounted="1">Chaque lot vérifié, chaque rôle tracé.</h2>
+          <p data-i18n="sec_sub">De la prévention des pertes jusqu'au retour sur investissement en ouguiya.</p>
+        </div>
+
+        <div class="grid grid--top fill">
+          <div class="span-7 ft-panel-box ft-sec-left">
+            <div class="ft-chip-row" role="tablist" aria-label="Modules de contrôle" style="margin-bottom:var(--s-4);">
+              <button class="tab" type="button" role="tab" id="tab-fefo" aria-selected="true" aria-controls="panel-fefo" tabindex="0">Sécurité FEFO</button>
+              <button class="tab" type="button" role="tab" id="tab-rbac" aria-selected="false" aria-controls="panel-rbac" tabindex="-1">9 Rôles RBAC</button>
+            </div>
+
+            <div role="tabpanel" id="panel-fefo" aria-labelledby="tab-fefo">
+              <h3>Chronologie de verrouillage automatique FEFO</h3>
+              <p class="t-small muted" style="margin-top:6px;">Le système oriente le caissier vers le lot le plus proche de sa date limite avant de bloquer tout lot expiré.</p>
+              <div class="ft-fefo-track">
+                <div class="ft-fefo-step"><strong>J-90</strong><span>Alerte tableau Boss</span><span>Suggestion de remise ciblée</span></div>
+                <div class="ft-fefo-step"><strong>J-30</strong><span>Priorité comptoir</span><span>Lot affiché en tête d'écran</span></div>
+                <div class="ft-fefo-step"><strong>J-07</strong><span>Avertissement visuel</span><span>Validation pharmacien requise</span></div>
+                <div class="ft-fefo-step is-locked"><strong>Jour J</strong><span>Blocage matériel 2D</span><span>Vente impossible en caisse</span></div>
+              </div>
+              <ul class="rows" style="margin-top:var(--s-5);">
+                <li><span class="rows__name">Amoxicilline 500 mg · Lot #A92</span><span class="rows__value">Prioritaire FEFO</span><p>Sortie automatique recommandée en premier au scan.</p></li>
+                <li><span class="rows__name">Insuline Glargine · Lot #INS-204</span><span class="rows__value">Bloqué (Expiré)</span><p>Refus matériel immédiat en caisse, journalisé avec horodatage.</p></li>
+              </ul>
+            </div>
+
+            <div role="tabpanel" id="panel-rbac" aria-labelledby="tab-rbac" hidden="">
+              <h3>Matrice des 9 accès métiers</h3>
+              <p class="t-small muted" style="margin-top:6px;">Chaque annulation, remise ou ouverture tiroir-caisse exige un code PIN nominal journalisé.</p>
+              <div class="ft-rbac-grid">
+                <div class="ft-rbac-card"><strong>1. Caissier</strong><span>Vente &amp; QR uniquement</span></div>
+                <div class="ft-rbac-card"><strong>2. Chef de rang</strong><span>Tables &amp; notes divisées</span></div>
+                <div class="ft-rbac-card"><strong>3. Préparateur KDS</strong><span>Écran cuisine sans prix</span></div>
+                <div class="ft-rbac-card"><strong>4. Magasinier</strong><span>Entrées stock &amp; inventaire</span></div>
+                <div class="ft-rbac-card"><strong>5. Pharmacien</strong><span>Déblocage FEFO &amp; lots</span></div>
+                <div class="ft-rbac-card"><strong>6. Comptable</strong><span>Clôture Z &amp; journaux MRU</span></div>
+                <div class="ft-rbac-card"><strong>7. Gérant site</strong><span>Remises &amp; clôture équipe</span></div>
+                <div class="ft-rbac-card"><strong>8. Directeur réseau</strong><span>Console Boss multi-sites</span></div>
+                <div class="ft-rbac-card"><strong>9. Super-Admin</strong><span>Licences Full-Tek Control</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="span-5 ft-panel-box ft-sec-right stack-4">
+            <h3>Calculateur ROI en MRU</h3>
+            <label class="field">Tickets par jour : <span id="roi-tickets-val">180</span>
+              <input class="ft-range" type="range" id="roi-tickets" min="40" max="600" step="10" value="180">
+            </label>
+            <label class="field">Panier moyen (MRU) : <span id="roi-basket-val">1 200</span>
+              <input class="ft-range" type="range" id="roi-basket" min="300" max="6000" step="100" value="1200">
+            </label>
+            <label class="field">Points de vente : <span id="roi-sites-val">2</span>
+              <input class="ft-range" type="range" id="roi-sites" min="1" max="12" step="1" value="2">
+            </label>
+            <div class="ft-roi-result">
+              <span class="t-label muted">Économie mensuelle estimée (freinte, FEFO, continuité)</span>
+              <div class="ft-c-stat" id="roi-savings-out">194 400 MRU / mois</div>
+              <span class="t-small muted" id="roi-hours-out">18 h gagnées sur les inventaires et clôtures Z</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 6: PRICING MRU + OPEN FAQ (plain ground, g2) -->
+    <section class="section g2" id="pricing">
+      <div class="wrap">
+        <div class="group">
+          <div class="section-head section-head--split">
+            <div>
+              <h2 data-i18n="price_h2">Tarifs transparents en ouguiya</h2>
+              <p data-i18n="price_sub">Essai complet 15 jours sur votre matériel, sans engagement.</p>
+            </div>
+            <div class="tabs m-has-ind" role="tablist" aria-label="Période de facturation"><span class="m-tab-ind" aria-hidden="true" style="--x: 0px; --y: 0px; --w: 127px; --h: 36px; --sx: 1; --sy: 1;"></span>
+              <button class="tab" type="button" role="tab" id="bill-m" aria-selected="true" aria-controls="p1 p2 p3" tabindex="0">Mensuel</button>
+              <button class="tab" type="button" role="tab" id="bill-y" aria-selected="false" aria-controls="p1 p2 p3" tabindex="-1">Annuel (-20 %)</button>
+            </div>
+          </div>
+
+          <div class="grid">
+            <article class="card card--plan span-4" id="p1" hidden="">
+              <h3>Essentiel</h3>
+              <p>Pour un comptoir café, restaurant ou supérette.</p>
+              <div class="price"><span class="t-stat" data-monthly="19 500 MRU" data-yearly="15 600 MRU">19 500 MRU</span><span class="muted">/mois</span></div>
+              <a class="btn btn--secondary" href="#app">Choisir Essentiel</a>
+              <ul class="checks">
+                <li>1 terminal caisse tactile</li>
+                <li>Relais LAN hors ligne inclus</li>
+                <li>Paiements Bankily, Masrivi, Sedad</li>
+                <li>Impression ticket 80 mm</li>
+                <li>Support Nouakchott 7j/7</li>
+              </ul>
+            </article>
+
+            <article class="card card--plan is-featured span-4" id="p2" data-glow="edge-glow" hidden="">
+              <h3>Pro Multi-Sites <span class="badge">Recommandé</span></h3>
+              <p>Pour pharmacies FEFO, supérettes et chaînes locales.</p>
+              <div class="price"><span class="t-stat" data-monthly="39 000 MRU" data-yearly="31 200 MRU">39 000 MRU</span><span class="muted">/mois</span></div>
+              <a class="btn btn--primary" href="#app">Essai gratuit 15 jours <svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"></path><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"></path></svg></a>
+              <ul class="checks">
+                <li>Jusqu'à 4 caisses et cuisine KDS</li>
+                <li>Moteur FEFO strict et gestion de lots</li>
+                <li>Application mobile Full-Tek Boss</li>
+                <li>9 rôles RBAC et audit caisse</li>
+                <li>Formation équipe sur site</li>
+              </ul>
+            </article>
+
+            <article class="card card--plan span-4" id="p3" hidden="">
+              <h3>Entreprise</h3>
+              <p>Pour groupes, dépôts pharmaceutiques et grossistes.</p>
+              <div class="price"><span class="t-stat" data-monthly="78 000 MRU" data-yearly="62 400 MRU">78 000 MRU</span><span class="muted">/mois</span></div>
+              <a class="btn btn--secondary" href="#app" data-load-suite="admin">Accéder à Control</a>
+              <ul class="checks">
+                <li>Sites illimités et console Full-Tek Control</li>
+                <li>API comptable et balances connectées</li>
+                <li>Réplication inter-villes</li>
+                <li>Supervision proactive et SLA dédié</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+
+        <div class="group grid grid--top" style="margin-top:var(--s-9);">
+          <div class="span-4">
+            <h2>Questions fréquentes</h2>
+            <p class="muted" style="margin-top:var(--s-3);">Réponses directes pour les gérants en Mauritanie.</p>
+          </div>
+          <div class="faq span-8">
+            <div class="faq__item">
+              <h3>La caisse fonctionne-t-elle sans Internet ?</h3>
+              <p>Oui. Chaque vente s'enregistre localement sur le réseau LAN sans délai et se synchronise automatiquement dès le retour de la connexion.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Les paiements Bankily, Masrivi et Sedad sont-ils intégrés ?</h3>
+              <p>Oui. La caisse génère le montant exact, enregistre la référence client et imprime le reçu 80 mm en moins d'une seconde.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Comment le blocage FEFO protège-t-il les pharmacies ?</h3>
+              <p>Lors du scan 2D, Full-Tek Pharma sélectionne le lot le plus proche de l'expiration et bloque toute ligne dont la date limite est dépassée.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Peut-on utiliser l'interface en arabe RTL ou français ?</h3>
+              <p>Oui. Le changement entre français, arabe RTL et anglais est immédiat sur la même caisse sans redémarrer la session.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER CLOSING: CLOSE-TYPE + FOOTER-COLUMNS -->
+  <footer class="footer footer--dark closing" id="contact">
+    <div class="wrap">
+      <div class="closing__cta close--type">
+        <div class="section-head">
+          <h2>Équipez vos comptoirs en moins de 48 heures.</h2>
+          <p class="t-small muted">Installation Nouakchott et Nouadhibou · Matériel certifié et import de catalogue inclus.</p>
+        </div>
+        <a class="btn btn--primary btn--xl btn--wide" href="#app">Essai gratuit 15 jours <svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"></path><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"></path></svg></a>
+      </div>
+
+      <div class="closing__links">
+        <div class="grid">
+          <div class="span-4 stack-4">
+            <svg class="ft-logo" viewBox="0 0 360 88" width="164" height="40" role="img" aria-label="Full-Tek MAURITANIE"><style>.fpft{transform-box:fill-box;transform-origin:left center;transition:transform .35s cubic-bezier(.22,1,.36,1)}a:hover .fpft.p1,.ft-card:hover .fpft.p1{transform:scaleX(.94)}a:hover .fpft.p2,.ft-card:hover .fpft.p2{transform:scaleX(1.16)}a:hover .fpft.p3,.ft-card:hover .fpft.p3{transform:scaleX(1.38)}</style><rect class="fpft p1" x="8" y="15" width="72" height="14" rx="7" fill="currentColor"></rect><rect class="fpft p2" x="8" y="37" width="48" height="14" rx="7" fill="#E9A23B"></rect><rect class="fpft p3" x="8" y="59" width="28" height="14" rx="7" fill="currentColor"></rect><text x="98" y="47" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="700" font-size="36" letter-spacing="-1" fill="currentColor">Full·Tek</text><text x="100" y="68" font-family="'Reddit Sans',system-ui,sans-serif" font-weight="600" font-size="11.5" letter-spacing="4.2" fill="#E9A23B">MAURITANIE</text></svg>
+            <p class="footer__lede">Le noyau POS conçu pour la continuité de terrain.</p>
+          </div>
+          <div class="footer__col span-2">
+            <h3>Gammes</h3>
+            <ul>
+              <li><a href="#suites" data-load-suite="resto">Full-Tek Resto</a></li>
+              <li><a href="#suites" data-load-suite="market">Full-Tek Market</a></li>
+              <li><a href="#suites" data-load-suite="pharma">Full-Tek Pharma</a></li>
+              <li><a href="#suites" data-load-suite="boss">Full-Tek Boss</a></li>
+            </ul>
+          </div>
+          <div class="footer__col span-2">
+            <h3>Plateforme</h3>
+            <ul>
+              <li><a href="#app">Simulateur POS</a></li>
+              <li><a href="#network">Relais LAN</a></li>
+              <li><a href="#security">FEFO &amp; RBAC</a></li>
+              <li><a href="#pricing">Tarifs MRU</a></li>
+            </ul>
+          </div>
+          <div class="footer__col span-2">
+            <h3>Administration</h3>
+            <ul>
+              <li><a href="#app" data-load-suite="admin">Full-Tek Control</a></li>
+              <li><a href="#security">Calculateur ROI</a></li>
+              <li><a href="#pricing">FAQ technique</a></li>
+            </ul>
+          </div>
+          <div class="footer__col span-2">
+            <h3>Contact</h3>
+            <ul>
+              <li>Tevragh-Zeina, Nouakchott</li>
+              <li>contact@full-tek.mr</li>
+              <li>+222 45 25 00 00</li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer__legal">
+          <span>© 2026 Full-Tek Mauritanie · M. Taha Chouaib</span>
+          <div style="display:flex;gap:18px;">
+            <a href="privacy.html">Confidentialité</a>
+            <a href="terms.html">Conditions d'utilisation</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <nav class="actionbar" aria-label="Action rapide" data-bar="hidden" inert="">
+    <a class="btn btn--primary" href="#app">Essai gratuit 15 jours <svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"></path><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"></path></svg></a>
+  </nav>
+
+  <script type="module" src="assets/system.js"></script>
+  <script type="module" src="assets/motion/motion.js"></script>
+  <script type="module" src="assets/layout/layout.js"></script>
+  <script type="module">
+    import dg from './assets/diagrams/diagram.js';
+    dg.auto(document);
+  </script>
+
+  <script>
+  (() => {
+    // ---------------------------------------------------------
+    // 1. Multilingual dictionary (FR / AR RTL / EN)
+    // ---------------------------------------------------------
+    const I18N = {
+      fr: {
+        dir: 'ltr', nav_suites: 'Gammes', nav_sim: 'Simulateur', nav_net: 'Réseau', nav_price: 'Tarifs',
+        nav_ctrl: 'Control', nav_cta: 'Essai gratuit 15 jours',
+        hero_h1: 'Un seul noyau POS. Quatre métiers.',
+        hero_lead: 'Encaissement 0,08 s, paiements Bankily et Masrivi, alerte FEFO et relais LAN hors ligne.',
+        hero_cta: 'Lancer le simulateur',
+        app_h2: 'Testez la caisse réelle avant déploiement',
+        app_sub: 'Basculez entre les quatre solutions, quatre thèmes et le réseau hors ligne.',
+        suites_h2: 'Quatre suites dédiées à chaque comptoir',
+        suites_sub: "Chaque établissement démarre avec l'outil adapté à son rythme de comptoir.",
+        net_h2: 'Zéro arrêt quand la connexion coupe.',
+        net_sub: 'Le serveur local prend le relais instantanément et resynchronise dès le retour du réseau.',
+        sec_h2: 'Chaque lot vérifié, chaque rôle tracé.',
+        sec_sub: "De la prévention des pertes jusqu'au retour sur investissement en ouguiya.",
+        price_h2: 'Tarifs transparents en ouguiya',
+        price_sub: 'Essai complet 15 jours sur votre matériel, sans engagement.'
+      },
+      ar: {
+        dir: 'rtl', nav_suites: 'الحلول', nav_sim: 'المحاكي', nav_net: 'الشبكة', nav_price: 'الأسعار',
+        nav_ctrl: 'الإدارة', nav_cta: 'تجربة مجانية 15 يوماً',
+        hero_h1: 'نواة كاشير واحدة. أربعة قطاعات.',
+        hero_lead: 'بيع سريع في 0.08 ثانية، دفع بنكيلي ومصرفي، حظر الأدوية المنتهية، وعمل محلي دون إنترنت.',
+        hero_cta: 'تشغيل المحاكي المباشر',
+        app_h2: 'اختبر نقطة البيع الحقيقية الآن',
+        app_sub: 'تنقل بين القطاعات الأربعة والسمات والأداء المحلي دون إنترنت.',
+        suites_h2: 'أربع منظومات متخصصة بهوية واحدة.',
+        suites_sub: 'كل منشأة تبدأ بالأداة المصممة لإيقاع عملها اليومي.',
+        net_h2: 'صفر توقف عند انقطاع الإنترنت.',
+        net_sub: 'الخادم المحلي يستمر فوراً ويزامن جميع الفواتير تلقائياً عند عودة الشبكة.',
+        sec_h2: 'كل دفعة مراقبة وكل صلاحية مسجلة.',
+        sec_sub: 'من حماية الصيدليات من الخسائر حتى حساب العائد بالأوقية.',
+        price_h2: 'أسعار واضحة بالأوقية الجديدة',
+        price_sub: 'تجربة كاملة لمدة 15 يوماً على أجهزتك دون التزام.'
+      },
+      en: {
+        dir: 'ltr', nav_suites: 'Suites', nav_sim: 'Simulator', nav_net: 'Network', nav_price: 'Pricing',
+        nav_ctrl: 'Control', nav_cta: 'Start 15-day free trial',
+        hero_h1: 'One POS core. Four verticals.',
+        hero_lead: '0.08 s checkout, Bankily & Masrivi QR, strict FEFO pharma blocking, and offline LAN failover.',
+        hero_cta: 'Open live simulator',
+        app_h2: 'Test the live register before rollout',
+        app_sub: 'Switch across all four suites, four themes, and instant offline LAN resilience.',
+        suites_h2: 'Four vertical suites. One unified design.',
+        suites_sub: 'Each business launches with workflows tailored to its counter speed.',
+        net_h2: 'Zero downtime when fiber drops.',
+        net_sub: 'Your local LAN node takes over immediately and syncs every receipt on reconnect.',
+        sec_h2: 'Every batch checked, every role logged.',
+        sec_sub: 'From loss prevention to real monthly ROI calculated in MRU.',
+        price_h2: 'Clear pricing in Mauritanian MRU',
+        price_sub: 'Full 15-day trial on your existing hardware with zero lock-in.'
+      }
+    };
+
+    const htmlEl = document.documentElement;
+    document.querySelectorAll('[data-lang]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lang = btn.dataset.lang;
+        const dict = I18N[lang];
+        if (!dict) return;
+        htmlEl.lang = lang;
+        htmlEl.dir = dict.dir;
+        document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
+        document.querySelectorAll('[data-i18n]').forEach(node => {
+          const key = node.dataset.i18n;
+          if (!dict[key]) return;
+          const arrow = node.querySelector('svg');
+          node.textContent = dict[key];
+          if (arrow) { node.append(' ', arrow); }
+        });
+      });
+    });
+
+    // ---------------------------------------------------------
+    // 2. Interactive POS + Super-Admin Simulator
+    // ---------------------------------------------------------
+    const SUITES = {
+      resto: {
+        title: 'Full-Tek Resto · Salle & KDS Cuisine', color: '#E4572E',
+        items: [
+          { id:'r1', name:'Méchoui d\'agneau', meta:'Cuisine KDS · Table 04', price:3600 },
+          { id:'r2', name:'Thiéboudienne Royal', meta:'Plat du jour · chaud', price:2400 },
+          { id:'r3', name:'Pizza Artisanale 4S', meta:'Four · 12 min', price:2900 },
+          { id:'r4', name:'Jus de Bissap frais', meta:'Bar · Boisson', price:450 },
+          { id:'r5', name:'Thé à la menthe (Attaya)', meta:'Service table', price:600 },
+          { id:'r6', name:'Note partagée ½', meta:'Division instantanée', price:1800 }
+        ]
+      },
+      market: {
+        title: 'Full-Tek Market · Caisse Rapide 0,08 s', color: '#2E9E5B',
+        items: [
+          { id:'m1', name:'Riz Basmati 25 kg', meta:'Rayon Gros · EAN-13', price:9400 },
+          { id:'m2', name:'Huile Végétale 5 L', meta:'Promotion comptoir', price:3150 },
+          { id:'m3', name:'Sucre Blanc 10 kg', meta:'Dépôt Principal', price:3800 },
+          { id:'m4', name:'Lait Poudre 900 g', meta:'Épicerie sèche', price:2150 },
+          { id:'m5', name:'Thé Vert Chunmee', meta:'Boîte 250 g', price:950 },
+          { id:'m6', name:'Balance Fruits 2,4 kg', meta:'Tare auto · RS-232', price:1440 }
+        ]
+      },
+      pharma: {
+        title: 'Full-Tek Pharma · Traçabilité FEFO', color: '#1B8FD9',
+        items: [
+          { id:'p1', name:'Amoxicilline 500 mg', meta:'Lot #A92 · Exp 11/2027', price:850 },
+          { id:'p2', name:'Paracétamol 1 g', meta:'Lot #B14 · Exp 08/2027', price:400 },
+          { id:'p3', name:'Vitamine C 1000', meta:'Lot #C08 · Exp 05/2027', price:1250 },
+          { id:'p4', name:'Sérum Physio 20x', meta:'Lot #D11 · J-22 Alerte', price:900 },
+          { id:'p5', name:'Insuline Glargine', meta:'Lot #INS-204 · EXPIRÉ', price:4200, expired:true },
+          { id:'p6', name:'Sirop Pédiatrique', meta:'Lot #F03 · Exp 03/2028', price:1100 }
+        ]
+      },
+      boss: {
+        title: 'Full-Tek Boss · Supervision Temps Réel', color: '#C99A2E',
+        items: [
+          { id:'b1', name:'Tevragh-Zeina #1', meta:'En ligne · 142 tickets', price:284000 },
+          { id:'b2', name:'Ksar Distribution', meta:'LAN Secours · 64 tickets', price:196500 },
+          { id:'b3', name:'Nouadhibou Port', meta:'En ligne · 89 tickets', price:172000 },
+          { id:'b4', name:'Clôture Z Globale', meta:'Audit caisse validé', price:652500 }
+        ]
+      },
+      admin: {
+        title: 'Full-Tek Control · Super-Admin Abonnements', color: '#a08672',
+        items: [
+          { id:'a1', name:'Pharmacie Chinguetti', meta:'Plan Pro · Actif 284 j', price:39000 },
+          { id:'a2', name:'Resto Le Dromedaire', meta:'Plan Essentiel · Renouvelé', price:19500 },
+          { id:'a3', name:'Groupe Sahel Market', meta:'Plan Entreprise · 6 sites', price:78000 },
+          { id:'a4', name:'Activer nouvelle licence', meta:'Génération clé RSA', price:39000 }
+        ]
+      }
+    };
+
+    let currentSuite = 'resto';
+    let isOffline = false;
+    let cart = [];
+
+    const appFrame = document.getElementById('pos-app-frame');
+    const catEl = document.getElementById('pos-catalog');
+    const titleEl = document.getElementById('pos-pane-title');
+    const alertEl = document.getElementById('pos-fefo-alert');
+    const listEl = document.getElementById('pos-cart-list');
+    const totalEl = document.getElementById('pos-total');
+    const receiptEl = document.getElementById('pos-receipt-out');
+    const netBadgeEl = document.getElementById('pos-net-badge');
+
+    const fmtMRU = n => n.toLocaleString('fr-FR') + ' MRU';
+
+    function renderCatalog() {
+      const s = SUITES[currentSuite];
+      appFrame.style.setProperty('--pos-accent', s.color);
+      titleEl.textContent = s.title;
+      alertEl.hidden = true;
+      catEl.innerHTML = s.items.map(item => `
+        <button class="ft-sku ${item.expired ? 'ft-sku--danger' : ''}" type="button" data-sku="${item.id}">
+          <span class="ft-sku__name">${item.name}</span>
+          <span class="ft-sku__meta">${item.meta}</span>
+          <span class="ft-sku__price">${item.expired ? 'SCAN BLOQUÉ' : fmtMRU(item.price)}</span>
+        </button>
+      `).join('');
+
+      catEl.querySelectorAll('[data-sku]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const item = s.items.find(x => x.id === btn.dataset.sku);
+          if (!item) return;
+          if (item.expired) {
+            alertEl.hidden = false;
+            return;
+          }
+          alertEl.hidden = true;
+          const hit = cart.find(c => c.id === item.id);
+          if (hit) hit.qty += 1;
+          else cart.push({ ...item, qty: 1 });
+          receiptEl.innerHTML = '';
+          renderCart();
+        });
+      });
+    }
+
+    function renderCart() {
+      if (cart.length === 0) {
+        listEl.innerHTML = '<div class="ft-ticket-row" style="opacity:.7"><span>Touchez un article à gauche pour démarrer le ticket.</span></div>';
+        totalEl.textContent = '0 MRU';
+        return;
+      }
+      let sum = 0;
+      listEl.innerHTML = cart.map(c => {
+        const line = c.qty * c.price;
+        sum += line;
+        return `<div class="ft-ticket-row"><span>${c.qty}× ${c.name}</span><strong>${fmtMRU(line)}</strong></div>`;
+      }).join('');
+      totalEl.textContent = fmtMRU(sum);
+    }
+
+    function selectSuite(key) {
+      if (!SUITES[key]) return;
+      currentSuite = key;
+      cart = [];
+      receiptEl.innerHTML = '';
+      document.querySelectorAll('[data-sim-suite]').forEach(b => {
+        b.setAttribute('aria-pressed', String(b.dataset.simSuite === key));
+      });
+      renderCatalog();
+      renderCart();
+    }
+
+    document.querySelectorAll('[data-sim-suite]').forEach(b => {
+      b.addEventListener('click', () => selectSuite(b.dataset.simSuite));
+    });
+    document.querySelectorAll('[data-load-suite]').forEach(b => {
+      b.addEventListener('click', () => selectSuite(b.dataset.loadSuite));
+    });
+
+    document.querySelectorAll('[data-sim-theme]').forEach(b => {
+      b.addEventListener('click', () => {
+        const t = b.dataset.simTheme;
+        appFrame.dataset.theme = t;
+        document.querySelectorAll('[data-sim-theme]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.simTheme === t)));
+      });
+    });
+
+    const offBtn = document.getElementById('btn-offline-toggle');
+    offBtn.addEventListener('click', () => {
+      isOffline = !isOffline;
+      offBtn.setAttribute('aria-pressed', String(isOffline));
+      offBtn.textContent = isOffline ? 'Réseau : Hors ligne LAN' : 'Réseau : En ligne';
+      netBadgeEl.textContent = isOffline ? 'MODE LAN HORS LIGNE' : 'CLOUD + LAN ACTIF';
+      netBadgeEl.className = 'ft-status-pill ' + (isOffline ? 'is-offline' : 'is-ok');
+    });
+
+    document.getElementById('pos-clear-btn').addEventListener('click', () => {
+      cart = [];
+      receiptEl.innerHTML = '';
+      alertEl.hidden = true;
+      renderCart();
+    });
+
+    function checkout(mode) {
+      if (cart.length === 0) cart.push({ ...SUITES[currentSuite].items[0], qty: 1 });
+      const total = cart.reduce((a, c) => a + c.qty * c.price, 0);
+      const syncMsg = isOffline ? 'STOCKÉ EN FILE LAN CHIFFRÉE' : 'SYNCHRONISÉ BOSS LIVE (0,4 s)';
+      receiptEl.innerHTML = `
+        <div class="ft-thermal-paper">
+          <div>FULL-TEK ${currentSuite.toUpperCase()} · TICKET 80MM</div>
+          <div>MODE : ${mode} · TOTAL : ${fmtMRU(total)}</div>
+          <div>ÉTAT : ${syncMsg}</div>
+        </div>
+      `;
+      renderCart();
+    }
+    document.getElementById('pos-pay-bankily').addEventListener('click', () => checkout('BANKILY QR'));
+    document.getElementById('pos-pay-cash').addEventListener('click', () => checkout('ESPÈCES MRU'));
+
+    // ---------------------------------------------------------
+    // 3. Outage topology simulator (#network)
+    // ---------------------------------------------------------
+    const netPos = document.getElementById('net-pos-st');
+    const netLan = document.getElementById('net-lan-st');
+    const netCloud = document.getElementById('net-cloud-st');
+    const netCap = document.getElementById('net-caption');
+    document.querySelectorAll('[data-net-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = btn.dataset.netMode;
+        document.querySelectorAll('[data-net-mode]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.netMode === m)));
+        if (m === 'cut') {
+          netPos.textContent = '0,08 s ACTIF (LAN)'; netPos.className = 'ft-status-pill is-ok';
+          netLan.textContent = 'RELAIS PRINCIPAL'; netLan.className = 'ft-status-pill is-ok';
+          netCloud.textContent = 'COUPÉ — BUFFER 142 TX'; netCloud.className = 'ft-status-pill is-offline';
+          netCap.textContent = 'Internet coupé : les caisses continuent sans blocage ni perte de ticket.';
+        } else if (m === 'sync') {
+          netPos.textContent = '0,08 s ACTIF'; netPos.className = 'ft-status-pill is-ok';
+          netLan.textContent = 'MERGE Δ TERMINÉ'; netLan.className = 'ft-status-pill is-ok';
+          netCloud.textContent = 'RATRAPÉ 100 %'; netCloud.className = 'ft-status-pill is-ok';
+          netCap.textContent = 'Reconnexion détectée : 142 tickets locaux fusionnés sans doublon.';
+        } else {
+          netPos.textContent = '0,08 s EN LIGNE'; netPos.className = 'ft-status-pill is-ok';
+          netLan.textContent = 'EN VEILLE'; netLan.className = 'ft-status-pill';
+          netCloud.textContent = 'TEMPS RÉEL'; netCloud.className = 'ft-status-pill is-ok';
+          netCap.textContent = 'Toutes les transactions sont chiffrées et répliquées en continu.';
+        }
+      });
+    });
+
+    // ---------------------------------------------------------
+    // 4. Interactive ROI calculator (#security)
+    // ---------------------------------------------------------
+    const rT = document.getElementById('roi-tickets');
+    const rB = document.getElementById('roi-basket');
+    const rS = document.getElementById('roi-sites');
+    function updateROI() {
+      if (!rT) return;
+      const t = +rT.value, b = +rB.value, s = +rS.value;
+      document.getElementById('roi-tickets-val').textContent = t;
+      document.getElementById('roi-basket-val').textContent = b.toLocaleString('fr-FR');
+      document.getElementById('roi-sites-val').textContent = s;
+      const monthlyCA = t * b * 30 * s;
+      const saved = Math.round(monthlyCA * 0.015);
+      document.getElementById('roi-savings-out').textContent = saved.toLocaleString('fr-FR') + ' MRU / mois';
+      document.getElementById('roi-hours-out').textContent = (s * 9) + ' h gagnées sur les inventaires et clôtures Z';
+    }
+    [rT, rB, rS].forEach(el => el && el.addEventListener('input', updateROI));
+
+    // ---------------------------------------------------------
+    // 5. Monthly / Yearly pricing switch
+    // ---------------------------------------------------------
+    const billM = document.getElementById('bill-m');
+    const billY = document.getElementById('bill-y');
+    function setBilling(yearly) {
+      document.querySelectorAll('[data-monthly][data-yearly]').forEach(el => {
+        el.textContent = yearly ? el.dataset.yearly : el.dataset.monthly;
+      });
+    }
+    billM && billM.addEventListener('click', () => setBilling(false));
+    billY && billY.addEventListener('click', () => setBilling(true));
+
+    // Init
+    selectSuite('resto');
+    updateROI();
+  })();
+  </script>
+
+
+<svg width="0" height="0" aria-hidden="true" style="position: absolute; pointer-events: none;"><filter id="mo-lt-1" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.006 0.013" numOctaves="1" seed="7" result="n"></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap></filter></svg></body></html>
