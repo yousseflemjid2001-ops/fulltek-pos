@@ -1,11 +1,11 @@
 {
-    "name": "fulltek_superadmin",
-    "short_name": "fulltek_superadmin",
+    "name": "Full·Tek Control",
+    "short_name": "Full·Tek",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F1B20",
+    "theme_color": "#0F1B20",
+    "description": "Console Super-Admin Full·Tek POS (Mauritanie)",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
