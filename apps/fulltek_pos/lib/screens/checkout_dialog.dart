@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../services/receipt_formatter.dart';
+import '../services/web_printer.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 
@@ -53,17 +54,24 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
       setState(() => _error = 'Sélectionnez un client Karni');
       return;
     }
+    final candidate = PaymentEntry(
+      method: _method,
+      amountMru: amount,
+      reference: _refCtrl.text.trim().isEmpty ? null : _refCtrl.text.trim(),
+      karniCustomerId:
+          _method == PaymentMethod.karni ? _selectedKarniId : null,
+    );
+    final karniErr = widget.store.validateKarniLimits(
+      [..._entries, candidate],
+      isTraining: widget.store.activeOrder?.isTraining ?? false,
+    );
+    if (karniErr != null) {
+      setState(() => _error = karniErr);
+      return;
+    }
     setState(() {
       _error = null;
-      _entries.add(
-        PaymentEntry(
-          method: _method,
-          amountMru: amount,
-          reference: _refCtrl.text.trim().isEmpty ? null : _refCtrl.text.trim(),
-          karniCustomerId:
-              _method == PaymentMethod.karni ? _selectedKarniId : null,
-        ),
-      );
+      _entries.add(candidate);
       _refCtrl.clear();
       _amountCtrl.text = _remaining.toStringAsFixed(0);
     });
@@ -86,7 +94,8 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
 
     final closed = widget.store.completeCheckout(finalPayments);
     if (closed == null) {
-      setState(() => _error = 'Montant insuffisant pour clôturer le ticket.');
+      setState(() => _error = widget.store.lastCheckoutError ??
+          'Montant insuffisant pour clôturer le ticket.');
       return;
     }
 
@@ -433,6 +442,12 @@ void showReceiptPreviewDialog(
         ),
       ),
       actions: [
+        OutlinedButton.icon(
+          key: const Key('print_80mm_btn'),
+          onPressed: () => printThermal80mm(title, receiptText),
+          icon: const Icon(Icons.print_rounded, size: 17),
+          label: const Text('Imprimer 80mm'),
+        ),
         ElevatedButton(
           onPressed: () => Navigator.of(ctx).pop(),
           child: const Text('OK'),

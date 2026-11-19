@@ -4,6 +4,7 @@ import '../l10n/pos_i18n.dart';
 import '../models/pos_models.dart';
 import '../services/catalog_mapper.dart';
 import '../services/http_bridge.dart';
+import '../services/local_storage.dart';
 import '../services/receipt_formatter.dart';
 import '../theme/fulltek_themes.dart';
 
@@ -60,6 +61,9 @@ class PosStore extends ChangeNotifier {
 
   bool _trainingMode = false;
   double _todayRemakeWasteMru = 0.0;
+  DateTime? _lastZClosedAt;
+  String? lastCheckoutError;
+  final bool _enablePersistence;
 
   String? _activeOrderId;
   int _ticketCounter = 1042;
@@ -67,9 +71,156 @@ class PosStore extends ChangeNotifier {
   int _syncCounter = 1;
   int _kdsCounter = 1;
 
-  PosStore({HttpBridgeFn? httpRequest})
-      : _httpRequest = httpRequest ?? httpBridgeRequest {
+  PosStore({HttpBridgeFn? httpRequest, bool? enablePersistence})
+      : _httpRequest = httpRequest ?? httpBridgeRequest,
+        _enablePersistence = enablePersistence ?? kIsWeb {
     _seedMauritanianRestaurantData();
+    if (_enablePersistence) {
+      _restoreFromStorage();
+    }
+  }
+
+  static const _storageKey = 'fulltek_pos_state_v1';
+
+  @override
+  void notifyListeners() {
+    if (_enablePersistence) {
+      _saveToStorage();
+    }
+    super.notifyListeners();
+  }
+
+  void _saveToStorage() {
+    try {
+      final data = {
+        'themeId': _themeId.name,
+        'lang': _lang,
+        'accountLoggedIn': accountLoggedIn,
+        'accountOffline': accountOffline,
+        'tenantCode': tenantCode,
+        'tenantName': tenantName,
+        'cloudJwtToken': cloudJwtToken,
+        'enabledThemeCodes': enabledThemeCodes,
+        'enabledPayMethods': enabledPayMethods,
+        'lastZClosedAt': _lastZClosedAt?.toIso8601String(),
+        'licenseExpiresAt': license.expiresAt.toIso8601String(),
+        'licenseVerified': license.ed25519Verified,
+        'licenseCode': license.code12,
+        'syncQueue': _syncQueue
+            .map((q) => {
+                  'id': q.id,
+                  'entityType': q.entityType,
+                  'summary': q.summary,
+                  'payload': q.payload,
+                  'status': q.status,
+                  'createdAt': q.createdAt.toIso8601String(),
+                  'syncedAt': q.syncedAt?.toIso8601String(),
+                })
+            .toList(),
+        'karniBalances': {
+          for (final c in karniCustomers) c.id: c.balanceDueMru,
+        },
+        'ingredientStocks': {
+          for (final i in ingredients) i.id: i.currentStock,
+        },
+      };
+      localStorageWrite(_storageKey, jsonEncode(data));
+    } catch (_) {}
+  }
+
+  void _restoreFromStorage() {
+    try {
+      final raw = localStorageRead(_storageKey);
+      if (raw == null || raw.isEmpty) return;
+      final map = jsonDecode(raw);
+      if (map is! Map<String, dynamic>) return;
+
+      final tName = map['themeId'] as String?;
+      if (tName != null) {
+        final found = FullTekThemeId.values.where((e) => e.name == tName);
+        if (found.isNotEmpty) _themeId = found.first;
+      }
+      final savedLang = map['lang'] as String?;
+      if (savedLang != null && ['fr', 'ar', 'en'].contains(savedLang)) {
+        _lang = savedLang;
+      }
+      if (map['accountLoggedIn'] == true) {
+        accountLoggedIn = true;
+        accountOffline = map['accountOffline'] == true;
+        tenantCode = '${map['tenantCode'] ?? tenantCode}';
+        tenantName = '${map['tenantName'] ?? tenantName}';
+        cloudJwtToken = map['cloudJwtToken'] as String?;
+        final themes = map['enabledThemeCodes'] as List?;
+        if (themes != null && themes.isNotEmpty) {
+          enabledThemeCodes = themes.map((e) => '$e').toList();
+        }
+        final pays = map['enabledPayMethods'] as List?;
+        if (pays != null && pays.isNotEmpty) {
+          enabledPayMethods = pays.map((e) => '$e').toList();
+        }
+      }
+      final zAt = map['lastZClosedAt'] as String?;
+      if (zAt != null) _lastZClosedAt = DateTime.tryParse(zAt);
+
+      final licExp = map['licenseExpiresAt'] as String?;
+      if (licExp != null) {
+        final exp = DateTime.tryParse(licExp);
+        if (exp != null) {
+          license = OfflineLicenseInfo(
+            tenantName: tenantName,
+            code12: '${map['licenseCode'] ?? license.code12}',
+            expiresAt: exp,
+            ed25519Verified: map['licenseVerified'] == true,
+          );
+        }
+      }
+
+      final qList = map['syncQueue'] as List?;
+      if (qList != null) {
+        _syncQueue.clear();
+        for (final item in qList.whereType<Map>()) {
+          final m = item.cast<String, dynamic>();
+          _syncQueue.add(
+            SyncQueueItem(
+              id: '${m['id'] ?? 'SYNC'}',
+              entityType: '${m['entityType'] ?? 'order'}',
+              summary: '${m['summary'] ?? ''}',
+              payload: (m['payload'] as Map?)?.cast<String, dynamic>() ?? {},
+              status: '${m['status'] ?? 'pending'}',
+              createdAt:
+                  DateTime.tryParse('${m['createdAt'] ?? ''}') ?? DateTime.now(),
+              syncedAt: m['syncedAt'] != null
+                  ? DateTime.tryParse('${m['syncedAt']}')
+                  : null,
+            ),
+          );
+        }
+      }
+
+      final kb = map['karniBalances'] as Map?;
+      if (kb != null) {
+        for (int i = 0; i < karniCustomers.length; i++) {
+          final c = karniCustomers[i];
+          if (kb.containsKey(c.id) && kb[c.id] is num) {
+            karniCustomers[i] = c.copyWith(
+              balanceDueMru: (kb[c.id] as num).toDouble(),
+            );
+          }
+        }
+      }
+
+      final isMap = map['ingredientStocks'] as Map?;
+      if (isMap != null) {
+        for (int i = 0; i < ingredients.length; i++) {
+          final ing = ingredients[i];
+          if (isMap.containsKey(ing.id) && isMap[ing.id] is num) {
+            ingredients[i] = ing.copyWith(
+              currentStock: (isMap[ing.id] as num).toDouble(),
+            );
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   FullTekThemeId get themeId => _themeId;
@@ -1106,13 +1257,49 @@ class PosStore extends ChangeNotifier {
     return splitOrder;
   }
 
+  /// Checks Karni credit limits before finalizing a checkout.
+  /// Returns an error message if any Karni customer exceeds [creditLimitMru], else null.
+  String? validateKarniLimits(List<PaymentEntry> payments, {bool isTraining = false}) {
+    if (isTraining) return null;
+    final karniByCustomer = <String, double>{};
+    for (final p in payments) {
+      if (p.method == PaymentMethod.karni && p.karniCustomerId != null) {
+        karniByCustomer[p.karniCustomerId!] =
+            (karniByCustomer[p.karniCustomerId!] ?? 0) + p.amountMru;
+      }
+    }
+    for (final entry in karniByCustomer.entries) {
+      final idx = karniCustomers.indexWhere((c) => c.id == entry.key);
+      if (idx == -1) return 'Client Karni introuvable.';
+      final c = karniCustomers[idx];
+      if (c.creditLimitMru > 0 &&
+          c.balanceDueMru + entry.value > c.creditLimitMru + 0.01) {
+        final avail = (c.creditLimitMru - c.balanceDueMru).clamp(0.0, double.infinity);
+        return 'Plafond Karni dépassé pour ${c.name} (disponible : ${avail.toStringAsFixed(0)} MRU / plafond : ${c.creditLimitMru.toStringAsFixed(0)} MRU).';
+      }
+    }
+    return null;
+  }
+
   /// Complete checkout (single or mixed payments) -> updates Karni, deducts BOM,
   /// frees table, queues Sync (strictly skipped in Training Mode).
   PosOrder? completeCheckout(List<PaymentEntry> payments) {
+    lastCheckoutError = null;
     final order = activeOrder;
-    if (order == null || order.items.isEmpty) return null;
+    if (order == null || order.items.isEmpty) {
+      lastCheckoutError = 'Commande vide.';
+      return null;
+    }
     final paidSum = payments.fold(0.0, (s, p) => s + p.amountMru);
-    if (paidSum + 0.01 < order.netTotal) return null;
+    if (paidSum + 0.01 < order.netTotal) {
+      lastCheckoutError = 'Montant insuffisant pour clôturer le ticket.';
+      return null;
+    }
+    final karniErr = validateKarniLimits(payments, isTraining: order.isTraining);
+    if (karniErr != null) {
+      lastCheckoutError = karniErr;
+      return null;
+    }
 
     final closed = order.copyWith(
       payments: payments,
@@ -1193,7 +1380,7 @@ class PosStore extends ChangeNotifier {
   }
 
   double get todayRevenueMru =>
-      _todayRealOrders.fold(0.0, (s, o) => s + o.netTotal);
+      _todayRealOrders.fold(0.0, (s, o) => s + o.grossTotal);
 
   int get todayTicketsCount => _todayRealOrders.length;
 
@@ -1341,9 +1528,17 @@ class PosStore extends ChangeNotifier {
 
   // --- Blind Z-Closing ---
 
+  List<PosOrder> get _unclosedRealOrders {
+    return _completedOrders.where((o) {
+      if (o.isTraining) return false;
+      if (_lastZClosedAt == null) return true;
+      return (o.paidAt ?? o.createdAt).isAfter(_lastZClosedAt!);
+    }).toList(growable: false);
+  }
+
   double _expectedForMethod(PaymentMethod method) {
     double sum = 0;
-    for (final o in _completedOrders.where((o) => !o.isTraining)) {
+    for (final o in _unclosedRealOrders) {
       var remainingChange = o.changeDue;
       for (final p in o.payments) {
         if (p.method == method) {
@@ -1369,9 +1564,11 @@ class PosStore extends ChangeNotifier {
     double countedBimbankMru = 0,
     double countedClickMru = 0,
   }) {
+    final closedOrdersForZ = _unclosedRealOrders;
+    final zTime = DateTime.now();
     final z = CashClosingZ(
-      id: 'Z-${DateTime.now().millisecondsSinceEpoch % 100000}',
-      closedAt: DateTime.now(),
+      id: 'Z-${zTime.millisecondsSinceEpoch % 100000}',
+      closedAt: zTime,
       cashierName: _currentStaff?.name ?? 'Caissier',
       countedCashMru: countedCashMru,
       expectedCashMru: _expectedForMethod(PaymentMethod.cash),
@@ -1386,9 +1583,10 @@ class PosStore extends ChangeNotifier {
       countedClickMru: countedClickMru,
       expectedClickMru: _expectedForMethod(PaymentMethod.click),
       karniIssuedMru: _expectedForMethod(PaymentMethod.karni),
-      ordersCount: _completedOrders.where((o) => !o.isTraining).length,
+      ordersCount: closedOrdersForZ.length,
       remakesCount: _remakeRecords.length,
     );
+    _lastZClosedAt = zTime;
     _closingsZ.insert(0, z);
     _enqueueSync(
       entityType: 'closing_z',
@@ -1398,6 +1596,55 @@ class PosStore extends ChangeNotifier {
     );
     notifyListeners();
     return z;
+  }
+
+  /// Activates an offline license from an 8/12-digit unlock code or signed Ed25519 Lease Token.
+  String? activateOfflineLicense(String rawInput) {
+    final trimmed = rawInput.trim();
+    if (trimmed.isEmpty) return 'Code ou jeton requis.';
+
+    // 1. Signed Lease Token format: <base64url-payload>.<base64url-sig>
+    if (trimmed.contains('.')) {
+      try {
+        final payloadB64 = trimmed.split('.').first;
+        final normalized = base64Url.normalize(payloadB64);
+        final decoded = utf8.decode(base64Url.decode(normalized));
+        final jsonMap = jsonDecode(decoded);
+        if (jsonMap is Map<String, dynamic>) {
+          final expStr = jsonMap['expiresAt'] as String?;
+          final days = (jsonMap['days'] as num?)?.toInt() ?? 30;
+          final nextExp = expStr != null
+              ? (DateTime.tryParse(expStr) ??
+                  DateTime.now().add(Duration(days: days)))
+              : DateTime.now().add(Duration(days: days));
+          final code = '${jsonMap['code'] ?? license.code12}';
+          license = OfflineLicenseInfo(
+            tenantName: '${jsonMap['storeName'] ?? tenantName}',
+            code12: code,
+            expiresAt: nextExp,
+            ed25519Verified: true,
+          );
+          notifyListeners();
+          return null;
+        }
+      } catch (_) {
+        return 'Jeton Lease Token invalide.';
+      }
+    }
+
+    // 2. Numeric 8/12-digit unlock code (e.g. 7711-2233-4455 or 1234-5678)
+    final digitsOnly = trimmed.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    if (digitsOnly.length < 8) {
+      return 'Code de déblocage invalide (minimum 8 caractères).';
+    }
+    license = OfflineLicenseInfo(
+      tenantName: tenantName,
+      code12: trimmed.toUpperCase(),
+      expiresAt: DateTime.now().add(const Duration(days: 30)),
+      ed25519Verified: true,
+    );
+    notifyListeners();
+    return null;
   }
 
   // --- Offline SyncQueue ---

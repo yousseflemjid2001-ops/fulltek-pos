@@ -828,16 +828,24 @@ class PosOrder {
   double get subtotal => items.fold(0.0, (s, e) => s + e.lineTotal);
   double get discountAmount => subtotal * (discountPercent / 100.0);
 
-  double get netTotal {
+  /// Full TTC consumption value before deducting any prior Arboun deposit.
+  double get grossTotal {
     if (items.isEmpty) return 0;
-    final v = subtotal - discountAmount - arbounDepositMru + deliveryFeeMru;
+    final v = subtotal - discountAmount + deliveryFeeMru;
     return v < 0 ? 0 : v;
   }
 
-  /// Mauritanian TTC inclusive VAT 16%: round(TTC * 16 / 116)
-  int get tvaAmountMru => netTotal <= 0 ? 0 : (netTotal * 16 / 116).round();
+  /// Remaining balance due at checkout after Arboun deposit deduction.
+  double get netTotal {
+    if (items.isEmpty) return 0;
+    final v = grossTotal - arbounDepositMru;
+    return v < 0 ? 0 : v;
+  }
 
-  double get subtotalHtMru => netTotal - tvaAmountMru;
+  /// Mauritanian TTC inclusive VAT 16% on full consumption: round(TTC * 16 / 116)
+  int get tvaAmountMru => grossTotal <= 0 ? 0 : (grossTotal * 16 / 116).round();
+
+  double get subtotalHtMru => grossTotal - tvaAmountMru;
 
   double get totalPaid => payments.fold(0.0, (s, p) => s + p.amountMru);
   double get changeDue => totalPaid > netTotal ? totalPaid - netTotal : 0;

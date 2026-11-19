@@ -18,6 +18,8 @@ class _ClosingZViewState extends State<ClosingZView> {
   final _bankilyCtrl = TextEditingController(text: '0');
   final _masriviCtrl = TextEditingController(text: '0');
   final _sedadCtrl = TextEditingController(text: '0');
+  final _bimbankCtrl = TextEditingController(text: '0');
+  final _clickCtrl = TextEditingController(text: '0');
 
   @override
   void dispose() {
@@ -25,6 +27,8 @@ class _ClosingZViewState extends State<ClosingZView> {
     _bankilyCtrl.dispose();
     _masriviCtrl.dispose();
     _sedadCtrl.dispose();
+    _bimbankCtrl.dispose();
+    _clickCtrl.dispose();
     super.dispose();
   }
 
@@ -34,6 +38,8 @@ class _ClosingZViewState extends State<ClosingZView> {
       countedBankilyMru: double.tryParse(_bankilyCtrl.text.trim()) ?? 0,
       countedMasriviMru: double.tryParse(_masriviCtrl.text.trim()) ?? 0,
       countedSedadMru: double.tryParse(_sedadCtrl.text.trim()) ?? 0,
+      countedBimbankMru: double.tryParse(_bimbankCtrl.text.trim()) ?? 0,
+      countedClickMru: double.tryParse(_clickCtrl.text.trim()) ?? 0,
     );
     showReceiptPreviewDialog(
       context,
@@ -151,6 +157,30 @@ class _ClosingZViewState extends State<ClosingZView> {
               controller: _sedadCtrl,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(labelText: i18n.t('counted_sedad')),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('z_counted_bimbank_input'),
+                    controller: _bimbankCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        InputDecoration(labelText: i18n.t('counted_bimbank')),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    key: const Key('z_counted_click_input'),
+                    controller: _clickCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        InputDecoration(labelText: i18n.t('counted_click')),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(

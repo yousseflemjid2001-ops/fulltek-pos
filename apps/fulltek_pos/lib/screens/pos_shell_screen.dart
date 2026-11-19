@@ -184,6 +184,75 @@ class _PosShellScreenState extends State<PosShellScreen> {
             ),
           ),
 
+          // Offline Ed25519 License Status & Unlock Button
+          IconButton(
+            key: const Key('offline_license_btn'),
+            tooltip: 'Licence Hors-Ligne (${store.license.daysRemaining}j)',
+            onPressed: () async {
+              final ctrl = TextEditingController();
+              String? err;
+              await showDialog<void>(
+                context: context,
+                builder: (ctx) => StatefulBuilder(
+                  builder: (ctx, setD) => AlertDialog(
+                    title: const Text('Licence Hors-Ligne Ed25519'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Établissement : ${store.license.tenantName}\n'
+                          'Code actif : ${store.license.code12}\n'
+                          'Jours restants : ${store.license.daysRemaining} j',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          key: const Key('offline_license_input'),
+                          controller: ctrl,
+                          decoration: InputDecoration(
+                            labelText: 'Code déblocage ou Lease Token',
+                            errorText: err,
+                          ),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text(i18n.t('cancel')),
+                      ),
+                      ElevatedButton(
+                        key: const Key('activate_offline_license_btn'),
+                        onPressed: () {
+                          final msg = store.activateOfflineLicense(ctrl.text);
+                          if (msg != null) {
+                            setD(() => err = msg);
+                            return;
+                          }
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Licence prolongée (${store.license.daysRemaining}j).',
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Activer'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              ctrl.dispose();
+            },
+            icon: Icon(
+              Icons.verified_user_rounded,
+              color: store.license.daysRemaining <= 5 ? p.warning : p.success,
+            ),
+          ),
+
           // SyncQueue indicator
           IconButton(
             tooltip: i18n.t('sync_queue'),

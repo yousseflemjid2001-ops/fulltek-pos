@@ -308,6 +308,87 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    key: const Key('delivery_client_btn'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                    ),
+                    onPressed: () async {
+                      final order = store.activeOrder;
+                      final nameCtrl = TextEditingController(
+                          text: order?.customerName ?? '');
+                      final phoneCtrl = TextEditingController(
+                          text: order?.customerPhone ?? '+222 ');
+                      final addrCtrl = TextEditingController(
+                          text: order?.deliveryAddress ?? '');
+                      await showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Client & Adresse de livraison'),
+                          content: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextField(
+                                  key: const Key('delivery_name_input'),
+                                  controller: nameCtrl,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Nom du client'),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  key: const Key('delivery_phone_input'),
+                                  controller: phoneCtrl,
+                                  keyboardType: TextInputType.phone,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Téléphone (+222...)'),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  key: const Key('delivery_address_input'),
+                                  controller: addrCtrl,
+                                  maxLines: 2,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Quartier / Point de repère'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: Text(i18n.t('cancel')),
+                            ),
+                            ElevatedButton(
+                              key: const Key('save_delivery_info_btn'),
+                              onPressed: () {
+                                store.setDeliveryInfo(
+                                  customerName: nameCtrl.text.trim(),
+                                  customerPhone: phoneCtrl.text.trim(),
+                                  deliveryAddress: addrCtrl.text.trim(),
+                                );
+                                Navigator.of(ctx).pop();
+                              },
+                              child: Text(i18n.t('confirm')),
+                            ),
+                          ],
+                        ),
+                      );
+                      nameCtrl.dispose();
+                      phoneCtrl.dispose();
+                      addrCtrl.dispose();
+                    },
+                    icon: const Icon(Icons.person_pin_circle_rounded, size: 16),
+                    label: Text(
+                      (store.activeOrder?.customerName?.isNotEmpty == true)
+                          ? store.activeOrder!.customerName!
+                          : 'Client / Adresse',
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                  ),
                 ],
               ),
             ),

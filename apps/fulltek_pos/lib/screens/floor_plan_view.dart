@@ -116,6 +116,107 @@ class _FloorPlanViewState extends State<FloorPlanView> {
     if (created == true && mounted) setState(() {});
   }
 
+  Future<void> _openTransferMergeDialog() async {
+    final store = widget.store;
+    final occupied = store.tables
+        .where((t) =>
+            t.activeOrderId != null &&
+            store.orderForTable(t.id) != null)
+        .toList();
+    if (occupied.isEmpty) return;
+
+    String fromId = occupied.first.id;
+    String toId = store.tables.firstWhere((t) => t.id != fromId).id;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          final targetTable = store.tables.firstWhere((t) => t.id == toId);
+          final isMerge = targetTable.activeOrderId != null &&
+              store.orderForTable(targetTable.id) != null;
+          return AlertDialog(
+            title: const Text('Transférer ou Fusionner une table'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  key: const Key('transfer_from_dropdown'),
+                  initialValue: fromId,
+                  decoration: const InputDecoration(labelText: 'Table source (occupée)'),
+                  items: occupied
+                      .map((t) => DropdownMenuItem(
+                            value: t.id,
+                            child: Text(t.code),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setD(() {
+                        fromId = v;
+                        if (toId == fromId) {
+                          toId = store.tables
+                              .firstWhere((t) => t.id != fromId)
+                              .id;
+                        }
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: const Key('transfer_to_dropdown'),
+                  initialValue: toId,
+                  decoration: const InputDecoration(labelText: 'Table destination'),
+                  items: store.tables
+                      .where((t) => t.id != fromId)
+                      .map((t) {
+                        final occ = store.orderForTable(t.id) != null;
+                        return DropdownMenuItem(
+                          value: t.id,
+                          child: Text('${t.code} (${occ ? "Occupée → Fusion" : "Libre → Transfert"})'),
+                        );
+                      })
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setD(() => toId = v);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(store.i18n.t('cancel')),
+              ),
+              ElevatedButton.icon(
+                key: const Key('confirm_transfer_merge_btn'),
+                onPressed: () {
+                  final ok = isMerge
+                      ? store.mergeTables(fromId, toId)
+                      : store.transferTable(fromId, toId);
+                  Navigator.of(ctx).pop();
+                  if (ok && mounted) {
+                    setState(() {});
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isMerge
+                            ? 'Tables fusionnées avec succès.'
+                            : 'Table transférée avec succès.'),
+                      ),
+                    );
+                  }
+                },
+                icon: Icon(isMerge ? Icons.merge_type_rounded : Icons.swap_horiz_rounded),
+                label: Text(isMerge ? 'Fusionner' : 'Transférer'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
@@ -155,11 +256,24 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                       )),
                 ],
               ),
-              ElevatedButton.icon(
-                key: const Key('new_vip_res_btn'),
-                onPressed: _openNewReservationDialog,
-                icon: const Icon(Icons.event_available_rounded, size: 18),
-                label: Text(i18n.t('new_reservation')),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (store.tables.any((t) => store.orderForTable(t.id) != null))
+                    OutlinedButton.icon(
+                      key: const Key('open_transfer_merge_btn'),
+                      onPressed: _openTransferMergeDialog,
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                      label: const Text('Transférer / Fusionner'),
+                    ),
+                  ElevatedButton.icon(
+                    key: const Key('new_vip_res_btn'),
+                    onPressed: _openNewReservationDialog,
+                    icon: const Icon(Icons.event_available_rounded, size: 18),
+                    label: Text(i18n.t('new_reservation')),
+                  ),
+                ],
               ),
             ],
           ),
