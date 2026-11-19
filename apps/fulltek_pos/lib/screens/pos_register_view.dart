@@ -146,7 +146,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
         final cartPane = _buildCartPane(store, p);
         if (wide) {
           final ticketLeft = store.themeSpec.ticketLeft;
-          final ticket = SizedBox(width: 390, child: cartPane);
+          final ticketW = constraints.maxWidth >= 1200 ? 390.0 : 330.0;
+          final ticket = SizedBox(width: ticketW, child: cartPane);
           final divider = VerticalDivider(width: 1, color: p.border);
           final catalog = Expanded(flex: 65, child: catalogPane);
           return Row(
@@ -167,7 +168,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
   }
 
   Widget _buildCatalogPane(PosStore store, PosPalette p) {
-    if (!store.themeSpec.categoriesAsRail) {
+    final isNarrowPhone = MediaQuery.of(context).size.width < 600;
+    if (!store.themeSpec.categoriesAsRail || isNarrowPhone) {
       return _catalogInner(store, p);
     }
     final i18n = store.i18n;
@@ -349,16 +351,19 @@ class _PosRegisterViewState extends State<PosRegisterView> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, c) {
-                final cols = c.maxWidth >= 780
-                    ? 4
-                    : (c.maxWidth >= 520 ? 3 : 2);
+                final cols = c.maxWidth >= 1100
+                    ? 5
+                    : (c.maxWidth >= 780
+                        ? 4
+                        : (c.maxWidth >= 520 ? 3 : 2));
+                final aspect = c.maxWidth < 400 ? 1.0 : 1.12;
                 return GridView.builder(
                   itemCount: items.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: cols,
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
-                    childAspectRatio: 1.12,
+                    childAspectRatio: aspect,
                   ),
                   itemBuilder: (context, idx) {
                     final item = items[idx];

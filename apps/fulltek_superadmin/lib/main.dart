@@ -731,52 +731,120 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
 
   @override
   Widget build(BuildContext context) {
+    final screenW = MediaQuery.of(context).size.width;
+    final isDesktop = screenW >= 900;
+    final isExtended = screenW >= 1220;
+
+    final content = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: KeyedSubtree(
+        key: ValueKey<int>(_tabIndex),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1280),
+            child: _buildCurrentTab(),
+          ),
+        ),
+      ),
+    );
+
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(76),
         child: _buildTopBar(),
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 280),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        child: KeyedSubtree(
-          key: ValueKey<int>(_tabIndex),
-          child: _buildCurrentTab(),
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        height: 68,
-        selectedIndex: _tabIndex,
-        onDestinationSelected: (i) => setState(() => _tabIndex = i),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.space_dashboard_outlined),
-            selectedIcon: const Icon(Icons.space_dashboard),
-            label: t('nav_home'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.storefront_outlined),
-            selectedIcon: const Icon(Icons.storefront),
-            label: t('nav_stores'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.verified_user_outlined),
-            selectedIcon: const Icon(Icons.verified_user),
-            label: t('nav_pay'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.router_outlined),
-            selectedIcon: const Icon(Icons.router),
-            label: t('nav_fleet'),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.shield_outlined),
-            selectedIcon: const Icon(Icons.shield),
-            label: t('nav_audit'),
-          ),
-        ],
-      ),
+      body: isDesktop
+          ? Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _tabIndex,
+                  extended: isExtended,
+                  backgroundColor: FTColors.night.withValues(alpha: 0.95),
+                  indicatorColor: FTColors.ochre.withValues(alpha: 0.2),
+                  selectedIconTheme: const IconThemeData(color: FTColors.ochre),
+                  unselectedIconTheme: const IconThemeData(color: FTColors.ink2),
+                  selectedLabelTextStyle: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                  unselectedLabelTextStyle: const TextStyle(
+                    color: FTColors.ink2,
+                    fontSize: 13,
+                  ),
+                  onDestinationSelected: (i) => setState(() => _tabIndex = i),
+                  destinations: [
+                    NavigationRailDestination(
+                      icon: const Icon(Icons.space_dashboard_outlined),
+                      selectedIcon: const Icon(Icons.space_dashboard),
+                      label: Text(t('nav_home')),
+                    ),
+                    NavigationRailDestination(
+                      icon: const Icon(Icons.storefront_outlined),
+                      selectedIcon: const Icon(Icons.storefront),
+                      label: Text(t('nav_stores')),
+                    ),
+                    NavigationRailDestination(
+                      icon: const Icon(Icons.verified_user_outlined),
+                      selectedIcon: const Icon(Icons.verified_user),
+                      label: Text(t('nav_pay')),
+                    ),
+                    NavigationRailDestination(
+                      icon: const Icon(Icons.router_outlined),
+                      selectedIcon: const Icon(Icons.router),
+                      label: Text(t('nav_fleet')),
+                    ),
+                    NavigationRailDestination(
+                      icon: const Icon(Icons.shield_outlined),
+                      selectedIcon: const Icon(Icons.shield),
+                      label: Text(t('nav_audit')),
+                    ),
+                  ],
+                ),
+                VerticalDivider(
+                  width: 1,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+                Expanded(child: content),
+              ],
+            )
+          : content,
+      bottomNavigationBar: isDesktop
+          ? null
+          : NavigationBar(
+              height: 68,
+              selectedIndex: _tabIndex,
+              onDestinationSelected: (i) => setState(() => _tabIndex = i),
+              destinations: [
+                NavigationDestination(
+                  icon: const Icon(Icons.space_dashboard_outlined),
+                  selectedIcon: const Icon(Icons.space_dashboard),
+                  label: t('nav_home'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.storefront_outlined),
+                  selectedIcon: const Icon(Icons.storefront),
+                  label: t('nav_stores'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.verified_user_outlined),
+                  selectedIcon: const Icon(Icons.verified_user),
+                  label: t('nav_pay'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.router_outlined),
+                  selectedIcon: const Icon(Icons.router),
+                  label: t('nav_fleet'),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.shield_outlined),
+                  selectedIcon: const Icon(Icons.shield),
+                  label: t('nav_audit'),
+                ),
+              ],
+            ),
     );
   }
 
@@ -977,107 +1045,103 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
         .where((s) => s.status == StoreStatus.warn || s.status == StoreStatus.expired)
         .toList();
 
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        // Hero MRR Card
-        GlassCard(
-          borderColor: FTColors.ochre.withValues(alpha: 0.4),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1D3B47), Color(0xFF102128), Color(0xFF1A2D25)],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final heroCard = GlassCard(
+      borderColor: FTColors.ochre.withValues(alpha: 0.4),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1D3B47), Color(0xFF102128), Color(0xFF1A2D25)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Text(
-                      t('mrr_lbl'),
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: FTColors.ink2,
-                      ),
-                    ),
+              Flexible(
+                child: Text(
+                  t('mrr_lbl'),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: FTColors.ink2,
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: FTColors.market.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(color: FTColors.market.withValues(alpha: 0.5)),
-                    ),
-                    child: const Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(
-                        '+18.4%',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: FTColors.greenOk,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: totalMrr.toDouble()),
-                duration: const Duration(milliseconds: 650),
-                curve: Curves.easeOutCubic,
-                builder: (context, val, _) => Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(
-                        formatMru(val.round()),
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      t('cur'),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: FTColors.ochre,
-                      ),
-                    ),
-                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _kpiBox(activeCnt.toString(), t('st_active'), FTColors.greenOk),
-                  const SizedBox(width: 8),
-                  _kpiBox(trialCnt.toString(), t('st_trial'), const Color(0xFF7DD3FC)),
-                  const SizedBox(width: 8),
-                  _kpiBox(warnCnt.toString(), t('st_warn'), const Color(0xFFFCD34D)),
-                  const SizedBox(width: 8),
-                  _kpiBox(expCnt.toString(), t('st_exp'), const Color(0xFFFCA5A5)),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: FTColors.market.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: FTColors.market.withValues(alpha: 0.5)),
+                ),
+                child: const Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(
+                    '+18.4%',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: FTColors.greenOk,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 14),
+          const SizedBox(height: 8),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: totalMrr.toDouble()),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.easeOutCubic,
+            builder: (context, val, _) => Wrap(
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: 6,
+              children: [
+                Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(
+                    formatMru(val.round()),
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    t('cur'),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: FTColors.ochre,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _kpiBox(activeCnt.toString(), t('st_active'), FTColors.greenOk),
+              const SizedBox(width: 8),
+              _kpiBox(trialCnt.toString(), t('st_trial'), const Color(0xFF7DD3FC)),
+              const SizedBox(width: 8),
+              _kpiBox(warnCnt.toString(), t('st_warn'), const Color(0xFFFCD34D)),
+              const SizedBox(width: 8),
+              _kpiBox(expCnt.toString(), t('st_exp'), const Color(0xFFFCA5A5)),
+            ],
+          ),
+        ],
+      ),
+    );
 
-        // Interactive 6-Month Bar Chart
-        GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final chartCard = GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1195,6 +1259,31 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
               ),
             ],
           ),
+        );
+
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 820) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: heroCard),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 6, child: chartCard),
+                ],
+              );
+            }
+            return Column(
+              children: [
+                heroCard,
+                const SizedBox(height: 14),
+                chartCard,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 14),
 
