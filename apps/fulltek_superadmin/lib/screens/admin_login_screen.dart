@@ -489,11 +489,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                         color: FTColors.ochre.withValues(alpha: 0.16),
                                         borderRadius: BorderRadius.circular(99),
                                       ),
-                                      child: const Text(
-                                        'CONSOLE WEB SUPER-ADMIN SAAS',
+                                      child: Text(
+                                        widget.tr('web_console_badge'),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 10.5,
                                           fontWeight: FontWeight.w800,
                                           letterSpacing: 0.6,
@@ -507,9 +507,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                             ],
                           ),
                           const SizedBox(height: 24),
-                          const Text(
-                            'Pilotez votre réseau de caisses Resto, Market & Pharma en Mauritanie.',
-                            style: TextStyle(
+                          Text(
+                            widget.tr('login_hero_title'),
+                            style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
                               height: 1.3,
@@ -519,20 +519,20 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           const SizedBox(height: 20),
                           _featurePill(
                             Icons.verified_user_rounded,
-                            'Licences cryptographiques Ed25519',
-                            'Génération et renouvellement de clés hors-ligne sécurisées.',
+                            widget.tr('login_f1_t'),
+                            widget.tr('login_f1_s'),
                           ),
                           const SizedBox(height: 10),
                           _featurePill(
                             Icons.storefront_rounded,
-                            'Multi-établissements & Flotte POS',
-                            'Supervision MRR, verrouillage à distance et suivi des terminaux.',
+                            widget.tr('login_f2_t'),
+                            widget.tr('login_f2_s'),
                           ),
                           const SizedBox(height: 10),
                           _featurePill(
                             Icons.upload_file_rounded,
-                            'Import Catalogue 1-Clic (CSV / Excel)',
-                            'Déployez menus, stocks et modificateurs instantanément.',
+                            widget.tr('login_f3_t'),
+                            widget.tr('login_f3_s'),
                           ),
                         ],
                       ),

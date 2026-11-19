@@ -778,12 +778,12 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
                 ),
                 if (expanded) ...[
                   const SizedBox(width: 11),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Directionality(
+                        const Directionality(
                           textDirection: TextDirection.ltr,
                           child: Text.rich(
                             maxLines: 1,
@@ -805,8 +805,10 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
                           ),
                         ),
                         Text(
-                          'SUPER-ADMIN WEB',
-                          style: TextStyle(
+                          t('web_badge'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.7,
@@ -844,11 +846,11 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
                 ),
                 icon: const Icon(Icons.add_business_rounded, size: 18),
                 label: expanded
-                    ? const Text(
-                        'Nouveau client',
+                    ? Text(
+                        t('new_client_btn'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 13,
                         ),
@@ -1069,7 +1071,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
                   ),
                 ),
                 Text(
-                  'Full·Tek Control · ${_stores.length} établissements supervisés',
+                  'Full·Tek Control · ${t('supervised_stores').replaceAll('{n}', '${_stores.length}')}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: FTColors.muted,
@@ -1117,7 +1119,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
           ),
           const SizedBox(width: 10),
           IconButton(
-            tooltip: 'Actualiser API',
+            tooltip: t('refresh_api'),
             onPressed: _syncFromApi,
             icon: const Icon(Icons.refresh_rounded, color: FTColors.ink2),
           ),
