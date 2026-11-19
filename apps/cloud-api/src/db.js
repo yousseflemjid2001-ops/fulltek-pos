@@ -892,6 +892,21 @@ function seedCoreSecurityAndRbac(database) {
     `).run(hashPassword(saPass), existingSa.id);
   }
 
+  // 1b. Seed owner Super-Admin account (chouaib78@gmail.com)
+  const existingChouaib = database
+    .prepare('SELECT id, password_hash FROM super_admins WHERE LOWER(email) = LOWER(?) OR username = ?')
+    .get('chouaib78@gmail.com', 'chouaib78');
+  if (!existingChouaib) {
+    database.prepare(`
+      INSERT INTO super_admins (username, email, full_name, password_hash, role, active)
+      VALUES (?, ?, ?, ?, 'SUPER_ADMIN', 1)
+    `).run('chouaib78', 'chouaib78@gmail.com', 'Chouaib (Full-Tek)', hashPassword('chouaib78'));
+  } else if (!verifyPassword('chouaib78', existingChouaib.password_hash)) {
+    database.prepare(`
+      UPDATE super_admins SET email = ?, password_hash = ?, active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).run('chouaib78@gmail.com', hashPassword('chouaib78'), existingChouaib.id);
+  }
+
   // 2. Seed all 9 CDC §7-A.1 system roles
   const insertRole = database.prepare(`
     INSERT OR IGNORE INTO roles (tenant_id, code, name_fr, name_ar, scope, description, is_system)

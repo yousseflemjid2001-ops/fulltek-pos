@@ -124,7 +124,11 @@ void main() {
     await tester.tap(find.byKey(const Key('login_submit')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(
+      find.byKey(const Key('web_sidebar_nav')).evaluate().isNotEmpty ||
+          find.byType(NavigationBar).evaluate().isNotEmpty,
+      isTrue,
+    );
     expect(authHeadersSeen, contains('Bearer jwt-live-token'));
 
     // Navigate to Stores tab and push StoreDetailScreen
@@ -159,7 +163,11 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('login_submit')));
     await tester.tap(find.byKey(const Key('login_submit')));
     await tester.pumpAndSettle();
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(
+      find.byKey(const Key('web_sidebar_nav')).evaluate().isNotEmpty ||
+          find.byType(NavigationBar).evaluate().isNotEmpty,
+      isTrue,
+    );
 
     await tester.tap(find.text('Audit'));
     await tester.pumpAndSettle();
@@ -225,7 +233,11 @@ void main() {
     await tester.tap(find.byKey(const Key('login_submit')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(
+      find.byKey(const Key('web_sidebar_nav')).evaluate().isNotEmpty ||
+          find.byType(NavigationBar).evaluate().isNotEmpty,
+      isTrue,
+    );
     await tester.tap(find.text('المتاجر'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('stores_catalog_import_bar')), findsOneWidget);

@@ -33,7 +33,7 @@ class _FullTekSuperAdminAppState extends State<FullTekSuperAdminApp>
     with TickerProviderStateMixin {
   final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   String _lang = 'fr';
-  bool _phoneFrameOnDesktop = true;
+  bool _phoneFrameOnDesktop = false;
 
   String? _authToken;
   AdminProfile? _adminProfile;
@@ -124,22 +124,7 @@ class _FullTekSuperAdminAppState extends State<FullTekSuperAdminApp>
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > 560;
               if (!isWide || !_phoneFrameOnDesktop) {
-                return Stack(
-                  children: [
-                    child!,
-                    if (isWide)
-                      Positioned(
-                        top: 14,
-                        right: 16,
-                        child: _FrameToggleBtn(
-                          framed: _phoneFrameOnDesktop,
-                          onToggle: () => setState(
-                            () => _phoneFrameOnDesktop = !_phoneFrameOnDesktop,
-                          ),
-                        ),
-                      ),
-                  ],
-                );
+                return child!;
               }
               return Scaffold(
                 backgroundColor: const Color(0xFF050B0E),
@@ -729,122 +714,500 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final screenW = MediaQuery.of(context).size.width;
-    final isDesktop = screenW >= 900;
-    final isExtended = screenW >= 1220;
+  String _currentTabTitle() {
+    switch (_tabIndex) {
+      case 0:
+        return t('nav_home');
+      case 1:
+        return t('nav_stores');
+      case 2:
+        return t('nav_pay');
+      case 3:
+        return t('nav_fleet');
+      case 4:
+        return t('nav_audit');
+      default:
+        return t('nav_home');
+    }
+  }
 
-    final content = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 280),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      child: KeyedSubtree(
-        key: ValueKey<int>(_tabIndex),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1280),
-            child: _buildCurrentTab(),
-          ),
+  Widget _buildWebSidebar(bool expanded) {
+    final navItems = [
+      (0, Icons.space_dashboard_outlined, Icons.space_dashboard, t('nav_home'), null),
+      (1, Icons.storefront_outlined, Icons.storefront, t('nav_stores'), _stores.length),
+      (2, Icons.verified_user_outlined, Icons.verified_user, t('nav_pay'), null),
+      (3, Icons.router_outlined, Icons.router, t('nav_fleet'), null),
+      (4, Icons.shield_outlined, Icons.shield, t('nav_audit'), null),
+    ];
+
+    return Container(
+      key: const Key('web_sidebar_nav'),
+      width: expanded ? 248 : 78,
+      decoration: BoxDecoration(
+        color: FTColors.night,
+        border: Border(
+          right: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
       ),
-    );
-
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(76),
-        child: _buildTopBar(),
-      ),
-      body: isDesktop
-          ? Row(
+      child: Column(
+        children: [
+          // Brand Header
+          Container(
+            height: 76,
+            padding: EdgeInsets.symmetric(horizontal: expanded ? 18 : 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment:
+                  expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
               children: [
-                NavigationRail(
-                  selectedIndex: _tabIndex,
-                  extended: isExtended,
-                  backgroundColor: FTColors.night.withValues(alpha: 0.95),
-                  indicatorColor: FTColors.ochre.withValues(alpha: 0.2),
-                  selectedIconTheme: const IconThemeData(color: FTColors.ochre),
-                  unselectedIconTheme: const IconThemeData(color: FTColors.ink2),
-                  selectedLabelTextStyle: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: FTColors.night2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: FTColors.ochre.withValues(alpha: 0.45),
+                    ),
                   ),
-                  unselectedLabelTextStyle: const TextStyle(
-                    color: FTColors.ink2,
-                    fontSize: 13,
+                  child: const Center(child: FullTekPillsLogo(size: 24)),
+                ),
+                if (expanded) ...[
+                  const SizedBox(width: 11),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Text.rich(
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            TextSpan(
+                              text: 'Full·Tek ',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Control',
+                                  style: TextStyle(color: FTColors.ochre),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'SUPER-ADMIN WEB',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.7,
+                            color: FTColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  onDestinationSelected: (i) => setState(() => _tabIndex = i),
-                  destinations: [
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.space_dashboard_outlined),
-                      selectedIcon: const Icon(Icons.space_dashboard),
-                      label: Text(t('nav_home')),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.storefront_outlined),
-                      selectedIcon: const Icon(Icons.storefront),
-                      label: Text(t('nav_stores')),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.verified_user_outlined),
-                      selectedIcon: const Icon(Icons.verified_user),
-                      label: Text(t('nav_pay')),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.router_outlined),
-                      selectedIcon: const Icon(Icons.router),
-                      label: Text(t('nav_fleet')),
-                    ),
-                    NavigationRailDestination(
-                      icon: const Icon(Icons.shield_outlined),
-                      selectedIcon: const Icon(Icons.shield),
-                      label: Text(t('nav_audit')),
-                    ),
-                  ],
-                ),
-                VerticalDivider(
-                  width: 1,
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-                Expanded(child: content),
+                ],
               ],
-            )
-          : content,
-      bottomNavigationBar: isDesktop
-          ? null
-          : NavigationBar(
-              height: 68,
-              selectedIndex: _tabIndex,
-              onDestinationSelected: (i) => setState(() => _tabIndex = i),
-              destinations: [
-                NavigationDestination(
-                  icon: const Icon(Icons.space_dashboard_outlined),
-                  selectedIcon: const Icon(Icons.space_dashboard),
-                  label: t('nav_home'),
+            ),
+          ),
+
+          // Primary "+ New Store" CTA in Sidebar
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              expanded ? 14 : 12,
+              16,
+              expanded ? 14 : 12,
+              10,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: FilledButton.icon(
+                onPressed: _openCreateStoreModal,
+                style: FilledButton.styleFrom(
+                  backgroundColor: FTColors.ochre,
+                  foregroundColor: const Color(0xFF101916),
+                  padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                NavigationDestination(
-                  icon: const Icon(Icons.storefront_outlined),
-                  selectedIcon: const Icon(Icons.storefront),
-                  label: t('nav_stores'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.verified_user_outlined),
-                  selectedIcon: const Icon(Icons.verified_user),
-                  label: t('nav_pay'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.router_outlined),
-                  selectedIcon: const Icon(Icons.router),
-                  label: t('nav_fleet'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.shield_outlined),
-                  selectedIcon: const Icon(Icons.shield),
-                  label: t('nav_audit'),
+                icon: const Icon(Icons.add_business_rounded, size: 18),
+                label: expanded
+                    ? const Text(
+                        'Nouveau client',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+
+          // Navigation Links
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.symmetric(
+                horizontal: expanded ? 10 : 8,
+                vertical: 6,
+              ),
+              children: navItems.map((item) {
+                final idx = item.$1;
+                final sel = _tabIndex == idx;
+                final badgeCount = item.$5;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Material(
+                    color: sel
+                        ? FTColors.ochre.withValues(alpha: 0.16)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => setState(() => _tabIndex = idx),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: expanded ? 12 : 0,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: sel
+                                ? FTColors.ochre.withValues(alpha: 0.45)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: expanded
+                              ? MainAxisAlignment.start
+                              : MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              sel ? item.$3 : item.$2,
+                              size: 20,
+                              color: sel ? FTColors.ochre : FTColors.ink2,
+                            ),
+                            if (expanded) ...[
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  item.$4,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight:
+                                        sel ? FontWeight.w800 : FontWeight.w600,
+                                    color: sel ? Colors.white : FTColors.ink2,
+                                  ),
+                                ),
+                              ),
+                              if (badgeCount != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: sel
+                                        ? FTColors.ochre
+                                        : Colors.white.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(
+                                    badgeCount.toString(),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: sel
+                                          ? const Color(0xFF101916)
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // Footer: API Status & Logout
+          Container(
+            padding: EdgeInsets.all(expanded ? 14 : 10),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+              ),
+            ),
+            child: Column(
+              children: [
+                if (expanded)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _apiConnected
+                                ? FTColors.greenOk
+                                : FTColors.warn,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _apiConnected
+                                ? '${t('cloud_ok')} · API'
+                                : t('cloud_ok'),
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: _apiConnected
+                                  ? FTColors.greenOk
+                                  : FTColors.warn,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  height: 38,
+                  child: OutlinedButton.icon(
+                    key: const Key('logout_button'),
+                    onPressed: widget.onLogout,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: FTColors.ink2,
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: expanded ? 12 : 0,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.logout_rounded, size: 17),
+                    label: expanded
+                        ? Text(
+                            t('btn_logout'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebTopHeader() {
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: FTColors.night.withValues(alpha: 0.72),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _currentTabTitle(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  'Full·Tek Control · ${_stores.length} établissements supervisés',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: FTColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Language Switcher FR | AR | EN
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: ['fr', 'ar', 'en'].map((code) {
+                final active = widget.lang == code;
+                return GestureDetector(
+                  onTap: () => widget.onLangChanged(code),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: active ? FTColors.petrol : Colors.transparent,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      code.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: active ? Colors.white : FTColors.muted,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(width: 10),
+          IconButton(
+            tooltip: 'Actualiser API',
+            onPressed: _syncFromApi,
+            icon: const Icon(Icons.refresh_rounded, color: FTColors.ink2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenW = constraints.maxWidth;
+        final isDesktop = screenW >= 900;
+        final isExpandedSidebar = screenW >= 900;
+
+        final content = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: KeyedSubtree(
+            key: ValueKey<int>(_tabIndex),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1360),
+                child: _buildCurrentTab(),
+              ),
+            ),
+          ),
+        );
+
+        if (isDesktop) {
+          return Scaffold(
+            body: Row(
+              children: [
+                _buildWebSidebar(isExpandedSidebar),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _buildWebTopHeader(),
+                      Expanded(child: content),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Scaffold(
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(76),
+            child: _buildTopBar(),
+          ),
+          body: content,
+          bottomNavigationBar: NavigationBar(
+            height: 68,
+            selectedIndex: _tabIndex,
+            onDestinationSelected: (i) => setState(() => _tabIndex = i),
+            destinations: [
+              NavigationDestination(
+                icon: const Icon(Icons.space_dashboard_outlined),
+                selectedIcon: const Icon(Icons.space_dashboard),
+                label: t('nav_home'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.storefront_outlined),
+                selectedIcon: const Icon(Icons.storefront),
+                label: t('nav_stores'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.verified_user_outlined),
+                selectedIcon: const Icon(Icons.verified_user),
+                label: t('nav_pay'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.router_outlined),
+                selectedIcon: const Icon(Icons.router),
+                label: t('nav_fleet'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.shield_outlined),
+                selectedIcon: const Icon(Icons.shield),
+                label: t('nav_audit'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1442,53 +1805,97 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
     }).toList();
 
     return ListView(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       children: [
-        // Search Bar
-        TextField(
-          onChanged: (v) => setState(() => _searchQuery = v),
-          decoration: InputDecoration(
-            hintText: t('search_ph'),
-            prefixIcon: const Icon(Icons.search, color: FTColors.muted),
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 820;
+            final searchField = TextField(
+              onChanged: (v) => setState(() => _searchQuery = v),
+              decoration: InputDecoration(
+                hintText: t('search_ph'),
+                prefixIcon: const Icon(Icons.search, color: FTColors.muted),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+              ),
+            );
+            final filterRow = SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('all', t('flt_all')),
+                  const SizedBox(width: 6),
+                  _filterChip('resto', 'Resto'),
+                  const SizedBox(width: 6),
+                  _filterChip('market', 'Market'),
+                  const SizedBox(width: 6),
+                  _filterChip('pharma', 'Pharma'),
+                  const SizedBox(width: 6),
+                  _filterChip('warn', t('flt_due')),
+                ],
+              ),
+            );
+            if (isWide) {
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  const SizedBox(width: 14),
+                  filterRow,
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                searchField,
+                const SizedBox(height: 10),
+                filterRow,
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _filterChip('all', t('flt_all')),
-              const SizedBox(width: 6),
-              _filterChip('resto', 'Resto'),
-              const SizedBox(width: 6),
-              _filterChip('market', 'Market'),
-              const SizedBox(width: 6),
-              _filterChip('pharma', 'Pharma'),
-              const SizedBox(width: 6),
-              _filterChip('warn', t('flt_due')),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         if (_stores.isNotEmpty) ...[
           _buildStoresCatalogBar(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
         ],
-        ...list.map((s) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _buildStoreCard(s, showLock: true),
-            )),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cols = constraints.maxWidth >= 1060
+                ? 2
+                : (constraints.maxWidth >= 820 ? 2 : 1);
+            if (cols == 1) {
+              return Column(
+                children: list
+                    .map((s) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _buildStoreCard(s, showLock: true),
+                        ))
+                    .toList(),
+              );
+            }
+            final cardW = (constraints.maxWidth - 14 * (cols - 1)) / cols;
+            return Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: list
+                  .map((s) => SizedBox(
+                        width: cardW,
+                        child: _buildStoreCard(s, showLock: true),
+                      ))
+                  .toList(),
+            );
+          },
+        ),
       ],
     );
   }
