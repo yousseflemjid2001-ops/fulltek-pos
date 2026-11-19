@@ -1115,6 +1115,7 @@ class PosStore extends ChangeNotifier {
     required double priceMru,
     String kitchenStation = 'KITCHEN',
     String iconEmoji = '🍽',
+    String imageUrl = '',
     bool isTop = false,
     bool available = true,
   }) async {
@@ -1127,6 +1128,7 @@ class PosStore extends ChangeNotifier {
     final en = (nameEn != null && nameEn.trim().isNotEmpty)
         ? nameEn.trim()
         : trimmedFr;
+    final cleanImage = imageUrl.trim();
 
     if (existingId != null) {
       final idx = menuItems.indexWhere((m) => m.id == existingId);
@@ -1140,6 +1142,7 @@ class PosStore extends ChangeNotifier {
         priceMru: priceMru,
         kitchenStation: kitchenStation,
         icon: iconEmoji,
+        imageUrl: cleanImage,
         isTop: isTop,
         available: available,
       );
@@ -1162,6 +1165,7 @@ class PosStore extends ChangeNotifier {
               'priceMru': priceMru.round(),
               'kitchenStation': kitchenStation,
               'icon': iconEmoji,
+              'imageUrl': cleanImage,
               'isTop': isTop,
               'available': available,
             }),
@@ -1183,6 +1187,7 @@ class PosStore extends ChangeNotifier {
       priceMru: priceMru,
       kitchenStation: kitchenStation,
       icon: iconEmoji,
+      imageUrl: cleanImage,
       isTop: isTop,
       available: available,
     );
@@ -1207,6 +1212,7 @@ class PosStore extends ChangeNotifier {
             'priceMru': priceMru.round(),
             'kitchenStation': kitchenStation,
             'icon': iconEmoji,
+            'imageUrl': cleanImage,
             'isTop': isTop,
             'available': available,
           }),
@@ -1225,6 +1231,7 @@ class PosStore extends ChangeNotifier {
               priceMru: finalItem.priceMru,
               kitchenStation: finalItem.kitchenStation,
               icon: finalItem.icon,
+              imageUrl: finalItem.imageUrl,
               isTop: finalItem.isTop,
               available: finalItem.available,
             );
@@ -2200,6 +2207,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 450,
         kitchenStation: 'KITCHEN',
         icon: '🍲',
+        imageUrl: 'assets/images/menu/resto_thieb.jpg',
         isTop: true,
         modifiers: [sideGroup],
       ),
@@ -2213,6 +2221,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 1400,
         kitchenStation: 'GRILL',
         icon: '🍖',
+        imageUrl: 'assets/images/menu/resto_mechoui.jpg',
         isTop: true,
         modifiers: [cuissonGroup, sideGroup],
       ),
@@ -2226,6 +2235,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 550,
         kitchenStation: 'KITCHEN',
         icon: '🥘',
+        imageUrl: 'assets/images/menu/couscous.jpg',
       ),
       const MenuItem(
         id: 'M4',
@@ -2237,6 +2247,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 480,
         kitchenStation: 'KITCHEN',
         icon: '🍛',
+        imageUrl: 'assets/images/menu/resto_thieb.jpg',
       ),
       const MenuItem(
         id: 'M5',
@@ -2248,6 +2259,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 750,
         kitchenStation: 'GRILL',
         icon: '🥩',
+        imageUrl: 'assets/images/menu/mix_grill.jpg',
         isTop: true,
         modifiers: [cuissonGroup, sideGroup, extrasGroup],
       ),
@@ -2261,6 +2273,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 350,
         kitchenStation: 'GRILL',
         icon: '🌯',
+        imageUrl: 'assets/images/menu/chawarma.jpg',
         modifiers: [sideGroup, extrasGroup],
       ),
       const MenuItem(
@@ -2273,6 +2286,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 500,
         kitchenStation: 'GRILL',
         icon: '🍢',
+        imageUrl: 'assets/images/menu/resto_brochettes.jpg',
         modifiers: [cuissonGroup, sideGroup, extrasGroup],
       ),
       const MenuItem(
@@ -2285,6 +2299,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 850,
         kitchenStation: 'GRILL',
         icon: '🐟',
+        imageUrl: 'assets/images/menu/poisson_braise.jpg',
         isTop: true,
         modifiers: [sideGroup],
       ),
@@ -2298,6 +2313,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 220,
         kitchenStation: 'KITCHEN',
         icon: '🥗',
+        imageUrl: 'assets/images/menu/salade_fattouch.jpg',
       ),
       const MenuItem(
         id: 'M10',
@@ -2309,6 +2325,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 180,
         kitchenStation: 'KITCHEN',
         icon: '🫓',
+        imageUrl: 'assets/images/menu/houmous.jpg',
       ),
       const MenuItem(
         id: 'M11',
@@ -2320,6 +2337,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 300,
         kitchenStation: 'KITCHEN',
         icon: '🥟',
+        imageUrl: 'assets/images/menu/pastilla.jpg',
         modifiers: [extrasGroup],
       ),
       const MenuItem(
@@ -2332,6 +2350,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 150,
         kitchenStation: 'BAR',
         icon: '🍵',
+        imageUrl: 'assets/images/menu/resto_atay.jpg',
         isTop: true,
       ),
       const MenuItem(
@@ -2344,6 +2363,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 120,
         kitchenStation: 'BAR',
         icon: '🍹',
+        imageUrl: 'assets/images/menu/jus_bissap.jpg',
       ),
       const MenuItem(
         id: 'M14',
@@ -2355,6 +2375,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 130,
         kitchenStation: 'BAR',
         icon: '🥤',
+        imageUrl: 'assets/images/menu/jus_bouye.jpg',
       ),
       const MenuItem(
         id: 'M15',
@@ -2366,6 +2387,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 140,
         kitchenStation: 'BAR',
         icon: '🥛',
+        imageUrl: 'assets/images/menu/resto_lait.jpg',
       ),
       const MenuItem(
         id: 'M16',
@@ -2377,6 +2399,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 60,
         kitchenStation: 'BAR',
         icon: '💧',
+        imageUrl: 'assets/images/menu/eau_minerale.jpg',
       ),
       const MenuItem(
         id: 'M17',
@@ -2388,6 +2411,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 200,
         kitchenStation: 'BAR',
         icon: '🌴',
+        imageUrl: 'assets/images/menu/resto_dattes.jpg',
       ),
       const MenuItem(
         id: 'M18',
@@ -2399,6 +2423,7 @@ class PosStore extends ChangeNotifier {
         priceMru: 250,
         kitchenStation: 'BAR',
         icon: '🍰',
+        imageUrl: 'assets/images/menu/tiramisu.jpg',
       ),
     ];
 

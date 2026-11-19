@@ -534,6 +534,7 @@ function initSchema(database) {
       name_ar TEXT DEFAULT '',
       name_en TEXT DEFAULT '',
       icon TEXT DEFAULT '',
+      image_url TEXT DEFAULT '',
       unit TEXT DEFAULT 'unit',
       price_retail INTEGER NOT NULL,
       price_whole INTEGER DEFAULT 0,
@@ -779,6 +780,7 @@ function runMigrations(database) {
 
   ensureColumn(database, 'products', 'name_en', "TEXT DEFAULT ''");
   ensureColumn(database, 'products', 'icon', "TEXT DEFAULT ''");
+  ensureColumn(database, 'products', 'image_url', "TEXT DEFAULT ''");
   ensureColumn(database, 'products', 'unit', "TEXT DEFAULT 'unit'");
   ensureColumn(database, 'products', 'price_cost', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'dci', "TEXT DEFAULT ''");

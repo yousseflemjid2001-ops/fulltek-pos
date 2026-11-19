@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/dish_image.dart';
 import 'checkout_dialog.dart';
 import 'modifiers_dialog.dart';
 import 'remake_comp_dialog.dart';
@@ -437,7 +438,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     : (c.maxWidth >= 780
                         ? 4
                         : (c.maxWidth >= 520 ? 3 : 2));
-                final aspect = c.maxWidth < 400 ? 1.0 : 1.12;
+                final aspect = c.maxWidth < 400 ? 0.86 : 0.94;
                 return GridView.builder(
                   itemCount: items.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -459,7 +460,6 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                           onTap: oos ? null : () => _onTapItem(item),
                           borderRadius: BorderRadius.circular(p.radius),
                           child: Container(
-                            padding: const EdgeInsets.all(11),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(p.radius),
                               border: Border.all(
@@ -467,104 +467,116 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Container(
-                                      width: 34,
-                                      height: 34,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: p.surfaceAlt,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Text(item.icon,
-                                          style: const TextStyle(fontSize: 18)),
-                                    ),
-                                    if (oos)
-                                      Container(
-                                        key: Key('badge_oos_${item.id}'),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: p.danger,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
+                                Expanded(
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      DishImage(
+                                        imageUrl: item.imageUrl,
+                                        fallbackIcon: item.icon,
+                                        backgroundColor: p.surfaceAlt,
+                                        borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(
+                                              (p.radius - 1).clamp(4, 24)),
                                         ),
-                                        child: Text(
-                                          i18n.t('badge_out_of_stock'),
-                                          style: const TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w900,
-                                            color: Colors.white,
+                                      ),
+                                      if (oos)
+                                        Positioned(
+                                          top: 6,
+                                          right: 6,
+                                          child: Container(
+                                            key: Key('badge_oos_${item.id}'),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 7, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: p.danger,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              i18n.t('badge_out_of_stock'),
+                                              style: const TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      else if (item.isTop)
+                                        Positioned(
+                                          top: 6,
+                                          right: 6,
+                                          child: Container(
+                                            key: Key('badge_top_${item.id}'),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 7, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: p.vipGold,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              i18n.t('badge_top'),
+                                              style: const TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: Colors.black,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      )
-                                    else if (item.isTop)
-                                      Container(
-                                        key: Key('badge_top_${item.id}'),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              p.vipGold.withValues(alpha: 0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(9, 7, 9, 8),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.nameFr,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: p.textPrimary,
                                         ),
-                                        child: Text(
-                                          i18n.t('badge_top'),
-                                          style: TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w900,
-                                            color: p.vipGold,
+                                      ),
+                                      const SizedBox(height: 1),
+                                      Text(
+                                        item.nameAr,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          color: p.textMuted,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            '${item.priceMru.toStringAsFixed(0)} ${i18n.t('mru')}',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w900,
+                                              color: p.primary,
+                                            ),
                                           ),
-                                        ),
+                                          if (item.hasModifiers && !oos)
+                                            Icon(Icons.tune_rounded,
+                                                size: 15, color: p.accent),
+                                        ],
                                       ),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.nameFr,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: p.textPrimary,
-                                      ),
-                                    ),
-                                    Text(
-                                      item.nameAr,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: p.textMuted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      '${item.priceMru.toStringAsFixed(0)} ${i18n.t('mru')}',
-                                      style: TextStyle(
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w900,
-                                        color: p.primary,
-                                      ),
-                                    ),
-                                    if (item.hasModifiers && !oos)
-                                      Icon(Icons.tune_rounded,
-                                          size: 16, color: p.accent),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),

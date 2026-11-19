@@ -443,6 +443,7 @@ class MenuItem {
   final String kitchenStation; // KITCHEN | GRILL | BAR
   final bool available;
   final String icon;
+  final String imageUrl;
   final bool isTop;
   final List<ModifierGroup> modifiers;
 
@@ -457,6 +458,7 @@ class MenuItem {
     this.kitchenStation = 'KITCHEN',
     this.available = true,
     this.icon = '🍽',
+    this.imageUrl = '',
     this.isTop = false,
     this.modifiers = const [],
   });
@@ -478,6 +480,7 @@ class MenuItem {
     bool? available,
     bool? isOutOfStock,
     String? icon,
+    String? imageUrl,
     bool? isTop,
     List<ModifierGroup>? modifiers,
   }) {
@@ -494,6 +497,7 @@ class MenuItem {
       kitchenStation: kitchenStation ?? this.kitchenStation,
       available: nextAvailable,
       icon: icon ?? this.icon,
+      imageUrl: imageUrl ?? this.imageUrl,
       isTop: isTop ?? this.isTop,
       modifiers: modifiers ?? this.modifiers,
     );

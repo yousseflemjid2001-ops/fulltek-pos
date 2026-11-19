@@ -1203,6 +1203,7 @@ function createApp(options = {}) {
             nameAr: prod.name_ar || '',
             nameEn: prod.name_en || '',
             icon: prod.icon || '🍽️',
+            imageUrl: prod.image_url || '',
             priceMru: Number(prod.price_retail ?? 0),
             priceCostMru: Number(prod.price_cost ?? 0),
             kitchenStation: String(prod.kitchen_station || 'KITCHEN').toUpperCase(),
@@ -1426,6 +1427,7 @@ function createApp(options = {}) {
         const nameEn = typeof b.nameEn === 'string' ? b.nameEn.trim() : (typeof b.name_en === 'string' ? b.name_en.trim() : nameFr);
         const kitchenStation = (typeof b.kitchenStation === 'string' ? b.kitchenStation : 'KITCHEN').trim().toUpperCase();
         const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : '🍽';
+        const imageUrl = typeof b.imageUrl === 'string' ? b.imageUrl.trim() : (typeof b.image_url === 'string' ? b.image_url.trim() : '');
         const isTop = b.isTop === true ? 1 : 0;
         const isOutOfStock = b.available === false ? 1 : 0;
 
@@ -1453,11 +1455,11 @@ function createApp(options = {}) {
         const nowIso = new Date().toISOString();
         const ins = database.prepare(`
           INSERT INTO products (
-            tenant_id, category_id, sku, name_fr, name_ar, name_en, icon,
+            tenant_id, category_id, sku, name_fr, name_ar, name_en, icon, image_url,
             unit, price_retail, kitchen_station, is_top, is_out_of_stock,
             modifiers_json, active, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, '[]', 1, ?, ?)
-        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, priceRetail, kitchenStation, isTop, isOutOfStock, nowIso, nowIso);
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, '[]', 1, ?, ?)
+        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, imageUrl, priceRetail, kitchenStation, isTop, isOutOfStock, nowIso, nowIso);
         const created = database.prepare('SELECT * FROM products WHERE id = ?').get(ins.lastInsertRowid);
 
         database.prepare(`
@@ -1487,6 +1489,7 @@ function createApp(options = {}) {
         if (!Number.isFinite(priceRetail) || priceRetail < 0) return sendJson(res, 400, { error: 'Invalid priceMru' });
         const kitchenStation = typeof b.kitchenStation === 'string' && b.kitchenStation.trim() ? b.kitchenStation.trim().toUpperCase() : product.kitchen_station;
         const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : product.icon;
+        const imageUrl = typeof b.imageUrl === 'string' ? b.imageUrl.trim() : (typeof b.image_url === 'string' ? b.image_url.trim() : (product.image_url || ''));
         const isTop = typeof b.isTop === 'boolean' ? (b.isTop ? 1 : 0) : product.is_top;
         const isOutOfStock = typeof b.available === 'boolean' ? (b.available ? 0 : 1) : product.is_out_of_stock;
         let categoryId = product.category_id;
@@ -1497,9 +1500,9 @@ function createApp(options = {}) {
         const nowIso = new Date().toISOString();
         database.prepare(`
           UPDATE products SET name_fr = ?, name_ar = ?, name_en = ?, price_retail = ?,
-            category_id = ?, kitchen_station = ?, icon = ?, is_top = ?, is_out_of_stock = ?, updated_at = ?
+            category_id = ?, kitchen_station = ?, icon = ?, image_url = ?, is_top = ?, is_out_of_stock = ?, updated_at = ?
           WHERE id = ? AND tenant_id = ?
-        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, isTop, isOutOfStock, nowIso, product.id, currentTenant.id);
+        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, imageUrl, isTop, isOutOfStock, nowIso, product.id, currentTenant.id);
         const updated = database.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
         return sendJson(res, 200, { ok: true, product: updated });
       }

@@ -169,6 +169,7 @@ class CatalogMapper {
                     .toUpperCase(),
             available: available,
             icon: '${p['icon'] ?? '🍽'}',
+            imageUrl: '${p['imageUrl'] ?? p['image_url'] ?? ''}'.trim(),
             isTop: _asBool(p['isTop'] ?? p['is_top'], fallback: false),
             modifiers: modifiers,
           );

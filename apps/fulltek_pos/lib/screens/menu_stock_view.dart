@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/dish_image.dart';
 
 class MenuStockView extends StatefulWidget {
   final PosStore store;
@@ -69,6 +70,19 @@ class _MenuStockViewState extends State<MenuStockView> {
     final priceCtrl = TextEditingController(
         text: existing != null ? existing.priceMru.toStringAsFixed(0) : '');
     final iconCtrl = TextEditingController(text: existing?.icon ?? '🍽');
+    final imageCtrl = TextEditingController(text: existing?.imageUrl ?? '');
+    const presetPhotos = <String, String>{
+      'Thiéboudienne': 'assets/images/menu/resto_thieb.jpg',
+      'Méchoui': 'assets/images/menu/resto_mechoui.jpg',
+      'Mix Grill': 'assets/images/menu/mix_grill.jpg',
+      'Brochettes': 'assets/images/menu/resto_brochettes.jpg',
+      'Chawarma': 'assets/images/menu/chawarma.jpg',
+      'Poisson': 'assets/images/menu/poisson_braise.jpg',
+      'Salade': 'assets/images/menu/salade_fattouch.jpg',
+      'Atay': 'assets/images/menu/resto_atay.jpg',
+      'Jus Bissap': 'assets/images/menu/jus_bissap.jpg',
+      'Dattes': 'assets/images/menu/resto_dattes.jpg',
+    };
     String catId = existing?.categoryId ??
         (store.categories.isNotEmpty ? store.categories.first.id : 'cat-1');
     String station = existing?.kitchenStation ?? 'KITCHEN';
@@ -173,6 +187,48 @@ class _MenuStockViewState extends State<MenuStockView> {
                         if (v != null) setD(() => catId = v);
                       },
                     ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 54,
+                        height: 54,
+                        child: DishImage(
+                          imageUrl: imageCtrl.text.trim(),
+                          fallbackIcon: iconCtrl.text.trim(),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: imageCtrl,
+                          onChanged: (_) => setD(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Photo du plat (URL ou asset)',
+                            hintText: 'https://... ou assets/images/menu/...',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: presetPhotos.entries.map((e) {
+                        final selected = imageCtrl.text.trim() == e.value;
+                        return ChoiceChip(
+                          label: Text(e.key, style: const TextStyle(fontSize: 11)),
+                          selected: selected,
+                          onSelected: (_) =>
+                              setD(() => imageCtrl.text = e.value),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -213,6 +269,7 @@ class _MenuStockViewState extends State<MenuStockView> {
                   iconEmoji: iconCtrl.text.trim().isEmpty
                       ? '🍽'
                       : iconCtrl.text.trim(),
+                  imageUrl: imageCtrl.text.trim(),
                   isTop: isTop,
                   available: available,
                 );
@@ -232,6 +289,7 @@ class _MenuStockViewState extends State<MenuStockView> {
     arCtrl.dispose();
     priceCtrl.dispose();
     iconCtrl.dispose();
+    imageCtrl.dispose();
   }
 
   Future<void> _openNewIngredientDialog() async {
@@ -577,7 +635,17 @@ class _MenuStockViewState extends State<MenuStockView> {
           ),
           child: Row(
             children: [
-              Text(m.icon, style: const TextStyle(fontSize: 24)),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: DishImage(
+                  imageUrl: m.imageUrl,
+                  fallbackIcon: m.icon,
+                  borderRadius: BorderRadius.circular(10),
+                  backgroundColor: p.surfaceAlt,
+                  fallbackFontSize: 22,
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
