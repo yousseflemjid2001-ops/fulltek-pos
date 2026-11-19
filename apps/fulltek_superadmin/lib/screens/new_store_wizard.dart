@@ -618,31 +618,41 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
               ? null
               : PreferredSize(
                   preferredSize: const Size.fromHeight(62),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                    child: _buildStepper(),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                        child: _buildStepper(),
+                      ),
+                    ),
                   ),
                 ),
         ),
-        body: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, anim) {
-            final dir = _forward ? 1.0 : -1.0;
-            final isRtl = Directionality.of(context) == TextDirection.rtl;
-            final dx = (isRtl ? -dir : dir) * 0.1;
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween(begin: Offset(dx, 0), end: Offset.zero).animate(anim),
-                child: child,
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) {
+                final dir = _forward ? 1.0 : -1.0;
+                final isRtl = Directionality.of(context) == TextDirection.rtl;
+                final dx = (isRtl ? -dir : dir) * 0.1;
+                return FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween(begin: Offset(dx, 0), end: Offset.zero).animate(anim),
+                    child: child,
+                  ),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_done ? 'done' : 's$_step'),
+                child: _done ? _buildSuccess() : _buildStep(),
               ),
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey(_done ? 'done' : 's$_step'),
-            child: _done ? _buildSuccess() : _buildStep(),
+            ),
           ),
         ),
         bottomNavigationBar: _buildBottomBar(),
@@ -723,8 +733,12 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
         color: FTColors.night,
         border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
       ),
-      child: Row(
-        children: [
+      child: Center(
+        heightFactor: 1.0,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Row(
+            children: [
           if (!_done && _step > 0) ...[
             Expanded(
               flex: 2,
@@ -762,7 +776,9 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
               ),
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

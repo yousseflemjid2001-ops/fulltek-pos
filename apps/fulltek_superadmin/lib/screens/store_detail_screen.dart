@@ -449,8 +449,11 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
         children: [
           Hero(
             tag: 'store-${s.id}',
@@ -804,6 +807,8 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
             ),
           ),
         ],
+      ),
+        ),
       ),
     );
   }
