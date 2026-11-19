@@ -3,14 +3,14 @@ FROM node:22-alpine
 WORKDIR /app
 
 # Copie des fichiers de configuration
-COPY package*.json ./
+COPY apps/cloud-api/package*.json ./
 
-# Dépendances (optionnelles, cloud-api utilise les modules natifs node:sqlite, node:crypto, node:http)
+# Dépendances (modules natifs Node.js)
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; fi
 
 # Copie du code source et schémas
-COPY src ./src
-COPY prisma ./prisma
+COPY apps/cloud-api/src ./src
+COPY apps/cloud-api/prisma ./prisma
 
 # Dossier persistant pour la base de données SQLite
 RUN mkdir -p /app/data
