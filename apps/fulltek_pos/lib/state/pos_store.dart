@@ -1105,6 +1105,287 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
+  /// Creates or updates a menu dish locally and on Cloud API (/api/pos/products).
+  Future<String?> saveMenuItem({
+    String? existingId,
+    required String nameFr,
+    String? nameAr,
+    String? nameEn,
+    required String categoryId,
+    required double priceMru,
+    String kitchenStation = 'KITCHEN',
+    String iconEmoji = '🍽',
+    bool isTop = false,
+    bool available = true,
+  }) async {
+    final trimmedFr = nameFr.trim();
+    if (trimmedFr.isEmpty) return 'Nom du plat requis.';
+    if (priceMru < 0) return 'Prix invalide.';
+    final ar = (nameAr != null && nameAr.trim().isNotEmpty)
+        ? nameAr.trim()
+        : trimmedFr;
+    final en = (nameEn != null && nameEn.trim().isNotEmpty)
+        ? nameEn.trim()
+        : trimmedFr;
+
+    if (existingId != null) {
+      final idx = menuItems.indexWhere((m) => m.id == existingId);
+      if (idx == -1) return 'Plat introuvable.';
+      final old = menuItems[idx];
+      menuItems[idx] = old.copyWith(
+        nameFr: trimmedFr,
+        nameAr: ar,
+        nameEn: en,
+        categoryId: categoryId,
+        priceMru: priceMru,
+        kitchenStation: kitchenStation,
+        icon: iconEmoji,
+        isTop: isTop,
+        available: available,
+      );
+      notifyListeners();
+
+      if (cloudConnected && cloudJwtToken != null) {
+        try {
+          final key = old.sku.isNotEmpty ? old.sku : old.id;
+          await _httpRequest(
+            'PATCH',
+            '$apiBaseUrl/api/pos/products/${Uri.encodeComponent(key)}',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $cloudJwtToken',
+            },
+            body: jsonEncode({
+              'nameFr': trimmedFr,
+              'nameAr': ar,
+              'nameEn': en,
+              'priceMru': priceMru.round(),
+              'kitchenStation': kitchenStation,
+              'icon': iconEmoji,
+              'isTop': isTop,
+              'available': available,
+            }),
+          );
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    final newId = 'M-${DateTime.now().millisecondsSinceEpoch}';
+    final newSku = 'SKU-${DateTime.now().millisecondsSinceEpoch % 1000000}';
+    var finalItem = MenuItem(
+      id: newId,
+      sku: newSku,
+      categoryId: categoryId,
+      nameFr: trimmedFr,
+      nameAr: ar,
+      nameEn: en,
+      priceMru: priceMru,
+      kitchenStation: kitchenStation,
+      icon: iconEmoji,
+      isTop: isTop,
+      available: available,
+    );
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        final cat = categories.where((c) => c.id == categoryId).firstOrNull;
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/products',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'sku': newSku,
+            'nameFr': trimmedFr,
+            'nameAr': ar,
+            'nameEn': en,
+            'categoryId': int.tryParse(categoryId),
+            if (cat != null) 'categoryName': cat.nameFr,
+            'priceMru': priceMru.round(),
+            'kitchenStation': kitchenStation,
+            'icon': iconEmoji,
+            'isTop': isTop,
+            'available': available,
+          }),
+        );
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final map = jsonDecode(res.body) as Map<String, dynamic>;
+          final p = map['product'] as Map<String, dynamic>?;
+          if (p != null && p['id'] != null) {
+            finalItem = MenuItem(
+              id: '${p['id']}',
+              sku: '${p['sku'] ?? newSku}',
+              categoryId: finalItem.categoryId,
+              nameFr: finalItem.nameFr,
+              nameAr: finalItem.nameAr,
+              nameEn: finalItem.nameEn,
+              priceMru: finalItem.priceMru,
+              kitchenStation: finalItem.kitchenStation,
+              icon: finalItem.icon,
+              isTop: finalItem.isTop,
+              available: finalItem.available,
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    menuItems.insert(0, finalItem);
+    notifyListeners();
+    return null;
+  }
+
+  /// Deactivates / deletes a menu dish locally and on Cloud API.
+  Future<bool> deleteMenuItem(String id) async {
+    final idx = menuItems.indexWhere((m) => m.id == id);
+    if (idx == -1) return false;
+    final old = menuItems.removeAt(idx);
+    notifyListeners();
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        final key = old.sku.isNotEmpty ? old.sku : old.id;
+        await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/products/${Uri.encodeComponent(key)}',
+          headers: {
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+        );
+      } catch (_) {}
+    }
+    return true;
+  }
+
+  /// Adds a new raw ingredient locally and on Cloud API (/api/pos/ingredients).
+  Future<String?> addIngredient({
+    required String nameFr,
+    String? nameAr,
+    required String unit,
+    required double currentStock,
+    required double minThreshold,
+    required double pmpCostMru,
+  }) async {
+    final trimmed = nameFr.trim();
+    if (trimmed.isEmpty) return 'Nom de l\'ingrédient requis.';
+    final sku = 'ING-${DateTime.now().millisecondsSinceEpoch % 1000000}';
+    var ing = Ingredient(
+      id: sku,
+      sku: sku,
+      nameFr: trimmed,
+      nameAr: (nameAr != null && nameAr.trim().isNotEmpty) ? nameAr.trim() : trimmed,
+      nameEn: trimmed,
+      unit: unit.trim().isEmpty ? 'kg' : unit.trim(),
+      currentStock: currentStock < 0 ? 0 : currentStock,
+      minStock: minThreshold < 0 ? 0 : minThreshold,
+      pmpCostMru: pmpCostMru < 0 ? 0 : pmpCostMru,
+    );
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/ingredients',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'sku': sku,
+            'nameFr': ing.nameFr,
+            'nameAr': ing.nameAr,
+            'unit': ing.unit,
+            'currentStock': ing.currentStock,
+            'minStock': ing.minStock,
+            'pmpCostMru': ing.pmpCostMru,
+          }),
+        );
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final map = jsonDecode(res.body) as Map<String, dynamic>;
+          final row = map['ingredient'] as Map<String, dynamic>?;
+          if (row != null && row['id'] != null) {
+            ing = Ingredient(
+              id: '${row['id']}',
+              sku: ing.sku,
+              nameFr: ing.nameFr,
+              nameAr: ing.nameAr,
+              nameEn: ing.nameEn,
+              unit: ing.unit,
+              pmpCostMru: ing.pmpCostMru,
+              currentStock: ing.currentStock,
+              minStock: ing.minStock,
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    ingredients.add(ing);
+    notifyListeners();
+    return null;
+  }
+
+  /// Restocks or adjusts an ingredient's stock & recalculates weighted PMP cost.
+  Future<String?> restockIngredient({
+    required String ingredientId,
+    double? deltaQty,
+    double? newStock,
+    double? unitCostMru,
+    double? minThreshold,
+  }) async {
+    final idx = ingredients.indexWhere((i) => i.id == ingredientId);
+    if (idx == -1) return 'Ingrédient introuvable.';
+    final old = ingredients[idx];
+    double nextStock = old.currentStock;
+    double nextPmp = old.pmpCostMru;
+
+    if (newStock != null) {
+      nextStock = newStock < 0 ? 0 : newStock;
+    } else if (deltaQty != null) {
+      nextStock = (old.currentStock + deltaQty).clamp(0.0, double.infinity);
+      if (deltaQty > 0 && unitCostMru != null && unitCostMru > 0) {
+        final totalQty = old.currentStock + deltaQty;
+        nextPmp = totalQty > 0
+            ? ((old.currentStock * old.pmpCostMru) + (deltaQty * unitCostMru)) /
+                totalQty
+            : unitCostMru;
+      }
+    } else {
+      return 'Quantité requise.';
+    }
+
+    ingredients[idx] = old.copyWith(
+      currentStock: nextStock,
+      pmpCostMru: nextPmp,
+      minStock: minThreshold ?? old.minStock,
+    );
+    notifyListeners();
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        final key = old.sku.isNotEmpty ? old.sku : old.id;
+        await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/ingredients/${Uri.encodeComponent(key)}/restock',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'deltaQty': ?deltaQty,
+            'newStock': ?newStock,
+            'unitCostMru': ?unitCostMru,
+            'minStock': ?minThreshold,
+          }),
+        );
+      } catch (_) {}
+    }
+    return null;
+  }
+
   // --- BOM Matching & Auto-Deduction ---
 
   List<RecipeBomLine> _matchingBomLinesForItem(

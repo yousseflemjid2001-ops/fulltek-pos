@@ -137,5 +137,52 @@ void main() {
       expect(store2.pendingSyncCount, 1);
       localStorageRemove('fulltek_pos_state_v1');
     });
+
+    test('Menu & Stock CRUD: add/edit/delete dish and restock ingredient with weighted PMP', () async {
+      final store = PosStore(enablePersistence: false);
+      store.loginWithPin('7410');
+
+      final initialCount = store.menuItems.length;
+      final errAdd = await store.saveMenuItem(
+        nameFr: 'Sandwich Chawarma VIP',
+        nameAr: 'ساندويتش شاورما',
+        categoryId: store.categories.first.id,
+        priceMru: 220,
+        kitchenStation: 'GRILL',
+      );
+      expect(errAdd, isNull);
+      expect(store.menuItems.length, initialCount + 1);
+      final added = store.menuItems.first;
+      expect(added.priceMru, 220);
+
+      await store.saveMenuItem(
+        existingId: added.id,
+        nameFr: 'Sandwich Chawarma VIP',
+        categoryId: added.categoryId,
+        priceMru: 250,
+      );
+      expect(store.menuItems.firstWhere((m) => m.id == added.id).priceMru, 250);
+
+      await store.deleteMenuItem(added.id);
+      expect(store.menuItems.length, initialCount);
+
+      // Restock ingredient & verify weighted PMP: (10*200 + 10*300)/20 = 250
+      await store.addIngredient(
+        nameFr: 'Tomate Fraîche',
+        unit: 'kg',
+        currentStock: 10,
+        minThreshold: 2,
+        pmpCostMru: 200,
+      );
+      final ing = store.ingredients.last;
+      await store.restockIngredient(
+        ingredientId: ing.id,
+        deltaQty: 10,
+        unitCostMru: 300,
+      );
+      final updatedIng = store.ingredients.firstWhere((i) => i.id == ing.id);
+      expect(updatedIng.currentStock, 20);
+      expect(updatedIng.pmpCostMru, 250);
+    });
   });
 }

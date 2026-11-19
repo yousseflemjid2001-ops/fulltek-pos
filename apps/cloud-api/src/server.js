@@ -1410,6 +1410,180 @@ function createApp(options = {}) {
         });
       }
 
+      // 2d-bis. POST /api/pos/products — Create new menu item (Tenant Owner/Manager)
+      if (req.method === 'POST' && p === '/api/pos/products') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nameFr = typeof b.nameFr === 'string' ? b.nameFr.trim() : (typeof b.name_fr === 'string' ? b.name_fr.trim() : '');
+        if (!nameFr) {
+          return sendJson(res, 400, { error: 'nameFr is required' });
+        }
+        const priceRetail = Math.round(Number(b.priceMru ?? b.price_retail ?? 0));
+        if (!Number.isFinite(priceRetail) || priceRetail < 0) {
+          return sendJson(res, 400, { error: 'Valid priceMru is required' });
+        }
+        const nameAr = typeof b.nameAr === 'string' ? b.nameAr.trim() : (typeof b.name_ar === 'string' ? b.name_ar.trim() : nameFr);
+        const nameEn = typeof b.nameEn === 'string' ? b.nameEn.trim() : (typeof b.name_en === 'string' ? b.name_en.trim() : nameFr);
+        const kitchenStation = (typeof b.kitchenStation === 'string' ? b.kitchenStation : 'KITCHEN').trim().toUpperCase();
+        const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : '🍽';
+        const isTop = b.isTop === true ? 1 : 0;
+        const isOutOfStock = b.available === false ? 1 : 0;
+
+        let categoryId = null;
+        if (b.categoryId != null && /^\d+$/.test(String(b.categoryId))) {
+          const catRow = database.prepare('SELECT id FROM categories WHERE id = ? AND tenant_id = ?').get(Number(b.categoryId), currentTenant.id);
+          if (catRow) categoryId = catRow.id;
+        }
+        if (categoryId == null && typeof b.categoryName === 'string' && b.categoryName.trim()) {
+          const catName = b.categoryName.trim();
+          const existingCat = database.prepare('SELECT id FROM categories WHERE tenant_id = ? AND LOWER(name_fr) = LOWER(?) LIMIT 1').get(currentTenant.id, catName);
+          if (existingCat) {
+            categoryId = existingCat.id;
+          } else {
+            const insCat = database.prepare('INSERT INTO categories (tenant_id, name_fr, name_ar, name_en, icon, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)').run(currentTenant.id, catName, catName, catName, '🍽', new Date().toISOString());
+            categoryId = Number(insCat.lastInsertRowid);
+          }
+        }
+        if (categoryId == null) {
+          const firstCat = database.prepare('SELECT id FROM categories WHERE tenant_id = ? AND active = 1 ORDER BY sort_order, id LIMIT 1').get(currentTenant.id);
+          if (firstCat) categoryId = firstCat.id;
+        }
+
+        const skuRaw = typeof b.sku === 'string' && b.sku.trim() ? b.sku.trim() : `SKU-${Date.now().toString().slice(-6)}`;
+        const nowIso = new Date().toISOString();
+        const ins = database.prepare(`
+          INSERT INTO products (
+            tenant_id, category_id, sku, name_fr, name_ar, name_en, icon,
+            unit, price_retail, kitchen_station, is_top, is_out_of_stock,
+            modifiers_json, active, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, '[]', 1, ?, ?)
+        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, priceRetail, kitchenStation, isTop, isOutOfStock, nowIso, nowIso);
+        const created = database.prepare('SELECT * FROM products WHERE id = ?').get(ins.lastInsertRowid);
+
+        database.prepare(`
+          INSERT INTO audit_logs (
+            tenant_id, actor, action, title, subtitle, entity_type, entity_id, after_json, time_label, created_at
+          ) VALUES (?, ?, 'PRODUCT_CREATED', ?, ?, 'product', ?, ?, ?, ?)
+        `).run(currentTenant.id, currentTenant.manager || currentTenant.name, `Plat ajouté · ${nameFr}`, `${priceRetail} MRU (${kitchenStation})`, String(created.id), JSON.stringify(created), nowHM(), nowIso);
+
+        return sendJson(res, 201, { ok: true, product: created });
+      }
+
+      // 2d-ter. PATCH /api/pos/products/:id — Update menu item
+      if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/products\/([^/]+)$/))) {
+        let rawKey;
+        try { rawKey = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid id' }); }
+        const product = /^\d+$/.test(rawKey)
+          ? database.prepare('SELECT * FROM products WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(rawKey), rawKey)
+          : database.prepare('SELECT * FROM products WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, rawKey);
+        if (!product) return sendJson(res, 404, { error: 'Product not found' });
+
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nameFr = typeof b.nameFr === 'string' && b.nameFr.trim() ? b.nameFr.trim() : product.name_fr;
+        const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : product.name_ar;
+        const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : product.name_en;
+        const priceRetail = b.priceMru != null ? Math.round(Number(b.priceMru)) : product.price_retail;
+        if (!Number.isFinite(priceRetail) || priceRetail < 0) return sendJson(res, 400, { error: 'Invalid priceMru' });
+        const kitchenStation = typeof b.kitchenStation === 'string' && b.kitchenStation.trim() ? b.kitchenStation.trim().toUpperCase() : product.kitchen_station;
+        const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : product.icon;
+        const isTop = typeof b.isTop === 'boolean' ? (b.isTop ? 1 : 0) : product.is_top;
+        const isOutOfStock = typeof b.available === 'boolean' ? (b.available ? 0 : 1) : product.is_out_of_stock;
+        let categoryId = product.category_id;
+        if (b.categoryId != null && /^\d+$/.test(String(b.categoryId))) {
+          const catRow = database.prepare('SELECT id FROM categories WHERE id = ? AND tenant_id = ?').get(Number(b.categoryId), currentTenant.id);
+          if (catRow) categoryId = catRow.id;
+        }
+        const nowIso = new Date().toISOString();
+        database.prepare(`
+          UPDATE products SET name_fr = ?, name_ar = ?, name_en = ?, price_retail = ?,
+            category_id = ?, kitchen_station = ?, icon = ?, is_top = ?, is_out_of_stock = ?, updated_at = ?
+          WHERE id = ? AND tenant_id = ?
+        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, isTop, isOutOfStock, nowIso, product.id, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+        return sendJson(res, 200, { ok: true, product: updated });
+      }
+
+      // 2d-quater. DELETE /api/pos/products/:id — Soft-deactivate menu item
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/products\/([^/]+)$/))) {
+        let rawKey;
+        try { rawKey = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid id' }); }
+        const product = /^\d+$/.test(rawKey)
+          ? database.prepare('SELECT * FROM products WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(rawKey), rawKey)
+          : database.prepare('SELECT * FROM products WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, rawKey);
+        if (!product) return sendJson(res, 404, { error: 'Product not found' });
+        database.prepare('UPDATE products SET active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?').run(new Date().toISOString(), product.id, currentTenant.id);
+        return sendJson(res, 200, { ok: true, productId: product.id, active: false });
+      }
+
+      // 2d-5. POST /api/pos/ingredients — Create ingredient
+      if (req.method === 'POST' && p === '/api/pos/ingredients') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nameFr = typeof b.nameFr === 'string' ? b.nameFr.trim() : '';
+        if (!nameFr) return sendJson(res, 400, { error: 'nameFr is required' });
+        const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : nameFr;
+        const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : nameFr;
+        const unit = typeof b.unit === 'string' && b.unit.trim() ? b.unit.trim() : 'kg';
+        const currentStock = Number(b.currentStock ?? 0);
+        const minStock = Number(b.minStock ?? b.minThreshold ?? 0);
+        const pmpCost = Number(b.pmpCostMru ?? 0);
+        const sku = typeof b.sku === 'string' && b.sku.trim() ? b.sku.trim() : `ING-${Date.now().toString().slice(-6)}`;
+        const nowIso = new Date().toISOString();
+        const ins = database.prepare(`
+          INSERT INTO ingredients (tenant_id, sku, name_fr, name_ar, name_en, unit, pmp_cost_mru, current_stock, min_stock, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(currentTenant.id, sku, nameFr, nameAr, nameEn, unit, pmpCost, currentStock, minStock, nowIso, nowIso);
+        const created = database.prepare('SELECT * FROM ingredients WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, ingredient: created });
+      }
+
+      // 2d-6. POST /api/pos/ingredients/:id/restock — Stock entry / inventory adjustment
+      if (req.method === 'POST' && (m = p.match(/^\/api\/pos\/ingredients\/([^/]+)\/restock$/))) {
+        let rawKey;
+        try { rawKey = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid id' }); }
+        const ing = /^\d+$/.test(rawKey)
+          ? database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(rawKey), rawKey)
+          : database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, rawKey);
+        if (!ing) return sendJson(res, 404, { error: 'Ingredient not found' });
+
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const oldStock = Number(ing.current_stock || 0);
+        const oldPmp = Number(ing.pmp_cost_mru || 0);
+        let nextStock = oldStock;
+        let nextPmp = oldPmp;
+
+        if (b.newStock != null && Number.isFinite(Number(b.newStock))) {
+          nextStock = Math.max(0, Number(b.newStock));
+        } else if (b.deltaQty != null && Number.isFinite(Number(b.deltaQty))) {
+          const delta = Number(b.deltaQty);
+          nextStock = Math.max(0, oldStock + delta);
+          if (delta > 0 && b.unitCostMru != null && Number(b.unitCostMru) > 0) {
+            const unitCost = Number(b.unitCostMru);
+            nextPmp = (oldStock + delta) > 0
+              ? ((oldStock * oldPmp) + (delta * unitCost)) / (oldStock + delta)
+              : unitCost;
+          }
+        } else {
+          return sendJson(res, 400, { error: 'deltaQty or newStock is required' });
+        }
+
+        const nextMin = b.minStock != null && Number.isFinite(Number(b.minStock)) ? Number(b.minStock) : ing.min_stock;
+        const nowIso = new Date().toISOString();
+        database.prepare('UPDATE ingredients SET current_stock = ?, pmp_cost_mru = ?, min_stock = ?, updated_at = ? WHERE id = ? AND tenant_id = ?')
+          .run(nextStock, nextPmp, nextMin, nowIso, ing.id, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM ingredients WHERE id = ?').get(ing.id);
+
+        database.prepare(`
+          INSERT INTO audit_logs (
+            tenant_id, actor, action, title, subtitle, entity_type, entity_id, after_json, time_label, created_at
+          ) VALUES (?, ?, 'INGREDIENT_RESTOCK', ?, ?, 'ingredient', ?, ?, ?, ?)
+        `).run(currentTenant.id, currentTenant.manager || currentTenant.name, `Stock · ${ing.name_fr}`, `${oldStock.toFixed(2)} → ${nextStock.toFixed(2)} ${ing.unit}`, String(ing.id), JSON.stringify(updated), nowHM(), nowIso);
+
+        return sendJson(res, 200, { ok: true, ingredient: updated });
+      }
+
       // 2e. GET /api/pos/kds[?station=ALL|GRILL|KITCHEN|BAR]
       if (req.method === 'GET' && p === '/api/pos/kds') {
         const station = (url.searchParams.get('station') || 'ALL').trim().toUpperCase();

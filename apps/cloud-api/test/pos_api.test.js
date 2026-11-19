@@ -1424,3 +1424,70 @@ describe('POS Suite 6 — M1 Regression Tests (Karni Limits, Metadata Preservati
     }
   });
 });
+
+describe('POS Suite 7 — Tenant Menu & Stock CRUD (POST/PATCH/DELETE /api/pos/products & /api/pos/ingredients)', () => {
+  it('creates, updates, soft-deletes menu items and restocks ingredients with weighted PMP', async () => {
+    await withIsolatedServer(async ({ request }) => {
+      const { token } = await loginTenant(request, 'darelkram41');
+
+      // 1. Create product
+      const cr = await request('/api/pos/products', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        json: {
+          nameFr: 'Tacos Poulet Spécial',
+          nameAr: 'تاكوس دجاج',
+          categoryName: 'Tacos',
+          priceMru: 240,
+          kitchenStation: 'GRILL',
+          isTop: true,
+        },
+      });
+      assert.equal(cr.status, 201);
+      assert.equal(cr.json.product.name_fr, 'Tacos Poulet Spécial');
+      assert.equal(cr.json.product.price_retail, 240);
+      const prodId = cr.json.product.id;
+
+      // 2. Update price
+      const up = await request(`/api/pos/products/${prodId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+        json: { priceMru: 260, available: true },
+      });
+      assert.equal(up.status, 200);
+      assert.equal(up.json.product.price_retail, 260);
+
+      // 3. Create ingredient & restock with weighted PMP
+      const ingRes = await request('/api/pos/ingredients', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        json: {
+          nameFr: 'Blanc de Poulet',
+          unit: 'kg',
+          currentStock: 10,
+          minStock: 3,
+          pmpCostMru: 200,
+        },
+      });
+      assert.equal(ingRes.status, 201);
+      const ingId = ingRes.json.ingredient.id;
+
+      const restockRes = await request(`/api/pos/ingredients/${ingId}/restock`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        json: { deltaQty: 10, unitCostMru: 300 },
+      });
+      assert.equal(restockRes.status, 200);
+      assert.equal(restockRes.json.ingredient.current_stock, 20);
+      assert.equal(restockRes.json.ingredient.pmp_cost_mru, 250);
+
+      // 4. Delete (soft-deactivate) product
+      const del = await request(`/api/pos/products/${prodId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(del.status, 200);
+      assert.equal(del.json.active, false);
+    });
+  });
+});

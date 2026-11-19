@@ -7,6 +7,7 @@ import 'closing_z_view.dart';
 import 'floor_plan_view.dart';
 import 'karni_view.dart';
 import 'kds_view.dart';
+import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
 import 'pos_register_view.dart';
 
@@ -41,7 +42,8 @@ class _PosShellScreenState extends State<PosShellScreen> {
       2 => KdsView(store: store),
       3 => KarniView(store: store),
       4 => OwnerDashboardView(store: store),
-      _ => ClosingZView(store: store),
+      5 => ClosingZView(store: store),
+      _ => MenuStockView(store: store),
     };
 
     return Scaffold(
@@ -355,6 +357,12 @@ class _PosShellScreenState extends State<PosShellScreen> {
             icon: const Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long_rounded, color: p.primary),
             label: i18n.t('nav_closing'),
+          ),
+          NavigationDestination(
+            key: const Key('nav_tab_menu_stock'),
+            icon: const Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2_rounded, color: p.primary),
+            label: 'Menu & Stock',
           ),
         ],
       ),
