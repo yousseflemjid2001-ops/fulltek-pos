@@ -1,0 +1,21 @@
+services:
+  fulltek-api:
+    build:
+      context: ./apps/cloud-api
+      dockerfile: Dockerfile
+    image: fulltek-api:latest
+    container_name: fulltek_cloud_api
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+      - DB_PATH=/app/data/fulltek.db
+      - JWT_SECRET=change_this_to_a_secure_random_secret_in_production
+    volumes:
+      - fulltek_data:/app/data
+
+volumes:
+  fulltek_data:
+    driver: local

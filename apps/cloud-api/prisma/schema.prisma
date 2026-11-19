@@ -35,10 +35,12 @@ model Tenant {
   status             String   @default("active") // active | trial | warn | expired | locked
   online             Boolean  @default(true)
   pendingSync        Int      @default(0) @map("pending_sync")
-  enabledThemes      String   @default("[\"01\",\"06\",\"07\",\"11\"]") @map("enabled_themes")
-  features           String   @default("[]")
-  payMethods         String   @default("[\"Bankily\",\"Masrivi\",\"Sedad\",\"Cash\"]") @map("pay_methods")
-  hardware           String   @default("[]")
+  enabledThemes        String   @default("[\"01\",\"04\",\"06\",\"07\",\"11\"]") @map("enabled_themes")
+  features             String   @default("[]")
+  payMethods           String   @default("[\"Cash\",\"Bankily\",\"Masrivi\",\"Sedad\",\"Bimbank\",\"Click\",\"Karni\"]") @map("pay_methods")
+  deliveryZonesJson    String   @default("[]") @map("delivery_zones_json")
+  freeDeliveryAboveMru Int      @default(1500) @map("free_delivery_above_mru")
+  hardware             String   @default("[]")
   notes              String   @default("")
   username           String   @unique
   passwordHash       String   @map("password_hash")
@@ -360,6 +362,7 @@ model AuditLog {
   afterJson  String   @default("") @map("after_json")
   ipAddress  String   @default("") @map("ip_address")
   timeLabel  String   @map("time_label")
+  isTraining Boolean  @default(false) @map("is_training")
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([tenantId, createdAt], map: "idx_audit_logs_tenant_created")
@@ -377,6 +380,7 @@ model Category {
   nameFr    String    @map("name_fr")
   nameAr    String    @default("") @map("name_ar")
   nameEn    String    @default("") @map("name_en")
+  icon      String    @default("")
   sortOrder Int       @default(0) @map("sort_order")
   active    Boolean   @default(true)
   createdAt String    @default("") @map("created_at")
@@ -387,26 +391,31 @@ model Category {
 }
 
 model Product {
-  id           Int       @id @default(autoincrement())
-  tenantId     Int       @map("tenant_id")
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categoryId   Int?      @map("category_id")
-  category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  sku          String    @default("")
-  barcode      String    @default("")
-  nameFr       String    @map("name_fr")
-  nameAr       String    @default("") @map("name_ar")
-  nameEn       String    @default("") @map("name_en")
-  unit         String    @default("unit")
-  priceRetail  Int       @map("price_retail")
-  priceWhole   Int       @default(0) @map("price_whole")
-  priceCost    Int       @default(0) @map("price_cost")
-  dci          String    @default("")
-  trackFefo    Boolean   @default(false) @map("track_fefo")
-  requiresCnam Boolean   @default(false) @map("requires_cnam")
-  active       Boolean   @default(true)
-  createdAt    String    @default("") @map("created_at")
-  updatedAt    String    @default("") @map("updated_at")
+  id             Int       @id @default(autoincrement())
+  tenantId       Int       @map("tenant_id")
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId     Int?      @map("category_id")
+  category       Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  sku            String    @default("")
+  barcode        String    @default("")
+  nameFr         String    @map("name_fr")
+  nameAr         String    @default("") @map("name_ar")
+  nameEn         String    @default("") @map("name_en")
+  icon           String    @default("")
+  unit           String    @default("unit")
+  priceRetail    Int       @map("price_retail")
+  priceWhole     Int       @default(0) @map("price_whole")
+  priceCost      Int       @default(0) @map("price_cost")
+  dci            String    @default("")
+  trackFefo      Boolean   @default(false) @map("track_fefo")
+  requiresCnam   Boolean   @default(false) @map("requires_cnam")
+  kitchenStation String    @default("KITCHEN") @map("kitchen_station")
+  isTop          Boolean   @default(false) @map("is_top")
+  isOutOfStock   Boolean   @default(false) @map("is_out_of_stock")
+  modifiersJson  String    @default("[]") @map("modifiers_json")
+  active         Boolean   @default(true)
+  createdAt      String    @default("") @map("created_at")
+  updatedAt      String    @default("") @map("updated_at")
 
   batches             StockBatch[]
   recipesBom          RecipeBom[]
@@ -450,6 +459,7 @@ model Ingredient {
   sku          String   @default("")
   nameFr       String   @map("name_fr")
   nameAr       String   @default("") @map("name_ar")
+  nameEn       String   @default("") @map("name_en")
   unit         String   @default("kg") // kg | g | L | ml | unit
   pmpCostMru   Float    @default(0) @map("pmp_cost_mru")
   currentStock Float    @default(0) @map("current_stock")
@@ -495,6 +505,7 @@ model DiningZone {
   branch       Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
   nameFr       String   @map("name_fr")
   nameAr       String   @default("") @map("name_ar")
+  nameEn       String   @default("") @map("name_en")
   zoneType     String   @default("SALLE") @map("zone_type") // SALLE | TERRASSE | ETAGE | KHAIMA_VIP
   priceTier    String   @default("STANDARD") @map("price_tier") // STANDARD | TAKEAWAY | VIP
   tableCount   Int      @default(1) @map("table_count")
@@ -540,45 +551,60 @@ model ReservationVip {
 }
 
 model Order {
-  id          Int          @id @default(autoincrement())
-  tenantId    Int          @map("tenant_id")
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId    Int?         @map("branch_id")
-  branch      Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  registerId  Int?         @map("register_id")
-  register    PosRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
-  userId      Int?         @map("user_id")
-  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  zoneId      Int?         @map("zone_id")
-  zone        DiningZone?  @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  orderCode   String       @map("order_code")
-  tableName   String       @default("") @map("table_name")
-  channel     String       @default("DINE_IN") // DINE_IN | TAKEAWAY | DELIVERY | RETAIL
-  status      String       @default("PAID") // OPEN | KDS_PREP | READY | PAID | VOID
-  payMethod   String       @map("pay_method") // Cash | Bankily | Masrivi | Sedad | Karni
-  totalMru    Int          @map("total_mru")
-  discountMru Int          @default(0) @map("discount_mru")
-  cnamCover   Int          @default(0) @map("cnam_cover")
-  hlcTs       String       @default("") @map("hlc_ts")
-  notes       String       @default("")
-  createdAt   DateTime     @default(now()) @map("created_at")
+  id              Int          @id @default(autoincrement())
+  tenantId        Int          @map("tenant_id")
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId        Int?         @map("branch_id")
+  branch          Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerId      Int?         @map("register_id")
+  register        PosRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  userId          Int?         @map("user_id")
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  zoneId          Int?         @map("zone_id")
+  zone            DiningZone?  @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  orderCode       String       @map("order_code")
+  tableName       String       @default("") @map("table_name")
+  channel         String       @default("DINE_IN") // DINE_IN | TAKEAWAY | DELIVERY | RETAIL
+  serviceMode     String       @default("dine_in") @map("service_mode") // dine_in | takeaway | delivery | retail
+  deliveryZone    String       @default("") @map("delivery_zone")
+  deliveryFeeMru  Int          @default(0) @map("delivery_fee_mru")
+  status          String       @default("PAID") // OPEN | KDS_PREP | READY | PAID | VOID
+  payMethod       String       @map("pay_method") // Cash | Bankily | Masrivi | Sedad | Bimbank | Click | Karni | Mixte
+  paymentsJson    String       @default("[]") @map("payments_json")
+  totalMru        Int          @map("total_mru")
+  tvaMru          Int          @default(0) @map("tva_mru")
+  discountMru     Int          @default(0) @map("discount_mru")
+  cnamCover       Int          @default(0) @map("cnam_cover")
+  customerName    String       @default("") @map("customer_name")
+  customerPhone   String       @default("") @map("customer_phone")
+  deliveryAddress String       @default("") @map("delivery_address")
+  isTraining      Boolean      @default(false) @map("is_training")
+  kdsSentAt       String       @default("") @map("kds_sent_at")
+  hlcTs           String       @default("") @map("hlc_ts")
+  notes           String       @default("")
+  createdAt       DateTime     @default(now()) @map("created_at")
 
   items               OrderItem[]
   returnsRemakesComps ReturnRemakeComp[]
   karniTransactions   KarniTransaction[]
 
   @@index([tenantId, createdAt], map: "idx_orders_tenant_created")
+  @@index([tenantId, orderCode], map: "idx_orders_tenant_code")
   @@map("orders")
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int     @map("order_id")
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId Int     @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  qty       Int
-  unitPrice Int     @map("unit_price")
+  id             Int     @id @default(autoincrement())
+  orderId        Int     @map("order_id")
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      Int     @map("product_id")
+  product        Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  qty            Int
+  unitPrice      Int     @map("unit_price")
+  modifiersJson  String  @default("[]") @map("modifiers_json")
+  kitchenNote    String  @default("") @map("kitchen_note")
+  kitchenStation String  @default("KITCHEN") @map("kitchen_station")
+  kdsStatus      String  @default("PENDING") @map("kds_status")
 
   returnsRemakesComps ReturnRemakeComp[]
 
@@ -674,6 +700,7 @@ model CashClosingZ {
   openedAt    String       @default("") @map("opened_at")
   closedAt    String       @default("") @map("closed_at")
   notes       String       @default("")
+  isTraining  Boolean      @default(false) @map("is_training")
   createdAt   DateTime     @default(now()) @map("created_at")
 
   @@map("cash_closings_z")

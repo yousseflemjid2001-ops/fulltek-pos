@@ -167,6 +167,46 @@ const HEADER_ALIASES = new Map([
   ['dlc', 'expires_at'],
   ['تاريخ_الانتهاء', 'expires_at'],
   ['تاريخ_الصلاحية', 'expires_at'],
+
+  // Resto POS extended fields
+  ['icon', 'icon'],
+  ['icone', 'icon'],
+  ['emoji', 'icon'],
+  ['picto', 'icon'],
+  ['الايقونة', 'icon'],
+  ['الأيقونة', 'icon'],
+
+  ['kitchen_station', 'kitchen_station'],
+  ['station', 'kitchen_station'],
+  ['poste', 'kitchen_station'],
+  ['poste_cuisine', 'kitchen_station'],
+  ['kds_station', 'kitchen_station'],
+  ['cuisine_poste', 'kitchen_station'],
+  ['محطة_المطبخ', 'kitchen_station'],
+
+  ['is_top', 'is_top'],
+  ['top', 'is_top'],
+  ['best_seller', 'is_top'],
+  ['bestseller', 'is_top'],
+  ['vedette', 'is_top'],
+  ['الأكثر_مبيعا', 'is_top'],
+  ['الاكثر_مبيعا', 'is_top'],
+
+  ['is_out_of_stock', 'is_out_of_stock'],
+  ['out_of_stock', 'is_out_of_stock'],
+  ['epuise', 'is_out_of_stock'],
+  ['rupture', 'is_out_of_stock'],
+  ['rupture_stock', 'is_out_of_stock'],
+  ['86', 'is_out_of_stock'],
+  ['نفذت_الكمية', 'is_out_of_stock'],
+
+  ['modifiers_json', 'modifiers_json'],
+  ['modifiers', 'modifiers_json'],
+  ['modificateurs', 'modifiers_json'],
+  ['options', 'modifiers_json'],
+  ['extras', 'modifiers_json'],
+  ['الإضافات', 'modifiers_json'],
+  ['الاضافات', 'modifiers_json'],
 ]);
 
 function mapCanonicalField(headerText) {
@@ -698,6 +738,54 @@ function validateNormalizedRows(normalizedRows) {
       }
     }
 
+    const icon = data.icon !== undefined ? String(data.icon).trim() : '';
+
+    let kitchenStation = '';
+    if (data.kitchen_station !== undefined && String(data.kitchen_station).trim() !== '') {
+      let st = String(data.kitchen_station).trim().toUpperCase();
+      if (st === 'CUISINE') st = 'KITCHEN';
+      if (st !== 'KITCHEN' && st !== 'GRILL' && st !== 'BAR') {
+        rowErrors.push(`kitchen_station "${data.kitchen_station}" must be KITCHEN, GRILL, or BAR`);
+      } else {
+        kitchenStation = st;
+      }
+    }
+
+    let isTop = undefined;
+    if (data.is_top !== undefined && String(data.is_top).trim() !== '') {
+      const parsed = parseBooleanFlag(data.is_top, 'is_top');
+      if (!parsed.ok) rowErrors.push(parsed.error);
+      else isTop = parsed.value;
+    }
+
+    let isOutOfStock = undefined;
+    if (data.is_out_of_stock !== undefined && String(data.is_out_of_stock).trim() !== '') {
+      const parsed = parseBooleanFlag(data.is_out_of_stock, 'is_out_of_stock');
+      if (!parsed.ok) rowErrors.push(parsed.error);
+      else isOutOfStock = parsed.value;
+    }
+
+    let modifiersJson = undefined;
+    if (data.modifiers_json !== undefined) {
+      if (Array.isArray(data.modifiers_json)) {
+        modifiersJson = JSON.stringify(data.modifiers_json);
+      } else {
+        const rawMod = String(data.modifiers_json).trim();
+        if (rawMod !== '') {
+          try {
+            const parsedMod = JSON.parse(rawMod);
+            if (!Array.isArray(parsedMod)) {
+              rowErrors.push('modifiers_json must be a valid JSON array');
+            } else {
+              modifiersJson = JSON.stringify(parsedMod);
+            }
+          } catch {
+            rowErrors.push('modifiers_json must be a valid JSON array');
+          }
+        }
+      }
+    }
+
     if (rowErrors.length > 0) {
       errors.push({ row: rowNum, message: rowErrors.join('; ') });
       continue;
@@ -713,6 +801,7 @@ function validateNormalizedRows(normalizedRows) {
       name_fr: nameFr,
       name_ar: data.name_ar !== undefined ? String(data.name_ar).trim() : '',
       name_en: data.name_en !== undefined ? String(data.name_en).trim() : '',
+      icon,
       unit: data.unit !== undefined ? String(data.unit).trim() : '',
       price_retail: priceRetailParsed.value,
       price_whole: priceWhole,
@@ -720,6 +809,10 @@ function validateNormalizedRows(normalizedRows) {
       dci: data.dci !== undefined ? String(data.dci).trim() : '',
       track_fefo: trackFefo,
       requires_cnam: requiresCnam,
+      kitchen_station: kitchenStation,
+      is_top: isTop,
+      is_out_of_stock: isOutOfStock,
+      modifiers_json: modifiersJson,
       lot_number: lotNumber,
       qty,
       expires_at: expiresAt,
@@ -850,10 +943,11 @@ function importCatalog(db, tenantId, input) {
 
     const insertProductStmt = db.prepare(`
       INSERT INTO products (
-        tenant_id, category_id, sku, barcode, name_fr, name_ar, name_en, unit,
+        tenant_id, category_id, sku, barcode, name_fr, name_ar, name_en, icon, unit,
         price_retail, price_whole, price_cost, dci, track_fefo, requires_cnam,
+        kitchen_station, is_top, is_out_of_stock, modifiers_json,
         active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `);
 
     const updateProductStmt = db.prepare(`
@@ -864,6 +958,7 @@ function importCatalog(db, tenantId, input) {
         name_fr = ?,
         name_ar = ?,
         name_en = ?,
+        icon = ?,
         unit = ?,
         price_retail = ?,
         price_whole = ?,
@@ -871,6 +966,10 @@ function importCatalog(db, tenantId, input) {
         dci = ?,
         track_fefo = ?,
         requires_cnam = ?,
+        kitchen_station = ?,
+        is_top = ?,
+        is_out_of_stock = ?,
+        modifiers_json = ?,
         updated_at = ?
       WHERE id = ? AND tenant_id = ?
     `);
@@ -937,12 +1036,17 @@ function importCatalog(db, tenantId, input) {
         const nextCategoryId = categoryId !== null ? categoryId : existing.category_id;
         const nextNameAr = row.name_ar !== '' ? row.name_ar : existing.name_ar;
         const nextNameEn = row.name_en !== '' ? row.name_en : existing.name_en;
+        const nextIcon = row.icon !== '' ? row.icon : (existing.icon ?? '');
         const nextUnit = row.unit !== '' ? row.unit : existing.unit;
         const nextPriceWhole = row.price_whole !== undefined ? row.price_whole : existing.price_whole;
         const nextPriceCost = row.price_cost !== undefined ? row.price_cost : existing.price_cost;
         const nextDci = row.dci !== '' ? row.dci : existing.dci;
         const nextTrackFefo = row.track_fefo !== undefined ? row.track_fefo : existing.track_fefo;
         const nextRequiresCnam = row.requires_cnam !== undefined ? row.requires_cnam : existing.requires_cnam;
+        const nextStation = row.kitchen_station !== '' ? row.kitchen_station : (existing.kitchen_station || 'KITCHEN');
+        const nextIsTop = row.is_top !== undefined ? row.is_top : (existing.is_top ?? 0);
+        const nextIsOutOfStock = row.is_out_of_stock !== undefined ? row.is_out_of_stock : (existing.is_out_of_stock ?? 0);
+        const nextModifiersJson = row.modifiers_json !== undefined ? row.modifiers_json : (existing.modifiers_json || '[]');
 
         updateProductStmt.run(
           nextCategoryId,
@@ -951,6 +1055,7 @@ function importCatalog(db, tenantId, input) {
           row.name_fr,
           nextNameAr,
           nextNameEn,
+          nextIcon,
           nextUnit,
           row.price_retail,
           nextPriceWhole,
@@ -958,6 +1063,10 @@ function importCatalog(db, tenantId, input) {
           nextDci,
           nextTrackFefo,
           nextRequiresCnam,
+          nextStation,
+          nextIsTop,
+          nextIsOutOfStock,
+          nextModifiersJson,
           nowIso,
           existing.id,
           tenant.id,
@@ -973,6 +1082,7 @@ function importCatalog(db, tenantId, input) {
           row.name_fr,
           row.name_ar,
           row.name_en,
+          row.icon ?? '',
           row.unit || 'unit',
           row.price_retail,
           row.price_whole ?? 0,
@@ -980,6 +1090,10 @@ function importCatalog(db, tenantId, input) {
           row.dci,
           row.track_fefo ?? 0,
           row.requires_cnam ?? 0,
+          row.kitchen_station || 'KITCHEN',
+          row.is_top ?? 0,
+          row.is_out_of_stock ?? 0,
+          row.modifiers_json ?? '[]',
           nowIso,
           nowIso,
         );

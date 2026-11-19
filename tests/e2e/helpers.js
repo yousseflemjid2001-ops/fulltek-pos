@@ -14,6 +14,7 @@ const zlib = require('node:zlib');
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const CLOUD_API_DIR = path.join(ROOT_DIR, 'apps', 'cloud-api');
 const FLUTTER_APP_DIR = path.join(ROOT_DIR, 'apps', 'fulltek_superadmin');
+const FLUTTER_POS_DIR = path.join(ROOT_DIR, 'apps', 'fulltek_pos');
 const PROD_DB_PATH = path.join(CLOUD_API_DIR, 'data', 'fulltek.db');
 const PRISMA_SQLITE_PATH = path.join(CLOUD_API_DIR, 'prisma', 'schema.prisma');
 const PRISMA_PG_PATH = path.join(CLOUD_API_DIR, 'prisma', 'schema.postgresql.prisma');
@@ -21,6 +22,8 @@ const PRISMA_PG_PATH = path.join(CLOUD_API_DIR, 'prisma', 'schema.postgresql.pri
 const DEFAULT_JWT_SECRET = 'e2e-test-jwt-secret-2026';
 const DEFAULT_ADMIN_USER = 'taha';
 const DEFAULT_ADMIN_PASS = 'FullTekAdmin@2026';
+const DEFAULT_POS_USER = 'darelkram41';
+const DEFAULT_POS_PASS = 'FullTek@2026';
 
 // ---------------------------------------------------------------------------
 // Port & HTTP helpers
@@ -393,6 +396,25 @@ async function loginAdmin(ctx, creds = {}) {
   assert.equal(res.status, 200, `Admin login failed (${res.status}): ${res.text}`);
   assert.ok(res.json && res.json.token, 'Admin login response missing token');
   return res.json;
+}
+
+async function loginTenant(ctx, creds = {}) {
+  const username = creds.username ?? DEFAULT_POS_USER;
+  const password = creds.password ?? DEFAULT_POS_PASS;
+  const res = await ctx.request('POST', '/api/auth/login', {
+    body: { username, password },
+  });
+  assert.equal(res.status, 200, `Tenant login failed (${res.status}): ${res.text}`);
+  assert.ok(res.json && res.json.token, 'Tenant login response missing token');
+  assert.ok(res.json.tenant, 'Tenant login response missing tenant');
+  const decoded = decodeJwt(res.json.token);
+  assert.ok(decoded.payload && decoded.payload.tenantId, 'Tenant JWT missing tenantId');
+  assert.ok(decoded.payload && decoded.payload.role, 'Tenant JWT missing role');
+  return res.json;
+}
+
+function computeTva16(netTotalMru) {
+  return Math.round((Number(netTotalMru) * 16) / 116);
 }
 
 // ---------------------------------------------------------------------------
@@ -859,6 +881,14 @@ function buildSchemaAwareRow(db, tableName, semanticValues = {}) {
     ['phone', 'phone_whatsapp', 'customer_phone', 'telephone'],
     ['status', 'state'],
     ['nonce'],
+    ['kitchen_station', 'station'],
+    ['is_top', 'isTop'],
+    ['is_out_of_stock', 'isOutOfStock'],
+    ['service_mode', 'serviceMode', 'channel'],
+    ['delivery_zone', 'deliveryZone'],
+    ['delivery_fee_mru', 'deliveryFeeMru'],
+    ['tva_mru', 'tvaMru'],
+    ['is_training', 'isTraining'],
   ];
 
   function resolveSemantic(colName) {
@@ -990,21 +1020,34 @@ function runFlutterCli(args, opts = {}) {
   });
 }
 
+function runPosFlutterCli(args, opts = {}) {
+  return runFlutterCli(args, {
+    cwd: FLUTTER_POS_DIR,
+    timeout: opts.timeout || 240000,
+    ...opts,
+  });
+}
+
 module.exports = {
   ROOT_DIR,
   CLOUD_API_DIR,
   FLUTTER_APP_DIR,
+  FLUTTER_POS_DIR,
   PROD_DB_PATH,
   PRISMA_SQLITE_PATH,
   PRISMA_PG_PATH,
   DEFAULT_JWT_SECRET,
   DEFAULT_ADMIN_USER,
   DEFAULT_ADMIN_PASS,
+  DEFAULT_POS_USER,
+  DEFAULT_POS_PASS,
   getFreePort,
   request,
   waitForHealth,
   startTestServer,
   loginAdmin,
+  loginTenant,
+  computeTva16,
   buildZip,
   buildXlsxBuffer,
   corruptXlsxMagic,
@@ -1031,4 +1074,5 @@ module.exports = {
   buildSchemaAwareRow,
   parsePrismaSchema,
   runFlutterCli,
+  runPosFlutterCli,
 };

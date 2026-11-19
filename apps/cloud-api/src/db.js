@@ -7,6 +7,13 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_DB_PATH = path.join(DATA_DIR, 'fulltek.db');
 const DB_PATH = process.env.DB_PATH || process.env.FULLTEK_DB_PATH || DEFAULT_DB_PATH;
 
+const DEFAULT_DELIVERY_ZONES = [
+  { id: 'zone-centre', nameFr: 'Centre / Ilot K', nameAr: 'المركز / إيلو ك', nameEn: 'Center / Ilot K', feeMru: 50 },
+  { id: 'zone-tz', nameFr: 'Tevragh Zeina', nameAr: 'تفرغ زينة', nameEn: 'Tevragh Zeina', feeMru: 100 },
+  { id: 'zone-ksar', nameFr: 'Ksar / Socogim', nameAr: 'لكصر / سوكوجيم', nameEn: 'Ksar / Socogim', feeMru: 150 },
+  { id: 'zone-arafat', nameFr: 'Arafat / Dar Naim', nameAr: 'عرفات / دار النعيم', nameEn: 'Arafat / Dar Naim', feeMru: 150 },
+];
+
 const ROLES_SEED = [
   {
     code: 'SUPER_ADMIN',
@@ -287,9 +294,11 @@ function initSchema(database) {
       status TEXT DEFAULT 'active',
       online INTEGER DEFAULT 1,
       pending_sync INTEGER DEFAULT 0,
-      enabled_themes TEXT DEFAULT '["01","06","07","11"]',
+      enabled_themes TEXT DEFAULT '["01","04","06","07","11"]',
       features TEXT DEFAULT '[]',
-      pay_methods TEXT DEFAULT '["Bankily","Masrivi","Sedad","Cash"]',
+      pay_methods TEXT DEFAULT '["Cash","Bankily","Masrivi","Sedad","Bimbank","Click","Karni"]',
+      delivery_zones_json TEXT DEFAULT '[]',
+      free_delivery_above_mru INTEGER DEFAULT 1500,
       hardware TEXT DEFAULT '[]',
       notes TEXT DEFAULT '',
       username TEXT UNIQUE NOT NULL,
@@ -498,6 +507,7 @@ function initSchema(database) {
       after_json TEXT DEFAULT '',
       ip_address TEXT DEFAULT '',
       time_label TEXT NOT NULL,
+      is_training INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -508,6 +518,7 @@ function initSchema(database) {
       name_fr TEXT NOT NULL,
       name_ar TEXT DEFAULT '',
       name_en TEXT DEFAULT '',
+      icon TEXT DEFAULT '',
       sort_order INTEGER DEFAULT 0,
       active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT ''
@@ -522,6 +533,7 @@ function initSchema(database) {
       name_fr TEXT NOT NULL,
       name_ar TEXT DEFAULT '',
       name_en TEXT DEFAULT '',
+      icon TEXT DEFAULT '',
       unit TEXT DEFAULT 'unit',
       price_retail INTEGER NOT NULL,
       price_whole INTEGER DEFAULT 0,
@@ -529,6 +541,10 @@ function initSchema(database) {
       dci TEXT DEFAULT '',
       track_fefo INTEGER DEFAULT 0,
       requires_cnam INTEGER DEFAULT 0,
+      kitchen_station TEXT DEFAULT 'KITCHEN',
+      is_top INTEGER DEFAULT 0,
+      is_out_of_stock INTEGER DEFAULT 0,
+      modifiers_json TEXT DEFAULT '[]',
       active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT '',
       updated_at TEXT DEFAULT ''
@@ -556,6 +572,7 @@ function initSchema(database) {
       sku TEXT DEFAULT '',
       name_fr TEXT NOT NULL,
       name_ar TEXT DEFAULT '',
+      name_en TEXT DEFAULT '',
       unit TEXT NOT NULL DEFAULT 'kg',
       pmp_cost_mru REAL NOT NULL DEFAULT 0,
       current_stock REAL NOT NULL DEFAULT 0,
@@ -586,6 +603,7 @@ function initSchema(database) {
       branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
       name_fr TEXT NOT NULL,
       name_ar TEXT DEFAULT '',
+      name_en TEXT DEFAULT '',
       zone_type TEXT NOT NULL DEFAULT 'SALLE',
       price_tier TEXT NOT NULL DEFAULT 'STANDARD',
       table_count INTEGER NOT NULL DEFAULT 1,
@@ -628,11 +646,21 @@ function initSchema(database) {
       order_code TEXT NOT NULL,
       table_name TEXT DEFAULT '',
       channel TEXT DEFAULT 'DINE_IN',
+      service_mode TEXT NOT NULL DEFAULT 'dine_in',
+      delivery_zone TEXT DEFAULT '',
+      delivery_fee_mru INTEGER DEFAULT 0,
       status TEXT DEFAULT 'PAID',
       pay_method TEXT NOT NULL,
+      payments_json TEXT DEFAULT '[]',
       total_mru INTEGER NOT NULL,
+      tva_mru INTEGER DEFAULT 0,
       discount_mru INTEGER DEFAULT 0,
       cnam_cover INTEGER DEFAULT 0,
+      customer_name TEXT DEFAULT '',
+      customer_phone TEXT DEFAULT '',
+      delivery_address TEXT DEFAULT '',
+      is_training INTEGER DEFAULT 0,
+      kds_sent_at TEXT DEFAULT '',
       hlc_ts TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -643,7 +671,11 @@ function initSchema(database) {
       order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
       product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
       qty INTEGER NOT NULL,
-      unit_price INTEGER NOT NULL
+      unit_price INTEGER NOT NULL,
+      modifiers_json TEXT DEFAULT '[]',
+      kitchen_note TEXT DEFAULT '',
+      kitchen_station TEXT DEFAULT 'KITCHEN',
+      kds_status TEXT DEFAULT 'PENDING'
     );
 
     CREATE TABLE IF NOT EXISTS returns_remakes_comps (
@@ -709,6 +741,7 @@ function initSchema(database) {
       opened_at TEXT DEFAULT '',
       closed_at TEXT DEFAULT '',
       notes TEXT DEFAULT '',
+      is_training INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -716,6 +749,9 @@ function initSchema(database) {
 
 function runMigrations(database) {
   // All ALTER TABLE ADD COLUMN migrations MUST use constant defaults (SQLite 3.50 rule on non-empty tables)
+  ensureColumn(database, 'tenants', 'delivery_zones_json', "TEXT DEFAULT '[]'");
+  ensureColumn(database, 'tenants', 'free_delivery_above_mru', 'INTEGER DEFAULT 1500');
+
   ensureColumn(database, 'users', 'branch_id', 'INTEGER REFERENCES branches(id) ON DELETE SET NULL');
   ensureColumn(database, 'users', 'role_id', 'INTEGER REFERENCES roles(id) ON DELETE SET NULL');
   ensureColumn(database, 'users', 'email', "TEXT DEFAULT ''");
@@ -736,17 +772,27 @@ function runMigrations(database) {
   ensureColumn(database, 'offline_codes', 'expires_at', 'TEXT DEFAULT NULL');
   ensureColumn(database, 'offline_codes', 'redeemed_at', 'TEXT DEFAULT NULL');
 
+  ensureColumn(database, 'categories', 'icon', "TEXT DEFAULT ''");
   ensureColumn(database, 'categories', 'sort_order', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'categories', 'active', 'INTEGER DEFAULT 1');
   ensureColumn(database, 'categories', 'created_at', "TEXT DEFAULT ''");
 
   ensureColumn(database, 'products', 'name_en', "TEXT DEFAULT ''");
+  ensureColumn(database, 'products', 'icon', "TEXT DEFAULT ''");
   ensureColumn(database, 'products', 'unit', "TEXT DEFAULT 'unit'");
   ensureColumn(database, 'products', 'price_cost', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'dci', "TEXT DEFAULT ''");
+  ensureColumn(database, 'products', 'kitchen_station', "TEXT DEFAULT 'KITCHEN'");
+  ensureColumn(database, 'products', 'is_top', 'INTEGER DEFAULT 0');
+  ensureColumn(database, 'products', 'is_out_of_stock', 'INTEGER DEFAULT 0');
+  ensureColumn(database, 'products', 'modifiers_json', "TEXT DEFAULT '[]'");
   ensureColumn(database, 'products', 'active', 'INTEGER DEFAULT 1');
   ensureColumn(database, 'products', 'created_at', "TEXT DEFAULT ''");
   ensureColumn(database, 'products', 'updated_at', "TEXT DEFAULT ''");
+
+  ensureColumn(database, 'ingredients', 'name_en', "TEXT DEFAULT ''");
+
+  ensureColumn(database, 'dining_zones', 'name_en', "TEXT DEFAULT ''");
 
   ensureColumn(database, 'stock_batches', 'branch_id', 'INTEGER REFERENCES branches(id) ON DELETE SET NULL');
   ensureColumn(database, 'stock_batches', 'purchase_price_mru', 'INTEGER DEFAULT 0');
@@ -759,9 +805,24 @@ function runMigrations(database) {
   ensureColumn(database, 'orders', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   ensureColumn(database, 'orders', 'zone_id', 'INTEGER REFERENCES dining_zones(id) ON DELETE SET NULL');
   ensureColumn(database, 'orders', 'channel', "TEXT DEFAULT 'DINE_IN'");
+  ensureColumn(database, 'orders', 'service_mode', "TEXT NOT NULL DEFAULT 'dine_in'");
+  ensureColumn(database, 'orders', 'delivery_zone', "TEXT DEFAULT ''");
+  ensureColumn(database, 'orders', 'delivery_fee_mru', 'INTEGER DEFAULT 0');
+  ensureColumn(database, 'orders', 'payments_json', "TEXT DEFAULT '[]'");
+  ensureColumn(database, 'orders', 'tva_mru', 'INTEGER DEFAULT 0');
+  ensureColumn(database, 'orders', 'customer_name', "TEXT DEFAULT ''");
+  ensureColumn(database, 'orders', 'customer_phone', "TEXT DEFAULT ''");
+  ensureColumn(database, 'orders', 'delivery_address', "TEXT DEFAULT ''");
+  ensureColumn(database, 'orders', 'is_training', 'INTEGER DEFAULT 0');
+  ensureColumn(database, 'orders', 'kds_sent_at', "TEXT DEFAULT ''");
   ensureColumn(database, 'orders', 'hlc_ts', "TEXT DEFAULT ''");
   ensureColumn(database, 'orders', 'discount_mru', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'orders', 'notes', "TEXT DEFAULT ''");
+
+  ensureColumn(database, 'order_items', 'modifiers_json', "TEXT DEFAULT '[]'");
+  ensureColumn(database, 'order_items', 'kitchen_note', "TEXT DEFAULT ''");
+  ensureColumn(database, 'order_items', 'kitchen_station', "TEXT DEFAULT 'KITCHEN'");
+  ensureColumn(database, 'order_items', 'kds_status', "TEXT DEFAULT 'PENDING'");
 
   ensureColumn(database, 'cash_closings_z', 'branch_id', 'INTEGER REFERENCES branches(id) ON DELETE SET NULL');
   ensureColumn(database, 'cash_closings_z', 'register_id', 'INTEGER REFERENCES pos_registers(id) ON DELETE SET NULL');
@@ -769,6 +830,7 @@ function runMigrations(database) {
   ensureColumn(database, 'cash_closings_z', 'opened_at', "TEXT DEFAULT ''");
   ensureColumn(database, 'cash_closings_z', 'closed_at', "TEXT DEFAULT ''");
   ensureColumn(database, 'cash_closings_z', 'notes', "TEXT DEFAULT ''");
+  ensureColumn(database, 'cash_closings_z', 'is_training', 'INTEGER DEFAULT 0');
 
   ensureColumn(database, 'audit_logs', 'branch_id', 'INTEGER REFERENCES branches(id) ON DELETE SET NULL');
   ensureColumn(database, 'audit_logs', 'user_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
@@ -779,6 +841,7 @@ function runMigrations(database) {
   ensureColumn(database, 'audit_logs', 'before_json', "TEXT DEFAULT ''");
   ensureColumn(database, 'audit_logs', 'after_json', "TEXT DEFAULT ''");
   ensureColumn(database, 'audit_logs', 'ip_address', "TEXT DEFAULT ''");
+  ensureColumn(database, 'audit_logs', 'is_training', 'INTEGER DEFAULT 0');
 
   // Indexes (idempotent)
   database.exec(`
@@ -796,6 +859,7 @@ function runMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_products_tenant_cat ON products(tenant_id, category_id);
     CREATE INDEX IF NOT EXISTS idx_stock_batches_fefo ON stock_batches(tenant_id, product_id, expires_at);
     CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders(tenant_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_orders_tenant_code ON orders(tenant_id, order_code);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created ON audit_logs(tenant_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_signing_keys_active ON signing_keys(is_active, id);
     CREATE INDEX IF NOT EXISTS idx_offline_lease_tenant ON offline_lease_tokens(tenant_id, expires_at);
@@ -892,13 +956,13 @@ function seedDemoDataIfEmpty(database) {
     `);
 
     const rows = [
-      ['FT-1041', 'Dar El-Karam Resto', 'resto', 'Salon Khaima VIP', 'Tevragh Zeina', 'Îlot C · Nouakchott', '', '', '+222 46 11 22 33', 'Ahmed Ould Salem', 'Pro', 3000, 3, 2, 'warn', 1, 0, '["01","06","07","11"]', '["kds","khaima","tablet","split","boss","offline","lan","printer"]', '["Bankily","Masrivi","Sedad","Cash"]', '["printer","tablet"]', 'darelkram41', '7410'],
-      ['FT-2088', 'Al-Baraka Market', 'market', 'Supermarché', 'Ksar', 'Carrefour Madrid', '', '', '+222 44 88 19 02', 'Mohamed Ould Sidi', 'Pro', 3000, 4, 24, 'active', 1, 0, '["01","06","07","11"]', '["scale","barcode","wholesale","karni","boss","offline","lan","printer"]', '["Bankily","Masrivi","Cash","Karni"]', '["printer","scanner","scale","drawer"]', 'albaraka88', '5920'],
-      ['FT-3019', 'Pharmacie Chinguetti', 'pharma', "Pharmacie d'officine", 'Tevragh Zeina', '', '00419284', 'RC-NKC-9921', '+222 42 33 77 10', 'Dr. Mariem Mint Cheikh', 'Entreprise', 5500, 5, 18, 'active', 0, 42, '["01","06","07","11"]', '["fefo","cnam","cold","generic","boss","offline","lan","printer"]', '["Bankily","Masrivi","Sedad","Cash"]', '["printer","scanner","drawer"]', 'chinguetti19', '8831'],
-      ['FT-4012', 'Boucherie El-Wiam', 'market', 'Boucherie', 'Arafat', '', '', '', '+222 36 55 41 12', 'Brahim Fall', 'Start', 1500, 1, 0, 'expired', 1, 0, '["01","06","07","11"]', '["scale","karni","offline","printer"]', '["Bankily","Cash","Karni"]', '["printer","scale"]', 'elwiam12', '3019'],
-      ['FT-5090', 'Café Khaima Nouadhibou', 'resto', 'Café / Salon', 'Nouadhibou', '', '', '', '+222 48 90 14 25', 'Sidi Mohamed', 'Essai 15j', 0, 2, 9, 'trial', 1, 0, '["01","06","07","11"]', '["kds","khaima","tablet","boss","offline","printer"]', '["Bankily","Masrivi","Cash"]', '["printer","tablet"]', 'khaimandb90', '1540'],
-      ['FT-6031', 'Pharmacie Atar Centre', 'pharma', "Pharmacie d'officine", 'Atar', '', '', '', '+222 45 64 31 09', 'Dr. Abdallahi', 'Pro', 3000, 2, 4, 'warn', 0, 19, '["01","06","07","11"]', '["fefo","cnam","cold","offline","printer"]', '["Bankily","Cash"]', '["printer","scanner"]', 'pharmaatar31', '6604'],
-      ['FT-7089', 'Épicerie Rosso Express', 'market', 'Épicerie', 'Rosso', '', '', '', '+222 33 21 89 44', 'Oumar Diop', 'Start', 1500, 1, 27, 'active', 1, 0, '["01","06","07","11"]', '["barcode","karni","offline","printer"]', '["Bankily","Sedad","Cash","Karni"]', '["printer","scanner"]', 'rosso89', '9218'],
+      ['FT-1041', 'Dar El-Karam Resto', 'resto', 'Salon Khaima VIP', 'Tevragh Zeina', 'Îlot C · Nouakchott', '', '', '+222 46 11 22 33', 'Ahmed Ould Salem', 'Pro', 3000, 3, 2, 'warn', 1, 0, '["01","04","06","07","11"]', '["kds","khaima","tablet","split","boss","offline","lan","printer"]', '["Cash","Bankily","Masrivi","Sedad","Bimbank","Click","Karni"]', '["printer","tablet"]', 'darelkram41', '7410'],
+      ['FT-2088', 'Al-Baraka Market', 'market', 'Supermarché', 'Ksar', 'Carrefour Madrid', '', '', '+222 44 88 19 02', 'Mohamed Ould Sidi', 'Pro', 3000, 4, 24, 'active', 1, 0, '["01","04","06","07","11"]', '["scale","barcode","wholesale","karni","boss","offline","lan","printer"]', '["Bankily","Masrivi","Cash","Karni"]', '["printer","scanner","scale","drawer"]', 'albaraka88', '5920'],
+      ['FT-3019', 'Pharmacie Chinguetti', 'pharma', "Pharmacie d'officine", 'Tevragh Zeina', '', '00419284', 'RC-NKC-9921', '+222 42 33 77 10', 'Dr. Mariem Mint Cheikh', 'Entreprise', 5500, 5, 18, 'active', 0, 42, '["01","04","06","07","11"]', '["fefo","cnam","cold","generic","boss","offline","lan","printer"]', '["Bankily","Masrivi","Sedad","Cash"]', '["printer","scanner","drawer"]', 'chinguetti19', '8831'],
+      ['FT-4012', 'Boucherie El-Wiam', 'market', 'Boucherie', 'Arafat', '', '', '', '+222 36 55 41 12', 'Brahim Fall', 'Start', 1500, 1, 0, 'expired', 1, 0, '["01","04","06","07","11"]', '["scale","karni","offline","printer"]', '["Bankily","Cash","Karni"]', '["printer","scale"]', 'elwiam12', '3019'],
+      ['FT-5090', 'Café Khaima Nouadhibou', 'resto', 'Café / Salon', 'Nouadhibou', '', '', '', '+222 48 90 14 25', 'Sidi Mohamed', 'Essai 15j', 0, 2, 9, 'trial', 1, 0, '["01","04","06","07","11"]', '["kds","khaima","tablet","boss","offline","printer"]', '["Bankily","Masrivi","Cash"]', '["printer","tablet"]', 'khaimandb90', '1540'],
+      ['FT-6031', 'Pharmacie Atar Centre', 'pharma', "Pharmacie d'officine", 'Atar', '', '', '', '+222 45 64 31 09', 'Dr. Abdallahi', 'Pro', 3000, 2, 4, 'warn', 0, 19, '["01","04","06","07","11"]', '["fefo","cnam","cold","offline","printer"]', '["Bankily","Cash"]', '["printer","scanner"]', 'pharmaatar31', '6604'],
+      ['FT-7089', 'Épicerie Rosso Express', 'market', 'Épicerie', 'Rosso', '', '', '', '+222 33 21 89 44', 'Oumar Diop', 'Start', 1500, 1, 27, 'active', 1, 0, '["01","04","06","07","11"]', '["barcode","karni","offline","printer"]', '["Bankily","Sedad","Cash","Karni"]', '["printer","scanner"]', 'rosso89', '9218'],
     ];
 
     const idByCode = {};
@@ -989,65 +1053,14 @@ function seedDemoDataIfEmpty(database) {
     }
   }
 
-  // Seed dining_zones & reservations_vip if empty
-  if (tResto && database.prepare('SELECT COUNT(*) AS cnt FROM dining_zones').get().cnt === 0) {
+  // Rich idempotent demo seed for FT-1041 (Dar El-Karam Resto) — runs on fresh AND existing DBs
+  if (tResto) {
     const br = mainBranchFor(tResto.id);
-    const brId = br ? br.id : null;
-    database.prepare(`
-      INSERT INTO dining_zones (tenant_id, branch_id, name_fr, name_ar, zone_type, price_tier, table_count, is_vip, min_spend_mru)
-      VALUES (?, ?, 'Salle Principale', 'القاعة الرئيسية', 'SALLE', 'STANDARD', 10, 0, 0)
-    `).run(tResto.id, brId);
-    const vipZone = database.prepare(`
-      INSERT INTO dining_zones (tenant_id, branch_id, name_fr, name_ar, zone_type, price_tier, table_count, is_vip, min_spend_mru)
-      VALUES (?, ?, 'Salon Khaima VIP 1', 'خيمة VIP 1', 'KHAIMA_VIP', 'VIP', 4, 1, 3000)
-    `).run(tResto.id, brId);
-
-    if (database.prepare('SELECT COUNT(*) AS cnt FROM reservations_vip').get().cnt === 0) {
-      database.prepare(`
-        INSERT INTO reservations_vip (
-          tenant_id, branch_id, zone_id, table_label, customer_name, customer_phone,
-          guests_count, reserved_at, duration_min, deposit_mru, deposit_method, min_spend_mru, status
-        ) VALUES (?, ?, ?, 'Khaima 1', 'Cheikh Ould Brahim', '+222 46 22 33 44', 6, '2026-11-20T20:00:00.000Z', 180, 1000, 'Bankily', 3000, 'CONFIRMED')
-      `).run(tResto.id, brId, Number(vipZone.lastInsertRowid));
-    }
+    seedRichRestoDemoForFT1041(database, tResto.id, br ? br.id : null);
   }
 
-  // Seed ingredients & recipes_bom if empty
-  if (tResto && database.prepare('SELECT COUNT(*) AS cnt FROM ingredients').get().cnt === 0) {
-    const br = mainBranchFor(tResto.id);
-    const brId = br ? br.id : null;
-    const ingBeef = database.prepare(`
-      INSERT INTO ingredients (tenant_id, branch_id, sku, name_fr, name_ar, unit, pmp_cost_mru, current_stock, min_stock)
-      VALUES (?, ?, 'ING-BEEF', 'Viande hachée bœuf', 'لحم بقري مفروم', 'kg', 250, 25.0, 5.0)
-    `).run(tResto.id, brId);
-    const ingBun = database.prepare(`
-      INSERT INTO ingredients (tenant_id, branch_id, sku, name_fr, name_ar, unit, pmp_cost_mru, current_stock, min_stock)
-      VALUES (?, ?, 'ING-BUN', 'Pain Burger Artisanal', 'خبز برغر', 'unit', 12, 100.0, 20.0)
-    `).run(tResto.id, brId);
-
-    let burgerProd = database
-      .prepare("SELECT id FROM products WHERE tenant_id = ? AND sku = 'RST-BRG-01' LIMIT 1")
-      .get(tResto.id);
-    if (!burgerProd) {
-      const insProd = database.prepare(`
-        INSERT INTO products (tenant_id, sku, name_fr, name_ar, unit, price_retail, price_cost)
-        VALUES (?, 'RST-BRG-01', 'Burger Classic', 'برغر كلاسيك', 'unit', 250, 85)
-      `).run(tResto.id);
-      burgerProd = { id: Number(insProd.lastInsertRowid) };
-    }
-
-    if (database.prepare('SELECT COUNT(*) AS cnt FROM recipes_bom').get().cnt === 0) {
-      const insBom = database.prepare(`
-        INSERT OR IGNORE INTO recipes_bom (tenant_id, product_id, ingredient_id, qty_per_unit, unit, condition_channel, modifier_key)
-        VALUES (?, ?, ?, ?, ?, 'ALL', '')
-      `);
-      insBom.run(tResto.id, burgerProd.id, Number(ingBeef.lastInsertRowid), 0.15, 'kg');
-      insBom.run(tResto.id, burgerProd.id, Number(ingBun.lastInsertRowid), 1.0, 'unit');
-    }
-  }
-
-  // Seed customer_credits_karni & karni_transactions if empty
-  if (tMarket && database.prepare('SELECT COUNT(*) AS cnt FROM customer_credits_karni').get().cnt === 0) {
+  // Seed customer_credits_karni & karni_transactions for FT-2088 if empty for that tenant
+  if (tMarket && database.prepare('SELECT COUNT(*) AS cnt FROM customer_credits_karni WHERE tenant_id = ?').get(tMarket.id).cnt === 0) {
     const br = mainBranchFor(tMarket.id);
     const brId = br ? br.id : null;
     const custB2c = database.prepare(`
@@ -1059,7 +1072,7 @@ function seedDemoDataIfEmpty(database) {
       VALUES (?, ?, 'Société MauriTech SARL', '+222 45 25 35 45', 'MauriTech SARL', '00112233', 1, 100000, 0, 'active')
     `).run(tMarket.id, brId);
 
-    if (database.prepare('SELECT COUNT(*) AS cnt FROM karni_transactions').get().cnt === 0) {
+    if (database.prepare('SELECT COUNT(*) AS cnt FROM karni_transactions WHERE tenant_id = ?').get(tMarket.id).cnt === 0) {
       database.prepare(`
         INSERT INTO karni_transactions (tenant_id, customer_id, tx_type, amount_mru, pay_method, approved_by, notes)
         VALUES (?, ?, 'CHARGE', 4500, 'Karni', 'Mohamed Ould Sidi', 'Solde initial carnet Karni')
@@ -1067,13 +1080,355 @@ function seedDemoDataIfEmpty(database) {
     }
   }
 
-  // Seed returns_remakes_comps if empty
-  if (tResto && database.prepare('SELECT COUNT(*) AS cnt FROM returns_remakes_comps').get().cnt === 0) {
+  // Seed returns_remakes_comps if empty for FT-1041
+  if (tResto && database.prepare('SELECT COUNT(*) AS cnt FROM returns_remakes_comps WHERE tenant_id = ?').get(tResto.id).cnt === 0) {
     const br = mainBranchFor(tResto.id);
     database.prepare(`
       INSERT INTO returns_remakes_comps (tenant_id, branch_id, type, reason, qty, amount_mru, cost_value_mru, restock, approved_by)
       VALUES (?, ?, 'REMAKE', 'Cuisson à refaire (cuisine)', 1, 250, 85, 0, 'Ahmed Ould Salem')
     `).run(tResto.id, br ? br.id : null);
+  }
+}
+
+function seedRichRestoDemoForFT1041(database, tenantId, brId) {
+  const nowIso = new Date().toISOString();
+
+  // A. Tenant config backfill (themes include "04", 7 pay methods, 4 Nouakchott delivery zones)
+  const tenantRow = database
+    .prepare('SELECT enabled_themes, pay_methods, delivery_zones_json, free_delivery_above_mru FROM tenants WHERE id = ? LIMIT 1')
+    .get(tenantId);
+  if (tenantRow) {
+    let themes;
+    try { themes = JSON.parse(tenantRow.enabled_themes || '[]'); } catch { themes = []; }
+    const nextThemes = Array.isArray(themes) && !themes.includes('04')
+      ? JSON.stringify(['01', '04', '06', '07', '11'])
+      : null;
+
+    let methods;
+    try { methods = JSON.parse(tenantRow.pay_methods || '[]'); } catch { methods = []; }
+    const canonicalPayMethods = ['Cash', 'Bankily', 'Masrivi', 'Sedad', 'Bimbank', 'Click', 'Karni'];
+    const nextMethods = !Array.isArray(methods) || canonicalPayMethods.some((m) => !methods.includes(m))
+      ? JSON.stringify(canonicalPayMethods)
+      : null;
+
+    let zones;
+    try { zones = JSON.parse(tenantRow.delivery_zones_json || '[]'); } catch { zones = []; }
+    const nextZones = !Array.isArray(zones) || zones.length === 0
+      ? JSON.stringify(DEFAULT_DELIVERY_ZONES)
+      : null;
+
+    const nextFreeAbove = !tenantRow.free_delivery_above_mru || tenantRow.free_delivery_above_mru <= 0
+      ? 1500
+      : null;
+
+    if (nextThemes || nextMethods || nextZones || nextFreeAbove !== null) {
+      database.prepare(`
+        UPDATE tenants SET
+          enabled_themes = COALESCE(?, enabled_themes),
+          pay_methods = COALESCE(?, pay_methods),
+          delivery_zones_json = COALESCE(?, delivery_zones_json),
+          free_delivery_above_mru = COALESCE(?, free_delivery_above_mru)
+        WHERE id = ?
+      `).run(nextThemes, nextMethods, nextZones, nextFreeAbove, tenantId);
+    }
+  }
+
+  // B. 5 Categories (avoiding 'Grillades', 'Boissons', 'Fast-Food' used by E2E T1-CAT-01)
+  const categoriesSpec = [
+    ['Grillades & Plats', 'مشويات وأطباق', 'Grills & Mains', '🔥', 1],
+    ['Spécialités RIM', 'أطباق موريتانية', 'Mauritanian', '🍲', 2],
+    ['Entrées & Salades', 'مقبلات وسلطات', 'Starters', '🥗', 3],
+    ['Boissons & Ataya', 'مشروبات وأتاي', 'Drinks & Tea', '🍵', 4],
+    ['Desserts', 'حلويات', 'Desserts', '🍰', 5],
+  ];
+  const findCat = database.prepare('SELECT id, icon, name_en FROM categories WHERE tenant_id = ? AND name_fr = ? LIMIT 1');
+  const insCat = database.prepare(`
+    INSERT INTO categories (tenant_id, name_fr, name_ar, name_en, icon, sort_order, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+  `);
+  const updCat = database.prepare('UPDATE categories SET name_en = ?, icon = ?, sort_order = ? WHERE id = ?');
+  const catIdByName = new Map();
+  for (const [nameFr, nameAr, nameEn, icon, sortOrder] of categoriesSpec) {
+    const existing = findCat.get(tenantId, nameFr);
+    if (!existing) {
+      const res = insCat.run(tenantId, nameFr, nameAr, nameEn, icon, sortOrder, nowIso);
+      catIdByName.set(nameFr, Number(res.lastInsertRowid));
+    } else {
+      if (!existing.icon || !existing.name_en) {
+        updCat.run(existing.name_en || nameEn, existing.icon || icon, sortOrder, existing.id);
+      }
+      catIdByName.set(nameFr, existing.id);
+    }
+  }
+
+  // C. 19 Products with FR/AR/EN, icon, kitchen_station, is_top, modifiers_json (avoiding RST-001..003)
+  const MG_CUISSON = {
+    id: 'mg-cuisson',
+    nameFr: 'Cuisson',
+    nameAr: 'درجة الطهي',
+    nameEn: 'Cooking',
+    required: false,
+    multiSelect: false,
+    options: [
+      { id: 'opt-bien', nameFr: 'Bien cuit', nameAr: 'ناضج جداً', nameEn: 'Well done', extraPriceMru: 0, bomKey: '' },
+      { id: 'opt-apoint', nameFr: 'À point', nameAr: 'متوسط', nameEn: 'Medium', extraPriceMru: 0, bomKey: '' },
+      { id: 'opt-saignant', nameFr: 'Saignant', nameAr: 'نصف نضج', nameEn: 'Rare', extraPriceMru: 0, bomKey: '' },
+    ],
+  };
+  const MG_ACCOMP = {
+    id: 'mg-accomp',
+    nameFr: 'Accompagnement',
+    nameAr: 'طبق جانبي',
+    nameEn: 'Side',
+    required: false,
+    multiSelect: false,
+    options: [
+      { id: 'opt-frites', nameFr: 'Frites Maison', nameAr: 'بطاطس مقلية', nameEn: 'Homemade Fries', extraPriceMru: 0, bomKey: '' },
+      { id: 'opt-riz', nameFr: 'Riz Parfumé', nameAr: 'أرز معطر', nameEn: 'Fragrant Rice', extraPriceMru: 0, bomKey: '' },
+      { id: 'opt-salade', nameFr: 'Salade Fraîche', nameAr: 'سلطة طازجة', nameEn: 'Fresh Salad', extraPriceMru: 0, bomKey: '' },
+    ],
+  };
+  const MG_SUPP_GRILL = {
+    id: 'mg-supplements',
+    nameFr: 'Suppléments',
+    nameAr: 'إضافات',
+    nameEn: 'Extras',
+    required: false,
+    multiSelect: true,
+    options: [
+      { id: 'opt-mozzarella', nameFr: 'Supplément Mozzarella', nameAr: 'إضافة موزاريلا', nameEn: 'Extra Mozzarella', extraPriceMru: 60, bomKey: 'opt-mozzarella' },
+      { id: 'opt-cheddar', nameFr: 'Extra Cheddar', nameAr: 'إضافة شيدر', nameEn: 'Extra Cheddar', extraPriceMru: 30, bomKey: 'opt-cheddar' },
+      { id: 'opt-double-meat', nameFr: 'Double Viande', nameAr: 'لحم مضاعف', nameEn: 'Double Meat', extraPriceMru: 120, bomKey: 'opt-double-meat' },
+      { id: 'opt-sans-oignon', nameFr: 'Sans oignon', nameAr: 'بدون بصل', nameEn: 'No Onion', extraPriceMru: 0, bomKey: '' },
+    ],
+  };
+
+  const dishesSpec = [
+    ['RIM-001', 'Spécialités RIM', 'Thiéboudienne Royal', 'تيبوجين ملكي', 'Royal Thieboudienne', 450, 160, '🍛', 'KITCHEN', 1, []],
+    ['RIM-002', 'Spécialités RIM', 'Méchoui Agneau (1/2)', 'مشوي خروف (نصف)', 'Half Lamb Mechoui', 1400, 520, '🍖', 'GRILL', 1, [MG_CUISSON, MG_ACCOMP, MG_SUPP_GRILL]],
+    ['RIM-003', 'Spécialités RIM', 'Couscous Viande Chameau', 'كسكس بلحم الإبل', 'Camel Meat Couscous', 550, 200, '🥘', 'KITCHEN', 1, []],
+    ['RIM-004', 'Spécialités RIM', 'Marou Laham', 'مارو واللحم', 'Marou & Lamb', 480, 175, '🍲', 'KITCHEN', 0, []],
+    ['GRL-001', 'Grillades & Plats', 'Mix Grill Oasis', 'مشويات مشكلة الواحة', 'Oasis Mix Grill', 750, 280, '🔥', 'GRILL', 1, [MG_CUISSON, MG_ACCOMP, MG_SUPP_GRILL]],
+    ['GRL-002', 'Grillades & Plats', 'Chawarma Poulet Assiette', 'صحن شاورما دجاج', 'Chicken Shawarma Plate', 350, 120, '🌯', 'GRILL', 0, [MG_SUPP_GRILL]],
+    ['GRL-003', 'Grillades & Plats', 'Brochettes Filet Bœuf', 'أسياخ لحم بقري', 'Beef Skewers', 500, 185, '🍢', 'GRILL', 0, [MG_CUISSON, MG_ACCOMP]],
+    ['GRL-004', 'Grillades & Plats', 'Thiof Braisé Entier', 'سمك تيوف مشوي', 'Whole Grilled Thiof', 850, 320, '🐟', 'GRILL', 1, [MG_ACCOMP]],
+    ['RST-BRG-01', 'Grillades & Plats', 'Burger Classic', 'برغر كلاسيك', 'Classic Burger', 250, 85, '🍔', 'GRILL', 0, [MG_CUISSON, MG_SUPP_GRILL]],
+    ['ENT-001', 'Entrées & Salades', 'Salade Fattouch', 'سلطة فتوش', 'Fattoush Salad', 220, 65, '🥗', 'KITCHEN', 0, []],
+    ['ENT-002', 'Entrées & Salades', 'Houmous & Pain Chaud', 'حمص مع خبز ساخن', 'Hummus & Warm Bread', 180, 50, '🫓', 'KITCHEN', 0, []],
+    ['ENT-003', 'Entrées & Salades', 'Pastilla Poulet', 'بسطيلة دجاج', 'Chicken Pastilla', 300, 105, '🥧', 'KITCHEN', 0, []],
+    ['DRK-001', 'Boissons & Ataya', 'Thé Ataya (Service 3 verres)', 'أتاي موريتاني (3 كؤوس)', 'Mauritanian Ataya Service', 150, 30, '🍵', 'BAR', 1, []],
+    ['DRK-002', 'Boissons & Ataya', 'Jus Bissap Frais', 'عصير بيساب طازج', 'Fresh Bissap Juice', 120, 25, '🌺', 'BAR', 0, []],
+    ['DRK-003', 'Boissons & Ataya', 'Jus Bouye (Baobab)', 'عصير بوي (باوباب)', 'Baobab Bouye Juice', 130, 30, '🥤', 'BAR', 0, []],
+    ['DRK-004', 'Boissons & Ataya', 'Zrig (Lait Caillé Frais)', 'ازريك طازج', 'Fresh Zrig', 140, 35, '🥛', 'BAR', 0, []],
+    ['DRK-005', 'Boissons & Ataya', 'Eau Minérale 1.5L', 'ماء معدني 1.5 لتر', 'Mineral Water 1.5L', 60, 20, '💧', 'BAR', 0, []],
+    ['DES-001', 'Desserts', 'Dattes Tidjikja & Crème', 'تمور تجكجة بالقشطة', 'Tidjikja Dates & Cream', 200, 65, '🌴', 'BAR', 0, []],
+    ['DES-002', 'Desserts', 'Tiramisu Maison', 'تيراميسو منزلي', 'Homemade Tiramisu', 250, 80, '🍰', 'BAR', 0, []],
+  ];
+
+  const findProd = database.prepare('SELECT id, category_id, name_en, icon, kitchen_station, is_top, modifiers_json FROM products WHERE tenant_id = ? AND sku = ? LIMIT 1');
+  const insProd = database.prepare(`
+    INSERT INTO products (
+      tenant_id, category_id, sku, name_fr, name_ar, name_en, icon, unit,
+      price_retail, price_cost, kitchen_station, is_top, is_out_of_stock, modifiers_json,
+      active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'unit', ?, ?, ?, ?, 0, ?, 1, ?, ?)
+  `);
+  const updProd = database.prepare(`
+    UPDATE products SET
+      category_id = ?, name_en = ?, icon = ?, kitchen_station = ?, is_top = ?, modifiers_json = ?, updated_at = ?
+    WHERE id = ? AND tenant_id = ?
+  `);
+
+  const prodIdBySku = new Map();
+  for (const [sku, catName, nameFr, nameAr, nameEn, priceRetail, priceCost, icon, station, isTop, mods] of dishesSpec) {
+    const catId = catIdByName.get(catName) || null;
+    const modsStr = JSON.stringify(mods);
+    const existing = findProd.get(tenantId, sku);
+    if (!existing) {
+      const res = insProd.run(
+        tenantId, catId, sku, nameFr, nameAr, nameEn, icon,
+        priceRetail, priceCost, station, isTop, modsStr, nowIso, nowIso,
+      );
+      prodIdBySku.set(sku, Number(res.lastInsertRowid));
+    } else {
+      const nextCatId = existing.category_id ?? catId;
+      const nextNameEn = existing.name_en || nameEn;
+      const nextIcon = existing.icon || icon;
+      const nextStation = existing.kitchen_station && existing.kitchen_station !== 'KITCHEN' ? existing.kitchen_station : station;
+      const nextIsTop = existing.is_top ? existing.is_top : isTop;
+      const nextMods = existing.modifiers_json && existing.modifiers_json !== '[]' ? existing.modifiers_json : modsStr;
+      if (
+        nextCatId !== existing.category_id ||
+        nextNameEn !== existing.name_en ||
+        nextIcon !== existing.icon ||
+        nextStation !== existing.kitchen_station ||
+        nextIsTop !== existing.is_top ||
+        nextMods !== existing.modifiers_json
+      ) {
+        updProd.run(nextCatId, nextNameEn, nextIcon, nextStation, nextIsTop, nextMods, nowIso, existing.id, tenantId);
+      }
+      prodIdBySku.set(sku, existing.id);
+    }
+  }
+
+  // D. 3 Dining zones with 2D tables_json (updating existing SALLE/KHAIMA_VIP in place so reservations_vip FKs stay valid)
+  const salleTables = JSON.stringify([
+    { id: 't-01', code: 'T-01', seats: 4, shape: 'round', x: 0.18, y: 0.22, status: 'free' },
+    { id: 't-02', code: 'T-02', seats: 4, shape: 'square', x: 0.48, y: 0.22, status: 'free' },
+    { id: 't-03', code: 'T-03', seats: 6, shape: 'square', x: 0.76, y: 0.28, status: 'free' },
+    { id: 't-04', code: 'T-04', seats: 2, shape: 'round', x: 0.25, y: 0.62, status: 'free' },
+  ]);
+  const terraceTables = JSON.stringify([
+    { id: 't-05', code: 'TER-1', seats: 4, shape: 'round', x: 0.20, y: 0.28, status: 'free' },
+    { id: 't-06', code: 'TER-2', seats: 6, shape: 'square', x: 0.55, y: 0.28, status: 'free' },
+    { id: 't-07', code: 'TER-3', seats: 2, shape: 'round', x: 0.40, y: 0.64, status: 'free' },
+  ]);
+  const khaimaTables = JSON.stringify([
+    { id: 'k-01', code: 'KHAIMA-1', seats: 10, shape: 'khaima', x: 0.26, y: 0.35, status: 'reserved' },
+    { id: 'k-02', code: 'KHAIMA-2', seats: 12, shape: 'khaima', x: 0.68, y: 0.35, status: 'free' },
+  ]);
+
+  const zonesSpec = [
+    ['SALLE', 'Salle Climatisée', 'القاعة المكيفة', 'Air-Conditioned Hall', 'STANDARD', 4, 0, 0, salleTables],
+    ['TERRACE', 'Terrasse', 'الشرفة', 'Terrace', 'STANDARD', 3, 0, 0, terraceTables],
+    ['KHAIMA_VIP', 'Salon Khaima VIP', 'خيمة VIP', 'Khaima VIP Lounge', 'VIP', 2, 1, 3000, khaimaTables],
+  ];
+  const findZone = database.prepare('SELECT id, name_en, tables_json FROM dining_zones WHERE tenant_id = ? AND zone_type = ? LIMIT 1');
+  const insZone = database.prepare(`
+    INSERT INTO dining_zones (
+      tenant_id, branch_id, name_fr, name_ar, name_en, zone_type, price_tier, table_count, is_vip, min_spend_mru, tables_json, active
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `);
+  const updZone = database.prepare(`
+    UPDATE dining_zones SET
+      name_fr = ?, name_ar = ?, name_en = ?, table_count = ?, is_vip = ?, min_spend_mru = ?, tables_json = ?
+    WHERE id = ? AND tenant_id = ?
+  `);
+
+  let vipZoneId = null;
+  for (const [zoneType, nameFr, nameAr, nameEn, priceTier, tableCount, isVip, minSpend, tablesJson] of zonesSpec) {
+    const existing = findZone.get(tenantId, zoneType);
+    if (!existing) {
+      const res = insZone.run(tenantId, brId, nameFr, nameAr, nameEn, zoneType, priceTier, tableCount, isVip, minSpend, tablesJson);
+      if (zoneType === 'KHAIMA_VIP') vipZoneId = Number(res.lastInsertRowid);
+    } else {
+      if (!existing.tables_json || existing.tables_json === '[]' || !existing.name_en) {
+        updZone.run(nameFr, nameAr, existing.name_en || nameEn, tableCount, isVip, minSpend, existing.tables_json && existing.tables_json !== '[]' ? existing.tables_json : tablesJson, existing.id, tenantId);
+      }
+      if (zoneType === 'KHAIMA_VIP') vipZoneId = existing.id;
+    }
+  }
+
+  if (vipZoneId && database.prepare('SELECT COUNT(*) AS cnt FROM reservations_vip WHERE tenant_id = ?').get(tenantId).cnt === 0) {
+    database.prepare(`
+      INSERT INTO reservations_vip (
+        tenant_id, branch_id, zone_id, table_label, customer_name, customer_phone,
+        guests_count, reserved_at, duration_min, deposit_mru, deposit_method, min_spend_mru, status
+      ) VALUES (?, ?, ?, 'KHAIMA-1', 'Cheikh Ould Brahim', '+222 46 22 33 44', 6, '2026-11-20T20:00:00.000Z', 180, 1000, 'Bankily', 3000, 'CONFIRMED')
+    `).run(tenantId, brId, vipZoneId);
+  }
+
+  // E. 12 Ingredients & recipes_bom (never resetting current_stock on existing rows!)
+  const ingredientsSpec = [
+    ['ING-BEEF', 'Viande hachée bœuf', 'لحم بقري مفروم', 'Ground Beef', 'kg', 250, 25.0, 5.0],
+    ['ING-BUN', 'Pain Burger Artisanal', 'خبز برغر', 'Artisan Burger Bun', 'unit', 12, 100.0, 20.0],
+    ['ING-LAMB', 'Viande Agneau', 'لحم خروف', 'Lamb Meat', 'kg', 380, 30.0, 6.0],
+    ['ING-CAMEL', 'Viande Chameau', 'لحم إبل', 'Camel Meat', 'kg', 360, 20.0, 4.0],
+    ['ING-CHICKEN', 'Poulet Frais', 'دجاج طازج', 'Fresh Chicken', 'kg', 220, 35.0, 8.0],
+    ['ING-THIOF', 'Poisson Thiof Frais', 'سمك تيوف طازج', 'Fresh Thiof Fish', 'kg', 420, 18.0, 4.0],
+    ['ING-RICE', 'Riz Parfumé', 'أرز معطر', 'Fragrant Rice', 'kg', 65, 80.0, 15.0],
+    ['ING-CHEESE', 'Mozzarella & Cheddar', 'جبن موزاريلا وشيدر', 'Mozzarella & Cheddar', 'kg', 450, 10.0, 2.5],
+    ['ING-TEA', 'Thé Vert & Menthe', 'شاي أخضر ونعناع', 'Green Tea & Mint', 'kg', 300, 8.0, 1.5],
+    ['ING-BISSAP', 'Fleurs Bissap', 'زهور الكركديه', 'Hibiscus Flowers', 'kg', 180, 12.0, 3.0],
+    ['ING-BOX', 'Boîte Emporter', 'علبة سفري', 'Takeaway Meal Box', 'unit', 18, 250.0, 40.0],
+    ['ING-BAG', 'Sac Kraft Emporter', 'كيس ورقي', 'Takeaway Kraft Bag', 'unit', 8, 250.0, 40.0],
+  ];
+
+  const findIng = database.prepare('SELECT id, name_en FROM ingredients WHERE tenant_id = ? AND sku = ? LIMIT 1');
+  const insIng = database.prepare(`
+    INSERT INTO ingredients (tenant_id, branch_id, sku, name_fr, name_ar, name_en, unit, pmp_cost_mru, current_stock, min_stock)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const updIngEn = database.prepare('UPDATE ingredients SET name_en = ? WHERE id = ? AND tenant_id = ?');
+
+  const ingIdBySku = new Map();
+  for (const [sku, nameFr, nameAr, nameEn, unit, pmp, curStock, minStock] of ingredientsSpec) {
+    const existing = findIng.get(tenantId, sku);
+    if (!existing) {
+      const res = insIng.run(tenantId, brId, sku, nameFr, nameAr, nameEn, unit, pmp, curStock, minStock);
+      ingIdBySku.set(sku, Number(res.lastInsertRowid));
+    } else {
+      if (!existing.name_en) {
+        updIngEn.run(nameEn, existing.id, tenantId);
+      }
+      ingIdBySku.set(sku, existing.id);
+    }
+  }
+
+  const bomSpec = [
+    // Base (ALL, '')
+    ['RST-BRG-01', 'ING-BEEF', 0.15, 'kg', 'ALL', ''],
+    ['RST-BRG-01', 'ING-BUN', 1.0, 'unit', 'ALL', ''],
+    ['RIM-001', 'ING-THIOF', 0.30, 'kg', 'ALL', ''],
+    ['RIM-001', 'ING-RICE', 0.25, 'kg', 'ALL', ''],
+    ['RIM-002', 'ING-LAMB', 1.20, 'kg', 'ALL', ''],
+    ['RIM-003', 'ING-CAMEL', 0.25, 'kg', 'ALL', ''],
+    ['RIM-003', 'ING-RICE', 0.20, 'kg', 'ALL', ''],
+    ['RIM-004', 'ING-LAMB', 0.25, 'kg', 'ALL', ''],
+    ['RIM-004', 'ING-RICE', 0.25, 'kg', 'ALL', ''],
+    ['GRL-001', 'ING-BEEF', 0.20, 'kg', 'ALL', ''],
+    ['GRL-001', 'ING-LAMB', 0.20, 'kg', 'ALL', ''],
+    ['GRL-001', 'ING-CHICKEN', 0.20, 'kg', 'ALL', ''],
+    ['GRL-002', 'ING-CHICKEN', 0.25, 'kg', 'ALL', ''],
+    ['GRL-003', 'ING-BEEF', 0.28, 'kg', 'ALL', ''],
+    ['GRL-004', 'ING-THIOF', 0.65, 'kg', 'ALL', ''],
+    ['DRK-001', 'ING-TEA', 0.04, 'kg', 'ALL', ''],
+    ['DRK-002', 'ING-BISSAP', 0.03, 'kg', 'ALL', ''],
+    // Channel conditional (TAKEAWAY_DELIVERY, '')
+    ...['RST-BRG-01', 'RIM-001', 'RIM-002', 'RIM-003', 'RIM-004', 'GRL-001', 'GRL-002', 'GRL-003', 'GRL-004'].flatMap((pSku) => [
+      [pSku, 'ING-BOX', 1.0, 'unit', 'TAKEAWAY_DELIVERY', ''],
+      [pSku, 'ING-BAG', 1.0, 'unit', 'TAKEAWAY_DELIVERY', ''],
+    ]),
+    // Modifier-keyed (ALL, opt-*)
+    ['RST-BRG-01', 'ING-CHEESE', 0.04, 'kg', 'ALL', 'opt-cheddar'],
+    ['RST-BRG-01', 'ING-BEEF', 0.15, 'kg', 'ALL', 'opt-double-meat'],
+    ['GRL-002', 'ING-CHEESE', 0.05, 'kg', 'ALL', 'opt-mozzarella'],
+    ['GRL-001', 'ING-CHEESE', 0.05, 'kg', 'ALL', 'opt-mozzarella'],
+    ['RIM-002', 'ING-LAMB', 0.20, 'kg', 'ALL', 'opt-double-meat'],
+  ];
+
+  const insBom = database.prepare(`
+    INSERT OR IGNORE INTO recipes_bom (tenant_id, product_id, ingredient_id, qty_per_unit, unit, condition_channel, modifier_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const [pSku, iSku, qtyPerUnit, unit, condCh, modKey] of bomSpec) {
+    const pid = prodIdBySku.get(pSku);
+    const iid = ingIdBySku.get(iSku);
+    if (pid && iid) {
+      insBom.run(tenantId, pid, iid, qtyPerUnit, unit, condCh, modKey);
+    }
+  }
+
+  // F. 3 Karni customers for FT-1041
+  if (database.prepare('SELECT COUNT(*) AS cnt FROM customer_credits_karni WHERE tenant_id = ?').get(tenantId).cnt === 0) {
+    const insKarniCust = database.prepare(`
+      INSERT INTO customer_credits_karni (
+        tenant_id, branch_id, customer_name, phone_whatsapp, company_name, is_b2b, credit_limit_mru, current_debt_mru, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+    `);
+    const insKarniTx = database.prepare(`
+      INSERT INTO karni_transactions (tenant_id, customer_id, tx_type, amount_mru, pay_method, approved_by, notes)
+      VALUES (?, ?, 'CHARGE', ?, 'Karni', 'Ahmed Ould Salem', 'Solde initial carnet Karni')
+    `);
+
+    const c1 = insKarniCust.run(tenantId, brId, 'Sidi Mohamed Ould Ahmed', '+222 46 11 22 33', '', 0, 10000, 1500);
+    insKarniTx.run(tenantId, Number(c1.lastInsertRowid), 1500);
+
+    const c2 = insKarniCust.run(tenantId, brId, 'Société MauriTech SARL', '+222 45 25 35 45', 'MauriTech SARL', 1, 50000, 12450);
+    insKarniTx.run(tenantId, Number(c2.lastInsertRowid), 12450);
+
+    const c3 = insKarniCust.run(tenantId, brId, 'Aminetou Mint Sidi', '+222 36 88 99 00', '', 0, 10000, 850);
+    insKarniTx.run(tenantId, Number(c3.lastInsertRowid), 850);
   }
 }
 
@@ -1104,6 +1459,7 @@ module.exports = {
   db,
   DB_PATH,
   DEFAULT_DB_PATH,
+  DEFAULT_DELIVERY_ZONES,
   hashPassword,
   verifyPassword,
   ROLES_SEED,

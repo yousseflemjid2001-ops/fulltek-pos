@@ -223,25 +223,32 @@ class _FloorPlanViewState extends State<FloorPlanView> {
           TableStatus.billRequested => i18n.t('status_bill'),
         };
 
+        final shapeIcon = switch (t.shape) {
+          TableShape.round => Icons.circle_outlined,
+          TableShape.khaima => Icons.villa_rounded,
+          TableShape.square => Icons.crop_square_rounded,
+        };
+        final isRound = t.shape == TableShape.round;
+
         return Material(
           color: p.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(isRound ? 999 : p.radius),
           child: InkWell(
             key: Key('table_card_${t.id}'),
             onTap: () {
               store.openOrSelectTable(t.id);
               widget.onTableSelected();
             },
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(isRound ? 999 : p.radius),
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(isRound ? 999 : p.radius),
                 border: Border.all(
                   color: t.status == TableStatus.free
                       ? p.border
-                      : statusColor.withValues(alpha: 0.7),
-                  width: t.status == TableStatus.free ? 1 : 1.6,
+                      : statusColor.withValues(alpha: 0.75),
+                  width: t.status == TableStatus.free ? 1 : 1.8,
                 ),
               ),
               child: Column(
@@ -251,12 +258,19 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        t.code,
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: p.textPrimary),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(shapeIcon, size: 14, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            t.code,
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: p.textPrimary),
+                          ),
+                        ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
 import 'closing_z_view.dart';
 import 'floor_plan_view.dart';
 import 'karni_view.dart';
+import 'kds_view.dart';
+import 'owner_dashboard_view.dart';
 import 'pos_register_view.dart';
 
 class PosShellScreen extends StatefulWidget {
@@ -24,6 +27,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
     final i18n = store.i18n;
     final p = FullTekThemes.paletteOf(context);
     final staff = store.currentStaff;
+    final wide = MediaQuery.of(context).size.width >= 960;
 
     final body = switch (_tabIndex) {
       0 => PosRegisterView(
@@ -34,50 +38,98 @@ class _PosShellScreenState extends State<PosShellScreen> {
           store: store,
           onTableSelected: () => setState(() => _tabIndex = 0),
         ),
-      2 => KarniView(store: store),
+      2 => KdsView(store: store),
+      3 => KarniView(store: store),
+      4 => OwnerDashboardView(store: store),
       _ => ClosingZView(store: store),
     };
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: p.surface,
+        backgroundColor: p.headerBg,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: 62,
         shape: Border(bottom: BorderSide(color: p.border)),
-        title: Row(
-          children: [
-            const FullTekLogo(size: 32, variant: 'Resto', animate: false),
-            const SizedBox(width: 12),
-            if (MediaQuery.of(context).size.width >= 900)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: p.success.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: p.success.withValues(alpha: 0.45)),
+        title: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const FullTekLogo(size: 30, variant: 'Resto', animate: false),
+              const SizedBox(width: 10),
+              if (MediaQuery.of(context).size.width >= 1220) ...[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 200),
+                  child: Text(
+                    store.tenantName,
+                    key: const Key('shell_tenant_name'),
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: p.textMuted),
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.verified_user_rounded,
-                        size: 14, color: p.success),
-                    const SizedBox(width: 5),
-                    Text(
-                      'Ed25519 · ${store.license.daysRemaining}${i18n.t('days_left')}',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: p.success,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+              ],
+              if (wide) ...[
+                // 3 Service Modes (Sur place | Emporter | Livraison)
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: p.surfaceAlt,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: ServiceMode.values.map((m) {
+                      final active = store.serviceMode == m;
+                      return InkWell(
+                        key: Key('service_mode_${m.name}'),
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => store.setServiceMode(m),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: active ? p.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${m.emoji} ${m.label(store.lang)}',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: active ? p.onPrimary : p.textMuted,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-          ],
+              ],
+            ],
+          ),
         ),
         actions: [
+          if (wide) ...[
+            // LAN & Cloud indicators + Refresh catalog
+            _dotIndicator('LAN', store.lanConnected ? p.success : p.danger, p),
+            const SizedBox(width: 6),
+            _dotIndicator(
+                'Cloud', store.cloudConnected ? p.accent : p.warning, p),
+            IconButton(
+              key: const Key('refresh_catalog_btn'),
+              tooltip: i18n.t('refresh_catalog'),
+              onPressed: store.isLoadingCatalog ? null : store.fetchCloudCatalog,
+              icon: Icon(Icons.cloud_download_outlined,
+                  size: 18, color: p.textPrimary),
+            ),
+          ],
+
           // Language quick toggle
           PopupMenuButton<String>(
             key: const Key('shell_lang_menu'),
@@ -89,11 +141,11 @@ class _PosShellScreenState extends State<PosShellScreen> {
               PopupMenuItem(value: 'en', child: Text('🇬🇧 English')),
             ],
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Chip(
                 label: Text(store.lang.toUpperCase(),
                     style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 11.5)),
+                        fontWeight: FontWeight.w800, fontSize: 11)),
                 backgroundColor: p.surfaceAlt,
                 side: BorderSide(color: p.border),
               ),
@@ -105,7 +157,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
             key: const Key('shell_theme_menu'),
             tooltip: i18n.t('theme_label'),
             onSelected: store.setTheme,
-            itemBuilder: (_) => FullTekThemes.all.values
+            itemBuilder: (_) => store.availableThemes
                 .map(
                   (spec) => PopupMenuItem(
                     value: spec.id,
@@ -135,7 +187,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
           // SyncQueue indicator
           IconButton(
             tooltip: i18n.t('sync_queue'),
-            onPressed: () => setState(() => _tabIndex = 3),
+            onPressed: () => setState(() => _tabIndex = 5),
             icon: Badge(
               isLabelVisible: store.pendingSyncCount > 0,
               label: Text('${store.pendingSyncCount}'),
@@ -161,7 +213,33 @@ class _PosShellScreenState extends State<PosShellScreen> {
             ),
         ],
       ),
-      body: body,
+      body: Column(
+        children: [
+          if (store.trainingMode)
+            Container(
+              key: const Key('training_mode_banner'),
+              width: double.infinity,
+              color: p.warning.withValues(alpha: 0.18),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.school_rounded, size: 16, color: p.warning),
+                  const SizedBox(width: 8),
+                  Text(
+                    i18n.t('training_banner'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: p.warning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(child: body),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
         backgroundColor: p.surface,
@@ -182,10 +260,26 @@ class _PosShellScreenState extends State<PosShellScreen> {
             label: i18n.t('nav_floor'),
           ),
           NavigationDestination(
+            key: const Key('nav_tab_kds'),
+            icon: Badge(
+              isLabelVisible: store.activeKdsTickets().isNotEmpty,
+              label: Text('${store.activeKdsTickets().length}'),
+              child: const Icon(Icons.soup_kitchen_outlined),
+            ),
+            selectedIcon: Icon(Icons.soup_kitchen_rounded, color: p.primary),
+            label: i18n.t('nav_kds'),
+          ),
+          NavigationDestination(
             key: const Key('nav_tab_karni'),
             icon: const Icon(Icons.menu_book_outlined),
             selectedIcon: Icon(Icons.menu_book_rounded, color: p.primary),
             label: i18n.t('nav_karni'),
+          ),
+          NavigationDestination(
+            key: const Key('nav_tab_dashboard'),
+            icon: const Icon(Icons.analytics_outlined),
+            selectedIcon: Icon(Icons.analytics_rounded, color: p.primary),
+            label: i18n.t('nav_dashboard'),
           ),
           NavigationDestination(
             key: const Key('nav_tab_closing'),
@@ -195,6 +289,25 @@ class _PosShellScreenState extends State<PosShellScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _dotIndicator(String label, Color color, PosPalette p) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700, color: p.textMuted),
+        ),
+      ],
     );
   }
 }

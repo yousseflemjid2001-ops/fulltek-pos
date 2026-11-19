@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/account_login_screen.dart';
 import 'screens/pin_login_screen.dart';
 import 'screens/pos_shell_screen.dart';
 import 'state/pos_store.dart';
@@ -45,14 +46,30 @@ class _FullTekPosAppState extends State<FullTekPosApp> {
           title: i18n.t('app_title'),
           theme: _store.themeSpec.toThemeData(),
           builder: (context, child) {
+            final g = _store.themeSpec.bgGradient;
+            Widget content = child ?? const SizedBox.shrink();
+            if (g != null) {
+              content = DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: g,
+                  ),
+                ),
+                child: content,
+              );
+            }
             return Directionality(
               textDirection: i18n.direction,
-              child: child ?? const SizedBox.shrink(),
+              child: content,
             );
           },
-          home: _store.currentStaff == null
-              ? PinLoginScreen(store: _store)
-              : PosShellScreen(store: _store),
+          home: !_store.accountLoggedIn
+              ? AccountLoginScreen(store: _store)
+              : (_store.currentStaff == null
+                  ? PinLoginScreen(store: _store)
+                  : PosShellScreen(store: _store)),
         );
       },
     );

@@ -50,7 +50,7 @@ void main() {
 
     test('Khaima VIP reservation seating deducts Arboun & mixed payment updates Karni + 80mm receipt', () {
       final store = PosStore();
-      expect(store.loginWithPin('0000'), isTrue); // Owner
+      expect(store.loginWithPin('7410'), isTrue); // Owner
 
       // Seat RES-101 (Famille Ould Ahmed, KHAIMA-1, Arboun 2000 MRU)
       final order = store.seatReservation('RES-101');
@@ -139,7 +139,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final store = PosStore();
+      final store = PosStore()..accountLoggedIn = true;
       await tester.pumpWidget(FullTekPosApp(store: store));
       await tester.pumpAndSettle();
 
@@ -157,12 +157,16 @@ void main() {
       expect(store.themeId, FullTekThemeId.mauritaniaPrestige);
 
       // Unlock POS using Quick Profile PIN 0000 (Owner)
-      await tester.tap(find.byKey(const Key('quick_pin_0000')));
+      await tester.tap(find.byKey(const Key('quick_pin_7410')));
       await tester.pumpAndSettle();
 
       // Tap first menu item (Thiéboudienne Royal — 450 MRU)
       await tester.tap(find.byKey(const Key('menu_item_M1')));
       await tester.pumpAndSettle();
+      if (find.byKey(const Key('confirm_modifiers_btn')).evaluate().isNotEmpty) {
+        await tester.tap(find.byKey(const Key('confirm_modifiers_btn')));
+        await tester.pumpAndSettle();
+      }
       expect(find.textContaining('450 MRU'), findsWidgets);
 
       // Open Checkout & confirm

@@ -137,7 +137,7 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
               ),
               const SizedBox(height: 14),
 
-              // Summary banner
+              // Summary banner + TVA 16 % + Delivery Fee
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -145,21 +145,43 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: p.border),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                child: Column(
                   children: [
-                    _metric(i18n.t('total_to_pay'),
-                        '${_orderTotal.toStringAsFixed(0)} ${i18n.t('mru')}', p.textPrimary, p),
-                    _metric(i18n.t('remaining'),
-                        '${_remaining.toStringAsFixed(0)} ${i18n.t('mru')}', _remaining > 0 ? p.warning : p.success, p),
-                    _metric(i18n.t('change_due'),
-                        '${_changeDue.toStringAsFixed(0)} ${i18n.t('mru')}', p.primary, p),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _metric(i18n.t('total_to_pay'),
+                            '${_orderTotal.toStringAsFixed(0)} ${i18n.t('mru')}', p.textPrimary, p),
+                        _metric(i18n.t('remaining'),
+                            '${_remaining.toStringAsFixed(0)} ${i18n.t('mru')}', _remaining > 0 ? p.warning : p.success, p),
+                        _metric(i18n.t('change_due'),
+                            '${_changeDue.toStringAsFixed(0)} ${i18n.t('mru')}', p.primary, p),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${i18n.t('tva_included')}: ${widget.store.activeOrder?.tvaAmountMru ?? 0} MRU',
+                          style: TextStyle(fontSize: 11.5, color: p.textMuted),
+                        ),
+                        if ((widget.store.activeOrder?.deliveryFeeMru ?? 0) > 0)
+                          Text(
+                            '${i18n.t('delivery_fee')}: ${widget.store.activeOrder!.deliveryFeeMru.toStringAsFixed(0)} MRU',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.accent),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Payment method chips
+              // Payment method chips (7 methods: Cash, Bankily, Masrivi, Sedad, Bimbank, Click, Karni)
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -168,6 +190,8 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                   _methodChip(PaymentMethod.bankily, i18n.t('payment_bankily'), Icons.phone_android_rounded, p),
                   _methodChip(PaymentMethod.masrivi, i18n.t('payment_masrivi'), Icons.account_balance_wallet_rounded, p),
                   _methodChip(PaymentMethod.sedad, i18n.t('payment_sedad'), Icons.qr_code_2_rounded, p),
+                  _methodChip(PaymentMethod.bimbank, i18n.t('payment_bimbank'), Icons.account_balance_rounded, p),
+                  _methodChip(PaymentMethod.click, i18n.t('payment_click'), Icons.bolt_rounded, p),
                   _methodChip(PaymentMethod.karni, i18n.t('payment_karni'), Icons.menu_book_rounded, p),
                 ],
               ),
@@ -196,7 +220,9 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
               // Mobile money reference
               if (_method == PaymentMethod.bankily ||
                   _method == PaymentMethod.masrivi ||
-                  _method == PaymentMethod.sedad) ...[
+                  _method == PaymentMethod.sedad ||
+                  _method == PaymentMethod.bimbank ||
+                  _method == PaymentMethod.click) ...[
                 TextField(
                   key: const Key('payment_ref_input'),
                   controller: _refCtrl,

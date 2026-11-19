@@ -133,7 +133,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                                 dropdownColor: p.surface,
                                 icon: Icon(Icons.palette_outlined,
                                     size: 18, color: p.primary),
-                                items: FullTekThemes.all.values.map((spec) {
+                                items: store.availableThemes.map((spec) {
                                   return DropdownMenuItem(
                                     value: spec.id,
                                     child: Row(
@@ -217,11 +217,26 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            i18n.t('subtitle_demo'),
+            store.tenantName,
+            key: const Key('tenant_name_label'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: p.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            i18n.t('subtitle_demo'),
+            style: TextStyle(fontSize: 12.5, color: p.textMuted),
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const Key('change_account_btn'),
+              onPressed: store.logoutAccount,
+              icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+              label: Text(i18n.t('change_account')),
             ),
           ),
           const SizedBox(height: 12),

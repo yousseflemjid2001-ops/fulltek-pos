@@ -9,8 +9,32 @@ class ReceiptFormatter {
 
   static String _padRow(String left, String right) {
     final space = width - left.length - right.length;
-    if (space <= 1) return '$left $right';
-    return '$left${' ' * space}$right';
+    if (space >= 1) return '$left${' ' * space}$right';
+    final maxLeft = width - right.length - 1;
+    if (maxLeft > 3 && left.length > maxLeft) {
+      return '${left.substring(0, maxLeft - 1)}… $right';
+    }
+    return '$left $right';
+  }
+
+  static List<String> _wrapLines(String text, {String indent = '   '}) {
+    final clean = text.trim();
+    if (clean.isEmpty) return const [];
+    final maxLen = width - indent.length;
+    if (clean.length <= maxLen) return ['$indent$clean'];
+    final out = <String>[];
+    var remaining = clean;
+    while (remaining.isNotEmpty) {
+      if (remaining.length <= maxLen) {
+        out.add('$indent$remaining');
+        break;
+      }
+      var splitAt = remaining.lastIndexOf(' ', maxLen);
+      if (splitAt <= 0) splitAt = maxLen;
+      out.add('$indent${remaining.substring(0, splitAt).trimRight()}');
+      remaining = remaining.substring(splitAt).trimLeft();
+    }
+    return out;
   }
 
   static String _center(String text) {
@@ -28,14 +52,47 @@ class ReceiptFormatter {
     String phone = '+222 45 25 11 00',
   }) {
     final buf = StringBuffer();
+    if (order.isTraining) {
+      buf.writeln(_line('='));
+      buf.writeln('*** TICKET DE FORMATION - NON VALIDE ***');
+      buf.writeln(_line('='));
+    }
     buf.writeln(_line('='));
     buf.writeln(_center('FULL-TEK RESTO POS'));
     buf.writeln(_center(storeName));
     buf.writeln(_center(storeNameAr));
     buf.writeln(_center('Tel: $phone'));
     buf.writeln(_line('='));
-    buf.writeln(_padRow('Ticket: ${order.ticketNumber}',
-        order.tableCode != null ? 'Table: ${order.tableCode}' : 'COMPTOIR'));
+    buf.writeln(_padRow(
+      'Ticket: ${order.ticketNumber}',
+      order.tableCode != null ? 'Table: ${order.tableCode}' : 'COMPTOIR',
+    ));
+    final modeLabel = switch (order.serviceMode) {
+      ServiceMode.dineIn =>
+        'Sur place${order.tableCode != null ? ' · ${order.tableCode}' : ''}',
+      ServiceMode.takeaway =>
+        'Emporter${order.takeawayNumber != null ? ' N°${order.takeawayNumber}' : ''}',
+      ServiceMode.delivery =>
+        'Livraison - ${order.deliveryZone?.nameFr ?? 'Nouakchott'}',
+    };
+    buf.writeln('Mode: $modeLabel');
+    if (order.serviceMode == ServiceMode.delivery) {
+      if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
+        buf.writeln('Client: ${order.customerName!.trim()}');
+      }
+      if (order.customerPhone != null &&
+          order.customerPhone!.trim().isNotEmpty) {
+        buf.writeln('Tel: ${order.customerPhone!.trim()}');
+      }
+      if (order.deliveryAddress != null &&
+          order.deliveryAddress!.trim().isNotEmpty) {
+        for (final l in _wrapLines('Adresse: ${order.deliveryAddress!.trim()}',
+            indent: '')) {
+          buf.writeln(l);
+        }
+      }
+    }
+
     final dt = order.paidAt ?? order.createdAt;
     final dateStr =
         '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} '
@@ -48,8 +105,15 @@ class ReceiptFormatter {
       final priceStr = line.isComp ? 'OFFERT' : formatMru(line.lineTotal);
       buf.writeln(_padRow(qtyName, priceStr));
       buf.writeln('   ${line.item.nameAr}');
+      for (final m in line.selectedModifiers) {
+        final extra =
+            m.extraPriceMru > 0 ? ' (+${formatMru(m.extraPriceMru)})' : '';
+        buf.writeln('   + ${m.nameFr}$extra');
+      }
       if (line.kitchenNote != null && line.kitchenNote!.isNotEmpty) {
-        buf.writeln('   * ${line.kitchenNote}');
+        for (final l in _wrapLines('* ${line.kitchenNote!}')) {
+          buf.writeln(l);
+        }
       }
     }
 
@@ -67,16 +131,35 @@ class ReceiptFormatter {
         '-${formatMru(order.arbounDepositMru)}',
       ));
     }
+    if (order.deliveryFeeMru > 0) {
+      final feeStr = formatMru(order.deliveryFeeMru);
+      final zoneName = order.deliveryZone?.nameFr;
+      if (zoneName != null &&
+          'Frais livraison ($zoneName):'.length + feeStr.length + 1 <= width) {
+        buf.writeln(_padRow('Frais livraison ($zoneName):', feeStr));
+      } else {
+        buf.writeln(_padRow('Frais livraison:', feeStr));
+        if (zoneName != null) {
+          buf.writeln('   Zone: $zoneName');
+        }
+      }
+    }
+    buf.writeln(_line());
+    buf.writeln(_padRow('Sous-total HT:', formatMru(order.subtotalHtMru)));
+    buf.writeln(
+        _padRow('Dont TVA 16 %:', formatMru(order.tvaAmountMru.toDouble())));
     buf.writeln(_line('='));
-    buf.writeln(_padRow('TOTAL NET / الإجمالي:', formatMru(order.netTotal)));
+    buf.writeln(_padRow('TOTAL TTC / الإجمالي:', formatMru(order.netTotal)));
     buf.writeln(_line('='));
 
     for (final p in order.payments) {
       final label = switch (p.method) {
-        PaymentMethod.cash => 'Especes / نقداً',
+        PaymentMethod.cash => 'Cash / نقداً',
         PaymentMethod.bankily => 'Bankily / بنكيلي',
         PaymentMethod.masrivi => 'Masrivi / مصرفي',
         PaymentMethod.sedad => 'Sedad / سداد',
+        PaymentMethod.bimbank => 'Bimbank / بيم بنك',
+        PaymentMethod.click => 'Click / كليك',
         PaymentMethod.karni => 'Credit Karni / كارني',
       };
       buf.writeln(_padRow(label, formatMru(p.amountMru)));
@@ -85,11 +168,15 @@ class ReceiptFormatter {
       }
     }
     if (order.changeDue > 0) {
-      buf.writeln(_padRow('Monnaie rendue / الباقي:', formatMru(order.changeDue)));
+      buf.writeln(
+          _padRow('Monnaie rendue / الباقي:', formatMru(order.changeDue)));
     }
     buf.writeln(_line());
     buf.writeln(_center('Merci de votre visite ! شكراً لزيارتكم'));
     buf.writeln(_center('Propulse par Full-Tek POS (Mauritanie)'));
+    if (order.isTraining) {
+      buf.writeln('*** TICKET DE FORMATION - NON VALIDE ***');
+    }
     buf.writeln(_line('='));
     return buf.toString();
   }
@@ -100,17 +187,30 @@ class ReceiptFormatter {
   }) {
     final buf = StringBuffer();
     buf.writeln(_line('*'));
+    if (order.isTraining) {
+      buf.writeln(_center('*** FORMATION ***'));
+    }
     buf.writeln(_center('*** BON CUISINE / KDS ***'));
+    final targetLabel = switch (order.serviceMode) {
+      ServiceMode.dineIn =>
+        order.tableCode != null ? 'TABLE: ${order.tableCode}' : 'COMPTOIR',
+      ServiceMode.takeaway =>
+        'EMPORTER${order.takeawayNumber != null ? ' N°${order.takeawayNumber}' : ''}',
+      ServiceMode.delivery =>
+        'LIVRAISON - ${order.deliveryZone?.nameFr ?? 'Nouakchott'}',
+    };
+    buf.writeln(_padRow(targetLabel, order.ticketNumber));
     buf.writeln(_padRow(
-      order.tableCode != null ? 'TABLE: ${order.tableCode}' : 'A EMPORTER',
-      order.ticketNumber,
+      'Serveur: ${order.staffName}',
+      '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
     ));
-    buf.writeln(_padRow('Serveur: ${order.staffName}',
-        '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}'));
     buf.writeln(_line());
     for (final i in newItems) {
       buf.writeln('[${i.item.kitchenStation}] ${i.quantity}x ${i.item.nameFr}');
       buf.writeln('   ${i.item.nameAr}');
+      for (final m in i.selectedModifiers) {
+        buf.writeln('   + ${m.nameFr}');
+      }
       if (i.kitchenNote != null && i.kitchenNote!.isNotEmpty) {
         buf.writeln('   >>> NOTE: ${i.kitchenNote}');
       }
@@ -138,6 +238,8 @@ class ReceiptFormatter {
     buf.writeln(_padRow('Bankily:', formatMru(z.expectedBankilyMru)));
     buf.writeln(_padRow('Masrivi:', formatMru(z.expectedMasriviMru)));
     buf.writeln(_padRow('Sedad:', formatMru(z.expectedSedadMru)));
+    buf.writeln(_padRow('Bimbank:', formatMru(z.expectedBimbankMru)));
+    buf.writeln(_padRow('Click:', formatMru(z.expectedClickMru)));
     buf.writeln(_padRow('Karni emis:', formatMru(z.karniIssuedMru)));
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL CA JOUR:', formatMru(z.totalExpectedMru)));

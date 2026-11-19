@@ -331,6 +331,45 @@ function requireSuperAdmin(req, res, db, options = {}) {
   };
 }
 
+function requireTenantAuth(req, res, db, options = {}) {
+  const respond = typeof options.sendJson === 'function' ? options.sendJson : defaultSendJson;
+  const reply = (status, message) => {
+    respond(res, status, { error: message });
+    return null;
+  };
+
+  const token = extractBearerToken(req);
+  if (!token) {
+    return reply(401, 'Missing Bearer token');
+  }
+
+  const verified = verifyJwt(token, options.jwtSecret);
+  if (!verified.valid) {
+    return reply(401, verified.reason === 'expired' ? 'POS token expired' : 'Invalid or expired POS token');
+  }
+
+  const { payload } = verified;
+  if (payload.role === 'SUPER_ADMIN') {
+    return reply(401, 'Invalid or expired POS token');
+  }
+
+  const rawTid = payload.tenantId;
+  const tenantId = typeof rawTid === 'number' ? rawTid : Number(rawTid);
+  if (!Number.isInteger(tenantId) || tenantId <= 0) {
+    return reply(401, 'Invalid or expired POS token');
+  }
+
+  const tenant = db.prepare('SELECT * FROM tenants WHERE id = ? LIMIT 1').get(tenantId);
+  if (!tenant) {
+    return reply(401, 'Tenant not found or inactive');
+  }
+  if (tenant.status === 'locked') {
+    return reply(403, 'Tenant account is locked');
+  }
+
+  return tenant;
+}
+
 module.exports = {
   DEFAULT_JWT_SECRET,
   DEFAULT_EXPIRES_IN_SEC,
@@ -340,4 +379,5 @@ module.exports = {
   extractBearerToken,
   authenticateSuperAdmin,
   requireSuperAdmin,
+  requireTenantAuth,
 };
