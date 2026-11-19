@@ -42,7 +42,8 @@ Connectez-vous à votre tableau de bord **[Cloudflare Dashboard](https://dash.cl
    - **Production branch** : `main`
    - **Framework preset** : `None`
    - **Build command** : *(Laissez vide)*
-   - **Build output directory** : `.` (ou `/` pour servir la racine contenant `index.html`)
+   - **Build output directory** : `apps/landing-web` *(ou `public`)*
+   *(Ne laissez pas vide ni `.`, sinon Cloudflare essaie de téléverser les 5900 fichiers du dépôt dont les maquettes PDF qui dépassent la limite de 25 Mo).*
 4. Cliquez sur **Save and Deploy**.
 5. Une fois déployé, allez dans l'onglet **Custom domains** de votre projet Pages :
    - Cliquez sur **Set up a custom domain**.
