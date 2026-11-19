@@ -56,22 +56,24 @@ Future<PickedCatalogFile?> pickCatalogFilePlatform() {
     input.remove();
   }
 
-  input.onchange = ((JSAny? _) async {
-    try {
-      final file = input.files?.item(0);
-      if (file == null) {
-        if (!completer.isCompleted) completer.complete(null);
-        return;
+  input.onchange = ((JSAny? _) {
+    () async {
+      try {
+        final file = input.files?.item(0);
+        if (file == null) {
+          if (!completer.isCompleted) completer.complete(null);
+          return;
+        }
+        final jsBuffer = await file.arrayBuffer().toDart;
+        final bytes = Uint8List.view(jsBuffer.toDart);
+        final parsed = parseCatalogFileBytes(file.name, bytes);
+        if (!completer.isCompleted) completer.complete(parsed);
+      } catch (e, st) {
+        if (!completer.isCompleted) completer.completeError(e, st);
+      } finally {
+        cleanup();
       }
-      final jsBuffer = await file.arrayBuffer().toDart;
-      final bytes = Uint8List.view(jsBuffer.toDart);
-      final parsed = parseCatalogFileBytes(file.name, bytes);
-      if (!completer.isCompleted) completer.complete(parsed);
-    } catch (e, st) {
-      if (!completer.isCompleted) completer.completeError(e, st);
-    } finally {
-      cleanup();
-    }
+    }();
   }).toJS;
 
   input.oncancel = ((JSAny? _) {

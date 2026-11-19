@@ -1,0 +1,6 @@
+name = "fulltek-pos-app"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "./dist_web"
