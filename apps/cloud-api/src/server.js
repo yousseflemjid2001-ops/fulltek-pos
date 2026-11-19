@@ -1113,7 +1113,7 @@ function createApp(options = {}) {
 
     try {
       // 1. Health check (Public)
-      if (req.method === 'GET' && p === '/health') {
+      if (req.method === 'GET' && (p === '/health' || p === '/healthz')) {
         const { cnt } = database.prepare('SELECT COUNT(*) AS cnt FROM tenants').get();
         return sendJson(res, 200, {
           ok: true,
