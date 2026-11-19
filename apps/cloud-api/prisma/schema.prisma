@@ -1,0 +1,680 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// 1. CORE SAAS, MULTI-SITE & HARDWARE REGISTERS
+// ============================================================================
+
+model Tenant {
+  id                 Int      @id @default(autoincrement())
+  tenantCode         String   @unique @map("tenant_code")
+  name               String
+  module             String   // resto | market | pharma
+  subType            String   @default("") @map("sub_type")
+  city               String
+  district           String   @default("")
+  address            String   @default("")
+  legalName          String   @default("") @map("legal_name")
+  nif                String   @default("")
+  rc                 String   @default("")
+  phone              String
+  email              String   @default("")
+  manager            String   @default("")
+  defaultLang        String   @default("fr") @map("default_lang")
+  plan               String   @default("Pro")
+  billing            String   @default("monthly")
+  mrr                Int      @default(3000)
+  tills              Int      @default(1)
+  daysLeft           Int      @default(30) @map("days_left")
+  status             String   @default("active") // active | trial | warn | expired | locked
+  online             Boolean  @default(true)
+  pendingSync        Int      @default(0) @map("pending_sync")
+  enabledThemes      String   @default("[\"01\",\"06\",\"07\",\"11\"]") @map("enabled_themes")
+  features           String   @default("[]")
+  payMethods         String   @default("[\"Bankily\",\"Masrivi\",\"Sedad\",\"Cash\"]") @map("pay_methods")
+  hardware           String   @default("[]")
+  notes              String   @default("")
+  username           String   @unique
+  passwordHash       String   @map("password_hash")
+  accountPassword    String   @default("") @map("account_password")
+  ownerPin           String   @default("4242") @map("owner_pin")
+  initialPayMethod   String   @default("") @map("initial_pay_method")
+  initialPayRef      String   @default("") @map("initial_pay_ref")
+  initialOfflineCode String   @default("") @map("initial_offline_code")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  branches             Branch[]
+  posRegisters         PosRegister[]
+  users                User[]
+  roles                Role[]
+  payments             SaaSPayment[]
+  offlineCodes         OfflineUnlockCode[]
+  offlineLeaseTokens   OfflineLeaseToken[]
+  audits               AuditLog[]
+  categories           Category[]
+  products             Product[]
+  stockBatches         StockBatch[]
+  ingredients          Ingredient[]
+  recipesBom           RecipeBom[]
+  diningZones          DiningZone[]
+  reservationsVip      ReservationVip[]
+  orders               Order[]
+  returnsRemakesComps  ReturnRemakeComp[]
+  customerCreditsKarni CustomerCreditKarni[]
+  karniTransactions    KarniTransaction[]
+  closings             CashClosingZ[]
+
+  @@map("tenants")
+}
+
+model Branch {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int      @map("tenant_id")
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code             String
+  name             String
+  city             String   @default("")
+  district         String   @default("")
+  address          String   @default("")
+  phone            String   @default("")
+  isMain           Boolean  @default(false) @map("is_main")
+  isCentralKitchen Boolean  @default(false) @map("is_central_kitchen")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  posRegisters         PosRegister[]
+  users                User[]
+  offlineCodes         OfflineUnlockCode[]
+  offlineLeaseTokens   OfflineLeaseToken[]
+  audits               AuditLog[]
+  stockBatches         StockBatch[]
+  ingredients          Ingredient[]
+  diningZones          DiningZone[]
+  reservationsVip      ReservationVip[]
+  orders               Order[]
+  returnsRemakesComps  ReturnRemakeComp[]
+  customerCreditsKarni CustomerCreditKarni[]
+  closings             CashClosingZ[]
+
+  @@unique([tenantId, code])
+  @@map("branches")
+}
+
+model PosRegister {
+  id                  Int       @id @default(autoincrement())
+  tenantId            Int       @map("tenant_id")
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId            Int?      @map("branch_id")
+  branch              Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerCode        String    @map("register_code") // C1, C2, ...
+  name                String    @default("")
+  hardwareFingerprint String    @default("") @map("hardware_fingerprint")
+  ed25519PublicKey    String    @default("") @map("ed25519_public_key")
+  isMaster            Boolean   @default(false) @map("is_master")
+  status              String    @default("active") // active | locked | pending
+  lastSeenAt          DateTime? @map("last_seen_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  offlineCodes       OfflineUnlockCode[]
+  offlineLeaseTokens OfflineLeaseToken[]
+  orders             Order[]
+  closings           CashClosingZ[]
+
+  @@unique([tenantId, registerCode])
+  @@map("pos_registers")
+}
+
+// ============================================================================
+// 2. SUPER-ADMIN & 9-ROLE RBAC + GRANULAR PERMISSIONS
+// ============================================================================
+
+model SuperAdmin {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  email        String    @unique @default("")
+  fullName     String    @map("full_name")
+  passwordHash String    @map("password_hash")
+  role         String    @default("SUPER_ADMIN")
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("super_admins")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int?     @map("tenant_id") // NULL = system CDC role; non-null = custom tenant role
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String   @unique // SUPER_ADMIN | OWNER | MANAGER | CASHIER | WAITER | CHEF | STOCK | PHARMACIST | ACCOUNTANT
+  nameFr      String   @map("name_fr")
+  nameAr      String   @default("") @map("name_ar")
+  scope       String   @default("REGISTER") // PLATFORM | ALL_SITES | SINGLE_SITE | REGISTER | TABLES | KDS | INVENTORY | PHARMA | READ_ONLY
+  description String   @default("")
+  isSystem    Boolean  @default(true) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id                 Int      @id @default(autoincrement())
+  code               String   @unique // e.g. sale.collect, sale.price_or_discount_override, ...
+  category           String   @default("general")
+  nameFr             String   @map("name_fr")
+  nameAr             String   @default("") @map("name_ar")
+  description        String   @default("")
+  isSensitive        Boolean  @default(true) @map("is_sensitive")
+  requiresManagerPin Boolean  @default(false) @map("requires_manager_pin")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int        @map("role_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId Int        @map("permission_id")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  accessMode   String     @default("ALLOW") @map("access_mode") // ALLOW | DENY | REQUIRE_MANAGER_PIN | BLIND_INPUT | READ_ONLY | LIMITED | ADDITION_ONLY | COST_ONLY
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId       Int?     @map("branch_id")
+  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  roleId         Int?     @map("role_id")
+  roleRef        Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  fullName       String   @map("full_name")
+  username       String
+  passHash       String   @map("pass_hash")
+  pinCode        String   @map("pin_code")
+  role           String   // OWNER | MANAGER | CASHIER | WAITER | CHEF | STOCK | PHARMACIST | ACCOUNTANT
+  email          String   @default("")
+  phone          String   @default("")
+  active         Boolean  @default(true)
+  failedPinCount Int      @default(0) @map("failed_pin_count")
+  lockedUntil    String   @default("") @map("locked_until")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      String   @default("") @map("updated_at")
+
+  userPermissions     UserPermission[]
+  auditLogs           AuditLog[]
+  orders              Order[]
+  returnsRemakesComps ReturnRemakeComp[]
+  cashClosings        CashClosingZ[]
+
+  @@unique([tenantId, username])
+  @@map("users")
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionId Int        @map("permission_id")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  granted      Boolean    @default(true)
+  accessMode   String     @default("ALLOW") @map("access_mode")
+  grantedBy    String     @default("") @map("granted_by")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+// ============================================================================
+// 3. ED25519 OFFLINE LICENSING, SAAS PAYMENTS & AUDIT
+// ============================================================================
+
+model SigningKey {
+  id            Int       @id @default(autoincrement())
+  keyId         String    @unique @map("key_id")
+  algorithm     String    @default("Ed25519")
+  publicKeyPem  String    @map("public_key_pem")
+  privateKeyPem String    @map("private_key_pem")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  revokedAt     DateTime? @map("revoked_at")
+
+  offlineLeaseTokens OfflineLeaseToken[]
+
+  @@index([isActive, id], map: "idx_signing_keys_active")
+  @@map("signing_keys")
+}
+
+model OfflineUnlockCode {
+  id                  Int          @id @default(autoincrement())
+  tenantId            Int          @map("tenant_id")
+  tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId            Int?         @map("branch_id")
+  branch              Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerId          Int?         @map("register_id")
+  register            PosRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  code                String
+  days                Int
+  graceDays           Int          @default(7) @map("grace_days")
+  keyId               String       @default("") @map("key_id")
+  registerCode        String       @default("") @map("register_code")
+  hardwareFingerprint String       @default("") @map("hardware_fingerprint")
+  payloadJson         String       @default("") @map("payload_json")
+  leaseToken          String       @default("") @map("lease_token")
+  signature           String       @default("")
+  expiresAt           DateTime?    @map("expires_at")
+  redeemedAt          DateTime?    @map("redeemed_at")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  leaseTokenRef OfflineLeaseToken?
+
+  @@map("offline_codes")
+}
+
+model OfflineLeaseToken {
+  id                  Int                @id @default(autoincrement())
+  tenantId            Int                @map("tenant_id")
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId            Int?               @map("branch_id")
+  branch              Branch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerId          Int?               @map("register_id")
+  register            PosRegister?       @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  unlockCodeId        Int?               @unique @map("unlock_code_id")
+  unlockCodeRef       OfflineUnlockCode? @relation(fields: [unlockCodeId], references: [id], onDelete: SetNull)
+  keyId               String             @map("key_id")
+  signingKey          SigningKey         @relation(fields: [keyId], references: [keyId], onDelete: Restrict)
+  unlockCode          String             @unique @map("unlock_code")
+  registerCode        String             @default("") @map("register_code")
+  hardwareFingerprint String             @default("") @map("hardware_fingerprint")
+  days                Int                @default(30)
+  graceDays           Int                @default(7) @map("grace_days")
+  nonce               String             @unique
+  payloadJson         String             @map("payload_json")
+  payloadB64          String             @map("payload_b64")
+  signature           String
+  leaseToken          String             @map("lease_token")
+  issuedAt            DateTime           @map("issued_at")
+  expiresAt           DateTime           @map("expires_at")
+  lastVerifiedAt      DateTime?          @map("last_verified_at")
+  status              String             @default("ACTIVE")
+  revoked             Boolean            @default(false)
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  @@index([tenantId, expiresAt], map: "idx_offline_lease_tenant")
+  @@index([tenantId, unlockCode], map: "idx_offline_lease_code")
+  @@map("offline_lease_tokens")
+}
+
+model SaaSPayment {
+  id        Int      @id @default(autoincrement())
+  payCode   String   @unique @map("pay_code")
+  tenantId  Int      @map("tenant_id")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  method    String   // Bankily | Masrivi | Sedad | Cash
+  ref       String   @default("")
+  amount    Int
+  status    String   @default("pending") // pending | approved | rejected
+  timeLabel String   @default("") @map("time_label")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("saas_payments")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  tenantId   Int?     @map("tenant_id")
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  branchId   Int?     @map("branch_id")
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  userId     Int?     @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actor      String   @default("M. Taha Chouaib")
+  action     String   @default("")
+  deviceId   String   @default("") @map("device_id")
+  title      String
+  subtitle   String
+  entityType String   @default("") @map("entity_type")
+  entityId   String   @default("") @map("entity_id")
+  beforeJson String   @default("") @map("before_json")
+  afterJson  String   @default("") @map("after_json")
+  ipAddress  String   @default("") @map("ip_address")
+  timeLabel  String   @map("time_label")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt], map: "idx_audit_logs_tenant_created")
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// 4. CATALOG, STOCK FEFO & FOOD COST BOM
+// ============================================================================
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  tenantId  Int       @map("tenant_id")
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nameFr    String    @map("name_fr")
+  nameAr    String    @default("") @map("name_ar")
+  nameEn    String    @default("") @map("name_en")
+  sortOrder Int       @default(0) @map("sort_order")
+  active    Boolean   @default(true)
+  createdAt String    @default("") @map("created_at")
+  products  Product[]
+
+  @@unique([tenantId, nameFr], map: "idx_categories_tenant_name")
+  @@map("categories")
+}
+
+model Product {
+  id           Int       @id @default(autoincrement())
+  tenantId     Int       @map("tenant_id")
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId   Int?      @map("category_id")
+  category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  sku          String    @default("")
+  barcode      String    @default("")
+  nameFr       String    @map("name_fr")
+  nameAr       String    @default("") @map("name_ar")
+  nameEn       String    @default("") @map("name_en")
+  unit         String    @default("unit")
+  priceRetail  Int       @map("price_retail")
+  priceWhole   Int       @default(0) @map("price_whole")
+  priceCost    Int       @default(0) @map("price_cost")
+  dci          String    @default("")
+  trackFefo    Boolean   @default(false) @map("track_fefo")
+  requiresCnam Boolean   @default(false) @map("requires_cnam")
+  active       Boolean   @default(true)
+  createdAt    String    @default("") @map("created_at")
+  updatedAt    String    @default("") @map("updated_at")
+
+  batches             StockBatch[]
+  recipesBom          RecipeBom[]
+  orderItems          OrderItem[]
+  returnsRemakesComps ReturnRemakeComp[]
+
+  // Partial UNIQUE indexes (WHERE sku != '' / WHERE barcode != '') enforced in SQLite/PG DDL
+  @@index([tenantId, sku], map: "idx_products_tenant_sku")
+  @@index([tenantId, barcode], map: "idx_products_tenant_barcode")
+  @@index([tenantId, categoryId], map: "idx_products_tenant_cat")
+  @@map("products")
+}
+
+model StockBatch {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int      @map("tenant_id")
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         Int?     @map("branch_id")
+  branch           Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  productId        Int      @map("product_id")
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lotNumber        String   @map("lot_number")
+  qty              Int
+  purchasePriceMru Int      @default(0) @map("purchase_price_mru")
+  supplierName     String   @default("") @map("supplier_name")
+  isRecalled       Boolean  @default(false) @map("is_recalled")
+  coldChain        Boolean  @default(false) @map("cold_chain")
+  expiresAt        DateTime @map("expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, productId, expiresAt], map: "idx_stock_batches_fefo")
+  @@map("stock_batches")
+}
+
+model Ingredient {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int      @map("tenant_id")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId     Int?     @map("branch_id")
+  branch       Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  sku          String   @default("")
+  nameFr       String   @map("name_fr")
+  nameAr       String   @default("") @map("name_ar")
+  unit         String   @default("kg") // kg | g | L | ml | unit
+  pmpCostMru   Float    @default(0) @map("pmp_cost_mru")
+  currentStock Float    @default(0) @map("current_stock")
+  minStock     Float    @default(0) @map("min_stock")
+  isSubRecipe  Boolean  @default(false) @map("is_sub_recipe")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  recipesBom RecipeBom[]
+
+  @@index([tenantId, nameFr], map: "idx_ingredients_tenant")
+  @@map("ingredients")
+}
+
+model RecipeBom {
+  id               Int        @id @default(autoincrement())
+  tenantId         Int        @map("tenant_id")
+  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productId        Int        @map("product_id")
+  product          Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredientId     Int        @map("ingredient_id")
+  ingredient       Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  qtyPerUnit       Float      @map("qty_per_unit")
+  unit             String     @default("g")
+  conditionChannel String     @default("ALL") @map("condition_channel") // ALL | DINE_IN | TAKEAWAY | DELIVERY
+  modifierKey      String     @default("") @map("modifier_key")
+  isSubRecipe      Boolean    @default(false) @map("is_sub_recipe")
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  @@unique([productId, ingredientId, conditionChannel, modifierKey])
+  @@map("recipes_bom")
+}
+
+// ============================================================================
+// 5. FLOOR PLAN, VIP RESERVATIONS, ORDERS, EXCEPTIONS, KARNI & CLOSINGS
+// ============================================================================
+
+model DiningZone {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int      @map("tenant_id")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId     Int?     @map("branch_id")
+  branch       Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  nameFr       String   @map("name_fr")
+  nameAr       String   @default("") @map("name_ar")
+  zoneType     String   @default("SALLE") @map("zone_type") // SALLE | TERRASSE | ETAGE | KHAIMA_VIP
+  priceTier    String   @default("STANDARD") @map("price_tier") // STANDARD | TAKEAWAY | VIP
+  tableCount   Int      @default(1) @map("table_count")
+  isVip        Boolean  @default(false) @map("is_vip")
+  minSpendMru  Int      @default(0) @map("min_spend_mru")
+  hourlyFeeMru Int      @default(0) @map("hourly_fee_mru")
+  tablesJson   String   @default("[]") @map("tables_json")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  reservationsVip ReservationVip[]
+  orders          Order[]
+
+  @@index([tenantId, branchId], map: "idx_dining_zones_tenant")
+  @@map("dining_zones")
+}
+
+model ReservationVip {
+  id              Int         @id @default(autoincrement())
+  tenantId        Int         @map("tenant_id")
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId        Int?        @map("branch_id")
+  branch          Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  zoneId          Int?        @map("zone_id")
+  zone            DiningZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  tableLabel      String      @default("") @map("table_label")
+  customerName    String      @map("customer_name")
+  customerPhone   String      @default("") @map("customer_phone")
+  guestsCount     Int         @default(2) @map("guests_count")
+  reservedAt      DateTime    @map("reserved_at")
+  durationMin     Int         @default(120) @map("duration_min")
+  depositMru      Int         @default(0) @map("deposit_mru") // Arboun
+  depositMethod   String      @default("") @map("deposit_method")
+  depositDeducted Boolean     @default(false) @map("deposit_deducted")
+  minSpendMru     Int         @default(0) @map("min_spend_mru")
+  status          String      @default("CONFIRMED") // PENDING | CONFIRMED | SEATED | COMPLETED | CANCELLED | NO_SHOW
+  isCatering      Boolean     @default(false) @map("is_catering")
+  notes           String      @default("")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@index([tenantId, reservedAt], map: "idx_reservations_tenant")
+  @@map("reservations_vip")
+}
+
+model Order {
+  id          Int          @id @default(autoincrement())
+  tenantId    Int          @map("tenant_id")
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId    Int?         @map("branch_id")
+  branch      Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerId  Int?         @map("register_id")
+  register    PosRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  userId      Int?         @map("user_id")
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  zoneId      Int?         @map("zone_id")
+  zone        DiningZone?  @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  orderCode   String       @map("order_code")
+  tableName   String       @default("") @map("table_name")
+  channel     String       @default("DINE_IN") // DINE_IN | TAKEAWAY | DELIVERY | RETAIL
+  status      String       @default("PAID") // OPEN | KDS_PREP | READY | PAID | VOID
+  payMethod   String       @map("pay_method") // Cash | Bankily | Masrivi | Sedad | Karni
+  totalMru    Int          @map("total_mru")
+  discountMru Int          @default(0) @map("discount_mru")
+  cnamCover   Int          @default(0) @map("cnam_cover")
+  hlcTs       String       @default("") @map("hlc_ts")
+  notes       String       @default("")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  items               OrderItem[]
+  returnsRemakesComps ReturnRemakeComp[]
+  karniTransactions   KarniTransaction[]
+
+  @@index([tenantId, createdAt], map: "idx_orders_tenant_created")
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int     @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int     @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  qty       Int
+  unitPrice Int     @map("unit_price")
+
+  returnsRemakesComps ReturnRemakeComp[]
+
+  @@map("order_items")
+}
+
+model ReturnRemakeComp {
+  id           Int        @id @default(autoincrement())
+  tenantId     Int        @map("tenant_id")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId     Int?       @map("branch_id")
+  branch       Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  orderId      Int?       @map("order_id")
+  order        Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderItemId  Int?       @map("order_item_id")
+  orderItem    OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  productId    Int?       @map("product_id")
+  product      Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  staffUserId  Int?       @map("staff_user_id")
+  staffUser    User?      @relation(fields: [staffUserId], references: [id], onDelete: SetNull)
+  type         String     // REMAKE | RETURN | EXCHANGE | COMP | OWNER_ACCOUNT | STAFF_MEAL
+  reason       String     @default("")
+  qty          Int        @default(1)
+  amountMru    Int        @default(0) @map("amount_mru")
+  costValueMru Int        @default(0) @map("cost_value_mru")
+  restock      Boolean    @default(false)
+  approvedBy   String     @default("") @map("approved_by")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([tenantId, type, createdAt], map: "idx_returns_tenant")
+  @@map("returns_remakes_comps")
+}
+
+model CustomerCreditKarni {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId       Int?     @map("branch_id")
+  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customerName   String   @map("customer_name")
+  phoneWhatsapp  String   @default("") @map("phone_whatsapp")
+  companyName    String   @default("") @map("company_name")
+  nif            String   @default("")
+  isB2b          Boolean  @default(false) @map("is_b2b")
+  creditLimitMru Int      @default(0) @map("credit_limit_mru")
+  currentDebtMru Int      @default(0) @map("current_debt_mru")
+  status         String   @default("active") // active | blocked | settled
+  notes          String   @default("")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  transactions KarniTransaction[]
+
+  @@index([tenantId, phoneWhatsapp], map: "idx_karni_tenant")
+  @@map("customer_credits_karni")
+}
+
+model KarniTransaction {
+  id         Int                 @id @default(autoincrement())
+  tenantId   Int                 @map("tenant_id")
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId Int                 @map("customer_id")
+  customer   CustomerCreditKarni @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId    Int?                @map("order_id")
+  order      Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  txType     String              @map("tx_type") // CHARGE | REPAYMENT | ADJUSTMENT
+  amountMru  Int                 @map("amount_mru")
+  payMethod  String              @default("Cash") @map("pay_method")
+  ref        String              @default("")
+  approvedBy String              @default("") @map("approved_by")
+  notes      String              @default("")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  @@index([customerId, createdAt], map: "idx_karni_tx_customer")
+  @@map("karni_transactions")
+}
+
+model CashClosingZ {
+  id          Int          @id @default(autoincrement())
+  tenantId    Int          @map("tenant_id")
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId    Int?         @map("branch_id")
+  branch      Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerId  Int?         @map("register_id")
+  register    PosRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  userId      Int?         @map("user_id")
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  expectedMru Int          @map("expected_mru")
+  countedMru  Int          @map("counted_mru")
+  digitalMru  Int          @map("digital_mru")
+  varianceMru Int          @map("variance_mru")
+  approvedBy  String       @default("") @map("approved_by")
+  openedAt    String       @default("") @map("opened_at")
+  closedAt    String       @default("") @map("closed_at")
+  notes       String       @default("")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@map("cash_closings_z")
+}

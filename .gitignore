@@ -21,6 +21,8 @@ build/
 .idea/
 .vscode/
 
-# OS
+# OS & Local DB
 Thumbs.db
 .DS_Store
+apps/cloud-api/data/
+apps/cloud-api/.env

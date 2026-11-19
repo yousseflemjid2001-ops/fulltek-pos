@@ -6,7 +6,7 @@ enum StoreModule { resto, market, pharma }
 enum StoreStatus { active, trial, warn, expired, locked }
 
 class TenantStore {
-  final int id;
+  int id;
   String name;
   final StoreModule module;
   String city;
@@ -60,6 +60,87 @@ class TenantStore {
     this.ownerPin = '4242',
   });
 
+  factory TenantStore.fromJson(Map<String, dynamic> j) {
+    final mod = StoreModule.values.firstWhere(
+      (m) => m.name == (j['module'] ?? 'resto'),
+      orElse: () => StoreModule.resto,
+    );
+    final st = StoreStatus.values.firstWhere(
+      (x) => x.name == (j['status'] ?? 'active'),
+      orElse: () => StoreStatus.active,
+    );
+    return TenantStore(
+      id: (j['id'] as num?)?.toInt() ?? 0,
+      name: j['name'] as String? ?? '',
+      module: mod,
+      city: j['city'] as String? ?? 'Tevragh Zeina',
+      phone: j['phone'] as String? ?? '',
+      plan: j['plan'] as String? ?? 'Pro',
+      mrr: (j['mrr'] as num?)?.toInt() ?? 0,
+      tills: (j['tills'] as num?)?.toInt() ?? 1,
+      daysLeft: (j['daysLeft'] as num?)?.toInt() ?? 30,
+      status: st,
+      online: j['online'] as bool? ?? true,
+      pendingSync: (j['pendingSync'] as num?)?.toInt() ?? 0,
+      enabledThemes: List<String>.from(j['enabledThemes'] as List? ?? ['01', '06', '07', '11']),
+      ownerPin: j['ownerPin'] as String? ?? '4242',
+    )
+      ..subType = j['subType'] as String? ?? ''
+      ..legalName = j['legalName'] as String? ?? ''
+      ..nif = j['nif'] as String? ?? ''
+      ..rc = j['rc'] as String? ?? ''
+      ..district = j['district'] as String? ?? ''
+      ..address = j['address'] as String? ?? ''
+      ..manager = j['manager'] as String? ?? ''
+      ..email = j['email'] as String? ?? ''
+      ..billing = j['billing'] as String? ?? 'monthly'
+      ..tenantId = j['tenantId'] as String? ?? ''
+      ..username = j['username'] as String? ?? ''
+      ..accountPassword = j['accountPassword'] as String? ?? ''
+      ..defaultLang = j['defaultLang'] as String? ?? 'fr'
+      ..features = Set<String>.from(j['features'] as List? ?? const [])
+      ..payMethods = Set<String>.from(j['payMethods'] as List? ?? const [])
+      ..hardware = Set<String>.from(j['hardware'] as List? ?? const [])
+      ..notes = j['notes'] as String? ?? ''
+      ..initialPayMethod = j['initialPayMethod'] as String? ?? ''
+      ..initialPayRef = j['initialPayRef'] as String? ?? ''
+      ..initialOfflineCode = j['initialOfflineCode'] as String? ?? '';
+  }
+
+  Map<String, dynamic> toJson() => {
+        'tenantId': tenantId,
+        'name': name,
+        'module': module.name,
+        'subType': subType,
+        'city': city,
+        'district': district,
+        'address': address,
+        'legalName': legalName,
+        'nif': nif,
+        'rc': rc,
+        'phone': phone,
+        'email': email,
+        'manager': manager,
+        'defaultLang': defaultLang,
+        'plan': plan,
+        'billing': billing,
+        'mrr': mrr,
+        'tills': tills,
+        'daysLeft': daysLeft,
+        'status': status.name,
+        'enabledThemes': enabledThemes,
+        'features': features.toList(),
+        'payMethods': payMethods.toList(),
+        'hardware': hardware.toList(),
+        'notes': notes,
+        'username': username,
+        'accountPassword': accountPassword,
+        'ownerPin': ownerPin,
+        'initialPayMethod': initialPayMethod,
+        'initialPayRef': initialPayRef,
+        'initialOfflineCode': initialOfflineCode,
+      };
+
   Color get moduleColor {
     switch (module) {
       case StoreModule.resto:
@@ -101,6 +182,16 @@ class SubscriptionPayment {
     required this.amount,
     required this.time,
   });
+
+  factory SubscriptionPayment.fromJson(Map<String, dynamic> j) => SubscriptionPayment(
+        id: j['id'] as String? ?? '',
+        storeId: (j['storeId'] as num?)?.toInt() ?? 0,
+        storeName: j['storeName'] as String? ?? '',
+        method: j['method'] as String? ?? 'Bankily',
+        ref: j['ref'] as String? ?? '',
+        amount: (j['amount'] as num?)?.toInt() ?? 0,
+        time: j['time'] as String? ?? '',
+      );
 }
 
 class AuditEntry {
@@ -113,6 +204,166 @@ class AuditEntry {
     required this.subtitle,
     required this.time,
   });
+
+  factory AuditEntry.fromJson(Map<String, dynamic> j) => AuditEntry(
+        title: j['title'] as String? ?? '',
+        subtitle: j['subtitle'] as String? ?? '',
+        time: j['time'] as String? ?? '',
+      );
+}
+
+class AdminProfile {
+  final int id;
+  final String username;
+  final String email;
+  final String fullName;
+  final String role;
+
+  const AdminProfile({
+    required this.id,
+    required this.username,
+    required this.email,
+    required this.fullName,
+    this.role = 'SUPER_ADMIN',
+  });
+
+  factory AdminProfile.fromJson(Map<String, dynamic> j) => AdminProfile(
+        id: (j['id'] as num?)?.toInt() ?? 0,
+        username: j['username'] as String? ?? '',
+        email: j['email'] as String? ?? '',
+        fullName: j['fullName'] as String? ?? (j['full_name'] as String? ?? 'M. Taha Chouaib'),
+        role: j['role'] as String? ?? 'SUPER_ADMIN',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'username': username,
+        'email': email,
+        'fullName': fullName,
+        'role': role,
+      };
+}
+
+class OfflineLicenseResponse {
+  final String code;
+  final int days;
+  final int graceDays;
+  final String storeName;
+  final String keyId;
+  final String issuedAt;
+  final String expiresAt;
+  final String signature;
+  final String leaseToken;
+  final String publicKey;
+  final Map<String, dynamic> payload;
+
+  const OfflineLicenseResponse({
+    required this.code,
+    required this.days,
+    this.graceDays = 7,
+    this.storeName = '',
+    required this.keyId,
+    required this.issuedAt,
+    required this.expiresAt,
+    required this.signature,
+    required this.leaseToken,
+    this.publicKey = '',
+    this.payload = const {},
+  });
+
+  factory OfflineLicenseResponse.fromJson(Map<String, dynamic> j) {
+    final rawPayload = j['payload'];
+    final payloadMap = rawPayload is Map<String, dynamic>
+        ? Map<String, dynamic>.from(rawPayload)
+        : (rawPayload is Map
+            ? rawPayload.map((k, v) => MapEntry(k.toString(), v))
+            : <String, dynamic>{});
+    return OfflineLicenseResponse(
+      code: j['code'] as String? ?? (payloadMap['code'] as String? ?? ''),
+      days: (j['days'] as num?)?.toInt() ??
+          (payloadMap['days'] as num?)?.toInt() ??
+          30,
+      graceDays: (j['graceDays'] as num?)?.toInt() ??
+          (payloadMap['graceDays'] as num?)?.toInt() ??
+          7,
+      storeName: j['storeName'] as String? ??
+          (payloadMap['storeName'] as String? ?? ''),
+      keyId: j['keyId'] as String? ?? (payloadMap['keyId'] as String? ?? ''),
+      issuedAt: j['issuedAt'] as String? ??
+          (payloadMap['issuedAt'] as String? ?? ''),
+      expiresAt: j['expiresAt'] as String? ??
+          (payloadMap['expiresAt'] as String? ?? ''),
+      signature: j['signature'] as String? ?? '',
+      leaseToken: j['leaseToken'] as String? ?? '',
+      publicKey: j['publicKey'] as String? ?? '',
+      payload: payloadMap,
+    );
+  }
+}
+
+class CatalogImportRowError {
+  final int row;
+  final String message;
+
+  const CatalogImportRowError({
+    required this.row,
+    required this.message,
+  });
+
+  factory CatalogImportRowError.fromJson(Map<String, dynamic> j) =>
+      CatalogImportRowError(
+        row: (j['row'] as num?)?.toInt() ?? 0,
+        message: j['message'] as String? ?? '',
+      );
+}
+
+class CatalogImportResult {
+  final bool ok;
+  final int tenantId;
+  final String format;
+  final int totalRows;
+  final int created;
+  final int updated;
+  final int categoriesCreated;
+  final String? error;
+  final List<CatalogImportRowError> errors;
+
+  const CatalogImportResult({
+    required this.ok,
+    required this.tenantId,
+    required this.format,
+    required this.totalRows,
+    required this.created,
+    required this.updated,
+    required this.categoriesCreated,
+    this.error,
+    this.errors = const [],
+  });
+
+  factory CatalogImportResult.fromJson(
+    Map<String, dynamic> j, {
+    bool? forceOk,
+  }) {
+    final rawErrors = j['errors'] as List? ?? const [];
+    return CatalogImportResult(
+      ok: forceOk ?? (j['ok'] as bool? ?? false),
+      tenantId: (j['tenantId'] as num?)?.toInt() ?? 0,
+      format: j['format'] as String? ?? '',
+      totalRows: (j['totalRows'] as num?)?.toInt() ?? 0,
+      created: (j['created'] as num?)?.toInt() ?? 0,
+      updated: (j['updated'] as num?)?.toInt() ?? 0,
+      categoriesCreated: (j['categoriesCreated'] as num?)?.toInt() ?? 0,
+      error: j['error'] as String?,
+      errors: rawErrors
+          .whereType<Map>()
+          .map(
+            (e) => CatalogImportRowError.fromJson(
+              e.map((k, v) => MapEntry(k.toString(), v)),
+            ),
+          )
+          .toList(),
+    );
+  }
 }
 
 String formatMru(int n) {
@@ -187,6 +438,53 @@ const Map<String, Map<String, String>> kStrings = {
     'b_lock': 'Suspendu',
     'themes_h': 'Thèmes POS autorisés (Modèles)',
     'pin_h': 'Code PIN Propriétaire',
+    // Auth & Session
+    'auth_title': 'Console Super-Admin',
+    'auth_sub': 'Connexion sécurisée JWT · Cloud Mauritanie',
+    'auth_user_lbl': 'Identifiant ou email',
+    'auth_pass_lbl': 'Mot de passe',
+    'auth_btn': 'Se connecter',
+    'auth_loading': 'Connexion en cours...',
+    'auth_err_empty': 'Veuillez saisir l\'identifiant et le mot de passe.',
+    'auth_err_bad': 'Identifiants invalides ou accès refusé.',
+    'auth_expired': 'Session expirée (401). Veuillez vous reconnecter.',
+    'btn_logout': 'Déconnexion',
+    'logout_ok': 'Session fermée',
+    'api_err_sync': 'Impossible de synchroniser avec le cloud.',
+    // 1-Click Catalog Import
+    'cat_h': 'Catalogue Produits (1 clic)',
+    'cat_sub': 'Import CSV ou Excel (.xlsx) vers la caisse cloud',
+    'cat_btn': 'Importer CSV / Excel',
+    'cat_sample_btn': 'Modèle 1-clic',
+    'cat_importing': 'Import en cours...',
+    'cat_ok': 'Import réussi : {total} lignes ({created} créés, {updated} maj, {cats} cat.)',
+    'cat_err': 'Échec import catalogue',
+    'cat_row_err': 'Ligne {row} : {msg}',
+    'cat_store_lbl': 'Boutique cible',
+    'cat_total': 'Total',
+    'cat_created': 'Créés',
+    'cat_updated': 'Mis à jour',
+    'cat_cats': 'Catégories',
+    'cat_sheet_title': 'Importer un catalogue (.csv / .xlsx)',
+    'cat_path_lbl': 'Chemin du fichier local (.csv ou .xlsx)',
+    'cat_path_btn': 'Lire & Importer',
+    'cat_paste_lbl': 'Ou coller le contenu CSV',
+    'cat_paste_btn': 'Importer CSV collé',
+    // Ed25519 Offline License
+    'lic_gen_btn': 'Licence Ed25519',
+    'lic_generating': 'Signature Ed25519...',
+    'lic_err': 'Impossible de générer la licence cloud',
+    'lic_days_left': '{d} jours restants',
+    'lic_expires': 'Expire le',
+    'lic_key_id': 'Clé Ed25519 (keyId)',
+    'lic_grace': 'Grâce {d}j',
+    'lic_token_lbl': 'Jeton signé (Lease Token)',
+    'lic_sig_lbl': 'Signature Ed25519',
+    'lic_pub_lbl': 'Clé publique Ed25519 (PEM)',
+    'lic_copy_token': 'Copier Lease Token',
+    'lic_copy_sig': 'Copier signature',
+    'lic_copy_pub': 'Copier clé publique',
+    'copied_ok': 'Copié dans le presse-papiers',
   },
   'ar': {
     'cur': 'أوقية',
@@ -249,6 +547,53 @@ const Map<String, Map<String, String>> kStrings = {
     'b_lock': 'موقوف',
     'themes_h': 'الواجهات المفعّلة للمتجر',
     'pin_h': 'رمز الدخول السري للمالك (PIN)',
+    // Auth & Session
+    'auth_title': 'لوحة تحكم المشرف العام',
+    'auth_sub': 'تسجيل دخول آمن JWT · سحابة موريتانيا',
+    'auth_user_lbl': 'اسم المستخدم أو البريد',
+    'auth_pass_lbl': 'كلمة المرور',
+    'auth_btn': 'تسجيل الدخول',
+    'auth_loading': 'جاري تسجيل الدخول...',
+    'auth_err_empty': 'يرجى إدخال اسم المستخدم وكلمة المرور.',
+    'auth_err_bad': 'بيانات الدخول غير صحيحة أو الوصول مرفوض.',
+    'auth_expired': 'انتهت الجلسة (401). يرجى إعادة تسجيل الدخول.',
+    'btn_logout': 'تسجيل الخروج',
+    'logout_ok': 'تم تسجيل الخروج',
+    'api_err_sync': 'تعذرت المزامنة مع السحابة.',
+    // 1-Click Catalog Import
+    'cat_h': 'كتالوج المنتجات (نقرة واحدة)',
+    'cat_sub': 'استيراد CSV أو Excel (.xlsx) إلى السحابة',
+    'cat_btn': 'استيراد CSV / Excel',
+    'cat_sample_btn': 'نموذج بنقرة واحدة',
+    'cat_importing': 'جاري الاستيراد...',
+    'cat_ok': 'تم الاستيراد: {total} سطر ({created} جديد، {updated} محدث، {cats} تصنيف)',
+    'cat_err': 'فشل استيراد الكتالوج',
+    'cat_row_err': 'سطر {row}: {msg}',
+    'cat_store_lbl': 'المتجر المستهدف',
+    'cat_total': 'الإجمالي',
+    'cat_created': 'جديد',
+    'cat_updated': 'محدث',
+    'cat_cats': 'التصنيفات',
+    'cat_sheet_title': 'استيراد الكتالوج (.csv / .xlsx)',
+    'cat_path_lbl': 'مسار الملف المحلي (.csv أو .xlsx)',
+    'cat_path_btn': 'قراءة واستيراد',
+    'cat_paste_lbl': 'أو الصق محتوى CSV',
+    'cat_paste_btn': 'استيراد CSV الملصق',
+    // Ed25519 Offline License
+    'lic_gen_btn': 'ترخيص Ed25519',
+    'lic_generating': 'جاري التوقيع Ed25519...',
+    'lic_err': 'تعذر توليد الترخيص السحابي',
+    'lic_days_left': 'متبقي {d} يوماً',
+    'lic_expires': 'ينتهي في',
+    'lic_key_id': 'معرّف المفتاح (keyId)',
+    'lic_grace': 'سماح {d}ي',
+    'lic_token_lbl': 'الرمز الموقّع (Lease Token)',
+    'lic_sig_lbl': 'توقيع Ed25519',
+    'lic_pub_lbl': 'المفتاح العام Ed25519 (PEM)',
+    'lic_copy_token': 'نسخ Lease Token',
+    'lic_copy_sig': 'نسخ التوقيع',
+    'lic_copy_pub': 'نسخ المفتاح العام',
+    'copied_ok': 'تم النسخ إلى الحافظة',
   },
   'en': {
     'cur': 'MRU',
@@ -311,8 +656,75 @@ const Map<String, Map<String, String>> kStrings = {
     'b_lock': 'Suspended',
     'themes_h': 'Enabled POS Themes',
     'pin_h': 'Owner PIN Code',
+    // Auth & Session
+    'auth_title': 'Super-Admin Console',
+    'auth_sub': 'Secure JWT Login · Mauritania Cloud',
+    'auth_user_lbl': 'Username or email',
+    'auth_pass_lbl': 'Password',
+    'auth_btn': 'Sign In',
+    'auth_loading': 'Signing in...',
+    'auth_err_empty': 'Please enter username and password.',
+    'auth_err_bad': 'Invalid credentials or access denied.',
+    'auth_expired': 'Session expired (401). Please sign in again.',
+    'btn_logout': 'Log out',
+    'logout_ok': 'Signed out',
+    'api_err_sync': 'Unable to sync with cloud.',
+    // 1-Click Catalog Import
+    'cat_h': 'Product Catalog (1-Click)',
+    'cat_sub': 'Import CSV or Excel (.xlsx) to cloud register',
+    'cat_btn': 'Import CSV / Excel',
+    'cat_sample_btn': '1-Click Sample',
+    'cat_importing': 'Importing...',
+    'cat_ok': 'Imported {total} rows ({created} created, {updated} updated, {cats} cat.)',
+    'cat_err': 'Catalog import failed',
+    'cat_row_err': 'Row {row}: {msg}',
+    'cat_store_lbl': 'Target store',
+    'cat_total': 'Total',
+    'cat_created': 'Created',
+    'cat_updated': 'Updated',
+    'cat_cats': 'Categories',
+    'cat_sheet_title': 'Import Catalog (.csv / .xlsx)',
+    'cat_path_lbl': 'Local file path (.csv or .xlsx)',
+    'cat_path_btn': 'Read & Import',
+    'cat_paste_lbl': 'Or paste CSV content',
+    'cat_paste_btn': 'Import pasted CSV',
+    // Ed25519 Offline License
+    'lic_gen_btn': 'Ed25519 License',
+    'lic_generating': 'Signing Ed25519...',
+    'lic_err': 'Unable to generate cloud license',
+    'lic_days_left': '{d} days left',
+    'lic_expires': 'Expires at',
+    'lic_key_id': 'Ed25519 Key ID',
+    'lic_grace': 'Grace {d}d',
+    'lic_token_lbl': 'Signed Lease Token',
+    'lic_sig_lbl': 'Ed25519 Signature',
+    'lic_pub_lbl': 'Ed25519 Public Key (PEM)',
+    'lic_copy_token': 'Copy Lease Token',
+    'lic_copy_sig': 'Copy signature',
+    'lic_copy_pub': 'Copy public key',
+    'copied_ok': 'Copied to clipboard',
   },
 };
+
+String catalogSampleCsvForModule(StoreModule module) {
+  switch (module) {
+    case StoreModule.resto:
+      return 'sku,barcode,name_fr,name_ar,category,unit,price_retail,price_whole,price_cost,track_fefo,requires_cnam\n'
+          'RES-001,6150000001011,Shawarma Poulet,شاورما دجاج,Plats,portion,180,150,90,false,false\n'
+          'RES-002,6150000001028,Jus Bissap Frais,عصير كركديه,Boissons,verre,70,55,25,false,false\n'
+          'RES-003,6150000001035,Tajine Agneau,طاجين لحم,Plats,portion,350,300,190,false,false\n';
+    case StoreModule.market:
+      return 'sku,barcode,name_fr,name_ar,category,unit,price_retail,price_whole,price_cost,track_fefo,requires_cnam\n'
+          'MKT-001,6150000002018,Sucre Cristal 1kg,سكر أبيض 1كغ,Épicerie,kg,45,42,38,false,false\n'
+          'MKT-002,6150000002025,Huile Végétale 1L,زيت نباتي 1ل,Épicerie,bouteille,85,80,72,false,false\n'
+          'MKT-003,6150000002032,Thé Vert Chunmee 250g,شاي أخضر 250غ,Boissons,boite,120,110,95,false,false\n';
+    case StoreModule.pharma:
+      return 'sku,barcode,name_fr,name_ar,category,unit,price_retail,price_whole,price_cost,track_fefo,requires_cnam\n'
+          'PHM-001,6150000003015,Paracétamol 500mg,باراسيتامول 500مغ,Antalgiques,boite,110,95,70,true,true\n'
+          'PHM-002,6150000003022,Amoxicilline 1g,أموكسيسيلين 1غ,Antibiotiques,boite,260,230,180,true,true\n'
+          'PHM-003,6150000003039,Sérum Physiologique,محلول ملحي,Soins,flacon,90,75,55,true,false\n';
+  }
+}
 
 List<TenantStore> initialStores() => [
   TenantStore(

@@ -1,11 +1,16 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'models/models.dart';
+import 'screens/admin_login_screen.dart';
 import 'screens/new_store_wizard.dart';
 import 'screens/store_detail_screen.dart';
+import 'services/api_service.dart';
 import 'theme/app_theme.dart';
+import 'utils/file_reader.dart';
+import 'widgets/offline_license_card.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,22 +18,100 @@ void main() {
 }
 
 class FullTekSuperAdminApp extends StatefulWidget {
-  const FullTekSuperAdminApp({super.key});
+  final bool enableSplash;
+
+  const FullTekSuperAdminApp({
+    super.key,
+    this.enableSplash = true,
+  });
 
   @override
   State<FullTekSuperAdminApp> createState() => _FullTekSuperAdminAppState();
 }
 
-class _FullTekSuperAdminAppState extends State<FullTekSuperAdminApp> {
+class _FullTekSuperAdminAppState extends State<FullTekSuperAdminApp>
+    with TickerProviderStateMixin {
+  final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   String _lang = 'fr';
   bool _phoneFrameOnDesktop = true;
 
+  String? _authToken;
+  AdminProfile? _adminProfile;
+  String? _sessionNotice;
+
+  late final AnimationController _splashCtrl;
+  late final AnimationController _orbitCtrl;
+  Timer? _splashTimer;
+  bool _showSplash = false;
+
   String tr(String key) => kStrings[_lang]?[key] ?? kStrings['fr']![key] ?? key;
+
+  @override
+  void initState() {
+    super.initState();
+    _authToken = ApiService.token;
+    _adminProfile = ApiService.adminProfile;
+    ApiService.onUnauthorized = _handleUnauthorized;
+
+    _showSplash = widget.enableSplash && !kIsWeb;
+    _splashCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1450),
+    );
+    _orbitCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    if (_showSplash) {
+      _splashCtrl.forward();
+      _orbitCtrl.repeat();
+      _splashTimer = Timer(const Duration(milliseconds: 1650), () {
+        if (!mounted) return;
+        _orbitCtrl.stop();
+        setState(() => _showSplash = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _splashTimer?.cancel();
+    _splashCtrl.dispose();
+    _orbitCtrl.dispose();
+    if (identical(ApiService.onUnauthorized, _handleUnauthorized)) {
+      ApiService.onUnauthorized = null;
+    }
+    super.dispose();
+  }
+
+  void _logout({String? notice}) {
+    ApiService.clearToken();
+    _navKey.currentState?.popUntil((route) => route.isFirst);
+    if (!mounted) return;
+    setState(() {
+      _authToken = null;
+      _adminProfile = null;
+      _sessionNotice = notice;
+    });
+  }
+
+  void _handleUnauthorized() {
+    _navKey.currentState?.popUntil((route) => route.isFirst);
+    if (!mounted) return;
+    if (_authToken != null || _adminProfile != null) {
+      setState(() {
+        _authToken = null;
+        _adminProfile = null;
+        _sessionNotice = tr('auth_expired');
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isRtl = _lang == 'ar';
     return MaterialApp(
+      navigatorKey: _navKey,
       title: 'Full·Tek Control — Super Admin',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme(),
@@ -125,293 +208,37 @@ class _FullTekSuperAdminAppState extends State<FullTekSuperAdminApp> {
           ),
         );
       },
-      home: SuperAdminHome(
-        lang: _lang,
-        tr: tr,
-        onLangChanged: (l) => setState(() => _lang = l),
-      ),
-    );
-  }
-}
-
-class _FrameToggleBtn extends StatelessWidget {
-  final bool framed;
-  final VoidCallback onToggle;
-
-  const _FrameToggleBtn({required this.framed, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: FTColors.night2.withValues(alpha: 0.9),
-      borderRadius: BorderRadius.circular(99),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(99),
-        onTap: onToggle,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                framed ? Icons.fullscreen : Icons.phone_iphone,
-                size: 16,
-                color: FTColors.ochre,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                framed ? 'Plein écran' : 'Châssis Mobile',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+      home: Stack(
+        children: [
+          _authToken == null
+              ? AdminLoginScreen(
+                  lang: _lang,
+                  tr: tr,
+                  onLangChanged: (l) => setState(() => _lang = l),
+                  initialNotice: _sessionNotice,
+                  onAuthenticated: (token, admin) {
+                    setState(() {
+                      _authToken = token;
+                      _adminProfile = admin;
+                      _sessionNotice = null;
+                    });
+                  },
+                )
+              : SuperAdminHome(
+                  key: ValueKey<String>(_authToken!),
+                  lang: _lang,
+                  tr: tr,
+                  adminProfile: _adminProfile,
+                  onLangChanged: (l) => setState(() => _lang = l),
+                  onLogout: () => _logout(),
                 ),
-              ),
-            ],
-          ),
-        ),
+          if (_showSplash) _buildRootSplashOverlay(),
+        ],
       ),
     );
   }
-}
 
-class _GlowOrb extends StatelessWidget {
-  final double size;
-  final Color color;
-
-  const _GlowOrb({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(colors: [color, Colors.transparent]),
-        ),
-      ),
-    );
-  }
-}
-
-class SuperAdminHome extends StatefulWidget {
-  final String lang;
-  final String Function(String) tr;
-  final ValueChanged<String> onLangChanged;
-
-  const SuperAdminHome({
-    super.key,
-    required this.lang,
-    required this.tr,
-    required this.onLangChanged,
-  });
-
-  @override
-  State<SuperAdminHome> createState() => _SuperAdminHomeState();
-}
-
-class _SuperAdminHomeState extends State<SuperAdminHome>
-    with TickerProviderStateMixin {
-  late final AnimationController _splashCtrl;
-  late final AnimationController _orbitCtrl;
-  bool _showSplash = !kIsWeb;
-
-  int _tabIndex = 0;
-  String _filter = 'all';
-  String _searchQuery = '';
-  int _selectedMonth = 5;
-
-  final List<TenantStore> _stores = initialStores();
-  final List<SubscriptionPayment> _payments = initialPayments();
-  final List<AuditEntry> _audits = initialAudit();
-
-  int _selectedOfflineStoreId = 1;
-  int _selectedOfflineDays = 30;
-  String? _generatedCode;
-
-  static const List<Map<String, dynamic>> _months = [
-    {'m': 'Juin', 'v': 265000},
-    {'m': 'Juil', 'v': 310000},
-    {'m': 'Août', 'v': 348000},
-    {'m': 'Sept', 'v': 392000},
-    {'m': 'Oct', 'v': 438000},
-    {'m': 'Nov', 'v': 482500},
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _splashCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1450),
-    );
-    _orbitCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-    if (_showSplash) {
-      _splashCtrl.forward();
-      _orbitCtrl.repeat();
-      Future.delayed(const Duration(milliseconds: 1650), () {
-        if (mounted) {
-          _orbitCtrl.stop();
-          setState(() => _showSplash = false);
-        }
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _splashCtrl.dispose();
-    _orbitCtrl.dispose();
-    super.dispose();
-  }
-
-  String t(String k) => widget.tr(k);
-
-  void _toast(String msg) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 2),
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: FTColors.greenOk, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text(msg)),
-            ],
-          ),
-        ),
-      );
-  }
-
-  void _logAudit(String title, String sub) {
-    final now = TimeOfDay.now();
-    final hm =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    setState(() {
-      _audits.insert(0, AuditEntry(title: title, subtitle: sub, time: hm));
-    });
-  }
-
-  void _extendStore(TenantStore s, {int days = 30}) {
-    setState(() {
-      s.daysLeft += days;
-      s.status = StoreStatus.active;
-    });
-    _logAudit('Licence +${days}j · ${s.name}', 'M. Taha · Prolongation Cloud');
-    _toast('${s.name} : +$days jours activés');
-  }
-
-  void _toggleLock(TenantStore s) {
-    setState(() {
-      if (s.status == StoreStatus.locked) {
-        s.status = s.daysLeft > 5 ? StoreStatus.active : StoreStatus.warn;
-        _logAudit('Réactivation · ${s.name}', 'M. Taha · Déverrouillage Cloud');
-        _toast('${s.name} réactivé');
-      } else {
-        s.status = StoreStatus.locked;
-        _logAudit('Suspension · ${s.name}', 'M. Taha · Verrouillage distant');
-        _toast('${s.name} suspendu à distance');
-      }
-    });
-  }
-
-  void _approvePayment(SubscriptionPayment p) {
-    setState(() {
-      _payments.removeWhere((x) => x.id == p.id);
-      for (final s in _stores) {
-        if (s.id == p.storeId) {
-          s.daysLeft += 30;
-          s.status = StoreStatus.active;
-        }
-      }
-    });
-    _logAudit(
-      'Paiement ${p.method} · ${p.storeName}',
-      'Réf. ${p.ref} · +${formatMru(p.amount)} MRU',
-    );
-    _toast('Paiement ${p.method} validé (+30j)');
-  }
-
-  void _generateOfflineCode() {
-    final s = _stores.firstWhere(
-      (x) => x.id == _selectedOfflineStoreId,
-      orElse: () => _stores.first,
-    );
-    final rnd = math.Random();
-    final p1 = 1000 + ((s.id * 1731 + _selectedOfflineDays * 47 + rnd.nextInt(900)) % 9000);
-    final p2 = 1000 + ((s.id * 2917 + _selectedOfflineDays * 83 + rnd.nextInt(900)) % 9000);
-    final code = '$p1-$p2';
-    setState(() => _generatedCode = code);
-    _logAudit(
-      'Code Offline $code · ${s.name}',
-      '+$_selectedOfflineDays jours sans Internet',
-    );
-    _toast('Code $code généré pour ${s.name}');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(76),
-            child: _buildTopBar(),
-          ),
-          body: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: KeyedSubtree(
-              key: ValueKey<int>(_tabIndex),
-              child: _buildCurrentTab(),
-            ),
-          ),
-          bottomNavigationBar: NavigationBar(
-            height: 68,
-            selectedIndex: _tabIndex,
-            onDestinationSelected: (i) => setState(() => _tabIndex = i),
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.space_dashboard_outlined),
-                selectedIcon: const Icon(Icons.space_dashboard),
-                label: t('nav_home'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.storefront_outlined),
-                selectedIcon: const Icon(Icons.storefront),
-                label: t('nav_stores'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.verified_user_outlined),
-                selectedIcon: const Icon(Icons.verified_user),
-                label: t('nav_pay'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.router_outlined),
-                selectedIcon: const Icon(Icons.router),
-                label: t('nav_fleet'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.shield_outlined),
-                selectedIcon: const Icon(Icons.shield),
-                label: t('nav_audit'),
-              ),
-            ],
-          ),
-        ),
-        if (_showSplash) _buildSplashOverlay(),
-      ],
-    );
-  }
-
-  Widget _buildSplashOverlay() {
+  Widget _buildRootSplashOverlay() {
     return AnimatedBuilder(
       animation: Listenable.merge([_splashCtrl, _orbitCtrl]),
       builder: (context, _) {
@@ -492,7 +319,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  t('sp_sub'),
+                  tr('sp_sub'),
                   style: const TextStyle(fontSize: 12.5, color: FTColors.muted),
                 ),
                 const SizedBox(height: 18),
@@ -521,6 +348,435 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
           ),
         );
       },
+    );
+  }
+}
+
+class _FrameToggleBtn extends StatelessWidget {
+  final bool framed;
+  final VoidCallback onToggle;
+
+  const _FrameToggleBtn({required this.framed, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: FTColors.night2.withValues(alpha: 0.9),
+      borderRadius: BorderRadius.circular(99),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(99),
+        onTap: onToggle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                framed ? Icons.fullscreen : Icons.phone_iphone,
+                size: 16,
+                color: FTColors.ochre,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                framed ? 'Plein écran' : 'Châssis Mobile',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [color, Colors.transparent]),
+        ),
+      ),
+    );
+  }
+}
+
+class SuperAdminHome extends StatefulWidget {
+  final String lang;
+  final String Function(String) tr;
+  final ValueChanged<String> onLangChanged;
+  final VoidCallback onLogout;
+  final AdminProfile? adminProfile;
+
+  const SuperAdminHome({
+    super.key,
+    required this.lang,
+    required this.tr,
+    required this.onLangChanged,
+    required this.onLogout,
+    this.adminProfile,
+  });
+
+  @override
+  State<SuperAdminHome> createState() => _SuperAdminHomeState();
+}
+
+class _SuperAdminHomeState extends State<SuperAdminHome> {
+  int _tabIndex = 0;
+  String _filter = 'all';
+  String _searchQuery = '';
+  int _selectedMonth = 5;
+
+  final List<TenantStore> _stores = initialStores();
+  final List<SubscriptionPayment> _payments = initialPayments();
+  final List<AuditEntry> _audits = initialAudit();
+  bool _apiConnected = false;
+
+  int _selectedOfflineStoreId = 1;
+  int _selectedOfflineDays = 30;
+  OfflineLicenseResponse? _generatedLicense;
+  bool _generatingLicense = false;
+  String? _licenseError;
+
+  int _selectedCatalogStoreId = 1;
+  bool _importingStoreCatalog = false;
+  CatalogImportResult? _storesTabImportResult;
+  String? _storesTabImportFilename;
+  String? _storesTabImportError;
+  List<CatalogImportRowError> _storesTabRowErrors = const [];
+
+  static const List<Map<String, dynamic>> _months = [
+    {'m': 'Juin', 'v': 265000},
+    {'m': 'Juil', 'v': 310000},
+    {'m': 'Août', 'v': 348000},
+    {'m': 'Sept', 'v': 392000},
+    {'m': 'Oct', 'v': 438000},
+    {'m': 'Nov', 'v': 482500},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromApi();
+  }
+
+  Future<void> _syncFromApi() async {
+    final res = await ApiService.fetchDashboard();
+    if (!mounted) return;
+    if (!res.ok || res.data == null) {
+      setState(() => _apiConnected = false);
+      return;
+    }
+    final data = res.data!;
+    setState(() {
+      _apiConnected = true;
+      _stores
+        ..clear()
+        ..addAll(data.stores);
+      _payments
+        ..clear()
+        ..addAll(data.payments);
+      _audits
+        ..clear()
+        ..addAll(data.audits);
+      if (_stores.isNotEmpty) {
+        if (!_stores.any((x) => x.id == _selectedOfflineStoreId)) {
+          _selectedOfflineStoreId = _stores.first.id;
+        }
+        if (!_stores.any((x) => x.id == _selectedCatalogStoreId)) {
+          _selectedCatalogStoreId = _stores.first.id;
+        }
+      }
+    });
+  }
+
+  String t(String k) => widget.tr(k);
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 2),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: FTColors.greenOk, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(msg)),
+            ],
+          ),
+        ),
+      );
+  }
+
+  void _toastError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          backgroundColor: const Color(0xFF451616),
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline, color: FTColors.danger, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(msg)),
+            ],
+          ),
+        ),
+      );
+  }
+
+  void _logAudit(String title, String sub) {
+    final now = TimeOfDay.now();
+    final hm =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    setState(() {
+      _audits.insert(0, AuditEntry(title: title, subtitle: sub, time: hm));
+    });
+  }
+
+  Future<void> _extendStore(TenantStore s, {int days = 30}) async {
+    setState(() {
+      s.daysLeft += days;
+      s.status = StoreStatus.active;
+    });
+    _logAudit('Licence +${days}j · ${s.name}', 'M. Taha · Prolongation Cloud');
+    _toast('${s.name} : +$days jours activés');
+    final res = await ApiService.extendTenant(s.id, days: days);
+    if (!mounted) return;
+    if (res.ok) {
+      await _syncFromApi();
+    } else if (res.statusCode != 401 && _apiConnected && res.error != null) {
+      _toastError(res.error!);
+    }
+  }
+
+  Future<void> _toggleLock(TenantStore s) async {
+    setState(() {
+      if (s.status == StoreStatus.locked) {
+        s.status = s.daysLeft > 5 ? StoreStatus.active : StoreStatus.warn;
+        _logAudit('Réactivation · ${s.name}', 'M. Taha · Déverrouillage Cloud');
+        _toast('${s.name} réactivé');
+      } else {
+        s.status = StoreStatus.locked;
+        _logAudit('Suspension · ${s.name}', 'M. Taha · Verrouillage distant');
+        _toast('${s.name} suspendu à distance');
+      }
+    });
+    final res = await ApiService.toggleLock(s.id);
+    if (!mounted) return;
+    if (res.ok) {
+      await _syncFromApi();
+    } else if (res.statusCode != 401 && _apiConnected && res.error != null) {
+      _toastError(res.error!);
+    }
+  }
+
+  Future<void> _approvePayment(SubscriptionPayment p) async {
+    setState(() {
+      _payments.removeWhere((x) => x.id == p.id);
+      for (final s in _stores) {
+        if (s.id == p.storeId) {
+          s.daysLeft += 30;
+          s.status = StoreStatus.active;
+        }
+      }
+    });
+    _logAudit(
+      'Paiement ${p.method} · ${p.storeName}',
+      'Réf. ${p.ref} · +${formatMru(p.amount)} MRU',
+    );
+    _toast('Paiement ${p.method} validé (+30j)');
+    final res = await ApiService.approvePayment(p.id);
+    if (!mounted) return;
+    if (res.ok) {
+      await _syncFromApi();
+    } else if (res.statusCode != 401 && _apiConnected && res.error != null) {
+      _toastError(res.error!);
+    }
+  }
+
+  Future<void> _generateOfflineCode() async {
+    if (_stores.isEmpty || _generatingLicense) return;
+    final s = _stores.firstWhere(
+      (x) => x.id == _selectedOfflineStoreId,
+      orElse: () => _stores.first,
+    );
+    setState(() {
+      _generatingLicense = true;
+      _licenseError = null;
+    });
+
+    final res = await ApiService.generateOfflineCode(s.id, _selectedOfflineDays);
+    if (!mounted) return;
+    if (res.ok && res.data != null) {
+      final license = res.data!;
+      setState(() {
+        _generatedLicense = license;
+        _generatingLicense = false;
+      });
+      Clipboard.setData(ClipboardData(text: license.code));
+      _toast('${license.code} · ${s.name}');
+      await _syncFromApi();
+      return;
+    }
+
+    final msg = (res.error != null && res.error!.trim().isNotEmpty)
+        ? res.error!
+        : t('lic_err');
+    setState(() {
+      _licenseError = msg;
+      _generatingLicense = false;
+    });
+    if (res.statusCode != 401) {
+      _toastError(msg);
+    }
+  }
+
+  Future<void> _importCatalogFromStoresTab({bool sample = false}) async {
+    if (_stores.isEmpty || _importingStoreCatalog) return;
+    final store = _stores.firstWhere(
+      (x) => x.id == _selectedCatalogStoreId,
+      orElse: () => _stores.first,
+    );
+    try {
+      PickedCatalogFile? picked;
+      if (sample) {
+        picked = PickedCatalogFile(
+          filename: 'modele_${store.module.name}.csv',
+          format: 'csv',
+          csvText: catalogSampleCsvForModule(store.module),
+        );
+      } else {
+        picked = await pickCatalogFile();
+        if (!mounted) return;
+        if (picked == null && !canPickCatalogFileNatively) {
+          _openStoreDetails(store);
+          return;
+        }
+      }
+      if (picked == null) return;
+
+      setState(() {
+        _importingStoreCatalog = true;
+        _storesTabImportResult = null;
+        _storesTabImportFilename = picked!.filename;
+        _storesTabImportError = null;
+        _storesTabRowErrors = const [];
+      });
+
+      final res = await ApiService.importCatalog(
+        store.id,
+        filename: picked.filename,
+        format: picked.format,
+        csvText: picked.csvText,
+        contentBase64: picked.contentBase64,
+      );
+      if (!mounted) return;
+
+      if (res.ok && res.data != null) {
+        final r = res.data!;
+        setState(() {
+          _importingStoreCatalog = false;
+          _storesTabImportResult = r;
+        });
+        _toast(
+          t('cat_ok')
+              .replaceAll('{total}', '${r.totalRows}')
+              .replaceAll('{created}', '${r.created}')
+              .replaceAll('{updated}', '${r.updated}')
+              .replaceAll('{cats}', '${r.categoriesCreated}'),
+        );
+        await _syncFromApi();
+        return;
+      }
+
+      final msg = (res.error != null && res.error!.trim().isNotEmpty)
+          ? res.error!
+          : t('cat_err');
+      setState(() {
+        _importingStoreCatalog = false;
+        _storesTabImportError = msg;
+        _storesTabRowErrors = res.errors;
+      });
+      if (res.statusCode != 401) {
+        _toastError(msg);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is FormatException ? e.message : e.toString();
+      setState(() {
+        _importingStoreCatalog = false;
+        _storesTabImportError = msg;
+        _storesTabRowErrors = const [];
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(76),
+        child: _buildTopBar(),
+      ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: KeyedSubtree(
+          key: ValueKey<int>(_tabIndex),
+          child: _buildCurrentTab(),
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        height: 68,
+        selectedIndex: _tabIndex,
+        onDestinationSelected: (i) => setState(() => _tabIndex = i),
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.space_dashboard_outlined),
+            selectedIcon: const Icon(Icons.space_dashboard),
+            label: t('nav_home'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.storefront_outlined),
+            selectedIcon: const Icon(Icons.storefront),
+            label: t('nav_stores'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.verified_user_outlined),
+            selectedIcon: const Icon(Icons.verified_user),
+            label: t('nav_pay'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.router_outlined),
+            selectedIcon: const Icon(Icons.router),
+            label: t('nav_fleet'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.shield_outlined),
+            selectedIcon: const Icon(Icons.shield),
+            label: t('nav_audit'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -559,6 +815,8 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                 const Directionality(
                   textDirection: TextDirection.ltr,
                   child: Text.rich(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     TextSpan(
                       text: 'Full·Tek ',
                       style: TextStyle(
@@ -580,20 +838,20 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                     Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(
-                        color: FTColors.greenOk,
+                      decoration: BoxDecoration(
+                        color: _apiConnected ? FTColors.greenOk : FTColors.warn,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 5),
                     Flexible(
                       child: Text(
-                        t('cloud_ok'),
+                        _apiConnected ? '${t('cloud_ok')} · API' : t('cloud_ok'),
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: FTColors.greenOk,
+                          color: _apiConnected ? FTColors.greenOk : FTColors.warn,
                         ),
                       ),
                     ),
@@ -619,8 +877,8 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 6,
+                      horizontal: 8,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
                       color: active ? FTColors.petrol : Colors.transparent,
@@ -629,7 +887,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                     child: Text(
                       code.toUpperCase(),
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                         color: active ? Colors.white : FTColors.muted,
                       ),
@@ -639,18 +897,41 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
               }).toList(),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           // + New Store Quick Button
           Material(
             color: FTColors.ochre,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(11),
             child: InkWell(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(11),
               onTap: _openCreateStoreModal,
               child: const SizedBox(
-                width: 42,
-                height: 42,
-                child: Icon(Icons.add, color: Color(0xFF101916), size: 22),
+                width: 36,
+                height: 36,
+                child: Icon(Icons.add, color: Color(0xFF101916), size: 20),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Logout Button
+          Material(
+            color: Colors.white.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(11),
+            child: InkWell(
+              key: const Key('logout_button'),
+              borderRadius: BorderRadius.circular(11),
+              onTap: widget.onLogout,
+              child: Tooltip(
+                message: t('btn_logout'),
+                child: const SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFFCA5A5),
+                    size: 18,
+                  ),
+                ),
               ),
             ),
           ),
@@ -890,10 +1171,14 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '${_months[_selectedMonth]['m']} 2026',
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                    Flexible(
+                      child: Text(
+                        '${_months[_selectedMonth]['m']} 2026',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Directionality(
                       textDirection: TextDirection.ltr,
                       child: Text(
@@ -1107,11 +1392,137 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
           ),
         ),
         const SizedBox(height: 12),
+        if (_stores.isNotEmpty) ...[
+          _buildStoresCatalogBar(),
+          const SizedBox(height: 12),
+        ],
         ...list.map((s) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _buildStoreCard(s, showLock: true),
             )),
       ],
+    );
+  }
+
+  Widget _buildStoresCatalogBar() {
+    final effectiveStoreId = _stores.any((s) => s.id == _selectedCatalogStoreId)
+        ? _selectedCatalogStoreId
+        : _stores.first.id;
+    return GlassCard(
+      key: const Key('stores_catalog_import_bar'),
+      padding: const EdgeInsets.all(12),
+      borderColor: FTColors.market.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.upload_file_rounded, color: FTColors.ochre, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  t('cat_h'),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int>(
+            initialValue: effectiveStoreId,
+            isExpanded: true,
+            dropdownColor: FTColors.night2,
+            decoration: InputDecoration(
+              labelText: t('cat_store_lbl'),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            items: _stores
+                .map((s) => DropdownMenuItem(
+                      value: s.id,
+                      child: Text(
+                        s.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ))
+                .toList(),
+            onChanged: _importingStoreCatalog
+                ? null
+                : (v) {
+                    if (v != null) setState(() => _selectedCatalogStoreId = v);
+                  },
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                key: const Key('stores_catalog_import_btn'),
+                onPressed: _importingStoreCatalog
+                    ? null
+                    : () => _importCatalogFromStoresTab(sample: false),
+                style: FilledButton.styleFrom(
+                  backgroundColor: FTColors.ochre,
+                  foregroundColor: const Color(0xFF101916),
+                ),
+                icon: const Icon(Icons.file_upload_outlined, size: 16),
+                label: Text(
+                  _importingStoreCatalog ? t('cat_importing') : t('cat_btn'),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const Key('stores_catalog_sample_btn'),
+                onPressed: _importingStoreCatalog
+                    ? null
+                    : () => _importCatalogFromStoresTab(sample: true),
+                icon: const Icon(Icons.bolt, size: 16, color: FTColors.greenOk),
+                label: Text(
+                  t('cat_sample_btn'),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          if (_storesTabImportResult != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${_storesTabImportFilename ?? 'catalog'} · '
+              '${t('cat_total')}: ${_storesTabImportResult!.totalRows}, '
+              '${t('cat_created')}: ${_storesTabImportResult!.created}, '
+              '${t('cat_updated')}: ${_storesTabImportResult!.updated}, '
+              '${t('cat_cats')}: ${_storesTabImportResult!.categoriesCreated}',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: FTColors.greenOk,
+              ),
+            ),
+          ],
+          if (_storesTabImportError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _storesTabImportError!,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFFCA5A5),
+              ),
+            ),
+            ..._storesTabRowErrors.map(
+              (err) => Text(
+                t('cat_row_err')
+                    .replaceAll('{row}', '${err.row}')
+                    .replaceAll('{msg}', err.message),
+                style: const TextStyle(fontSize: 11, color: Color(0xFFFECACA)),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1133,9 +1544,26 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
   Widget _buildStoreCard(TenantStore s, {bool showLock = false}) {
     return Hero(
       tag: 'store-${s.id}',
+      flightShuttleBuilder: (
+        BuildContext flightContext,
+        Animation<double> animation,
+        HeroFlightDirection flightDirection,
+        BuildContext fromHeroContext,
+        BuildContext toHeroContext,
+      ) {
+        final Hero toHero = toHeroContext.widget as Hero;
+        return Material(
+          color: Colors.transparent,
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: toHero.child,
+          ),
+        );
+      },
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          key: ValueKey<String>('store_card_${s.id}'),
           borderRadius: BorderRadius.circular(20),
           onTap: () => _openStoreDetails(s),
           child: Container(
@@ -1190,66 +1618,79 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                   ],
                 ),
                 const Divider(height: 18, color: Colors.white10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(
-                        '${formatMru(s.mrr)} ${t('cur')}',
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: FTColors.ochre,
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          '${formatMru(s.mrr)} ${t('cur')}',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: FTColors.ochre,
+                          ),
                         ),
                       ),
-                    ),
-                    Row(
-                      children: [
-                        if (showLock)
-                          TextButton.icon(
-                            onPressed: () => _toggleLock(s),
-                            icon: Icon(
-                              s.status == StoreStatus.locked
-                                  ? Icons.lock_open
-                                  : Icons.lock_outline,
-                              size: 15,
-                              color: s.status == StoreStatus.locked
-                                  ? FTColors.greenOk
-                                  : FTColors.danger,
-                            ),
-                            label: Text(
-                              s.status == StoreStatus.locked
-                                  ? t('btn_unlock')
-                                  : t('btn_lock'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (showLock)
+                            TextButton.icon(
+                              onPressed: () => _toggleLock(s),
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                              icon: Icon(
+                                s.status == StoreStatus.locked
+                                    ? Icons.lock_open
+                                    : Icons.lock_outline,
+                                size: 15,
                                 color: s.status == StoreStatus.locked
                                     ? FTColors.greenOk
                                     : FTColors.danger,
                               ),
+                              label: Text(
+                                s.status == StoreStatus.locked
+                                    ? t('btn_unlock')
+                                    : t('btn_lock'),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: s.status == StoreStatus.locked
+                                      ? FTColors.greenOk
+                                      : FTColors.danger,
+                                ),
+                              ),
+                            ),
+                          FilledButton.tonal(
+                            onPressed: () => _extendStore(s),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: FTColors.ochre,
+                              foregroundColor: const Color(0xFF101916),
+                              minimumSize: const Size(0, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                            child: Text(
+                              t('btn_extend'),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
-                        FilledButton.tonal(
-                          onPressed: () => _extendStore(s),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: FTColors.ochre,
-                            foregroundColor: const Color(0xFF101916),
-                            minimumSize: const Size(0, 38),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
-                          child: Text(
-                            t('btn_extend'),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1302,6 +1743,11 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
   // TAB 3 : LICENCES OFFLINE & PAIEMENTS BANKILY/MASRIVI
   // ===========================================================================
   Widget _buildLicensesTab() {
+    final int? effectiveStoreId = _stores.isEmpty
+        ? null
+        : (_stores.any((s) => s.id == _selectedOfflineStoreId)
+            ? _selectedOfflineStoreId
+            : _stores.first.id);
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
@@ -1320,7 +1766,8 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<int>(
-                initialValue: _selectedOfflineStoreId,
+                initialValue: effectiveStoreId,
+                isExpanded: true,
                 dropdownColor: FTColors.night2,
                 decoration: InputDecoration(
                   labelText: t('sel_store'),
@@ -1331,7 +1778,10 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                 items: _stores
                     .map((s) => DropdownMenuItem(
                           value: s.id,
-                          child: Text('${s.name} (${s.city})'),
+                          child: Text(
+                            '${s.name} (${s.city})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ))
                     .toList(),
                 onChanged: (v) {
@@ -1362,58 +1812,50 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                 width: double.infinity,
                 height: 48,
                 child: FilledButton.icon(
-                  onPressed: _generateOfflineCode,
-                  icon: const Icon(Icons.vpn_key),
+                  key: const Key('licenses_generate_btn'),
+                  onPressed: (_stores.isEmpty || _generatingLicense)
+                      ? null
+                      : _generateOfflineCode,
+                  icon: _generatingLicense
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.vpn_key),
                   label: Text(
-                    t('btn_gen'),
+                    _generatingLicense ? t('lic_generating') : t('btn_gen'),
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
-              if (_generatedCode != null) ...[
-                const SizedBox(height: 14),
+              if (_licenseError != null) ...[
+                const SizedBox(height: 12),
                 Container(
+                  key: const Key('licenses_tab_error'),
                   width: double.infinity,
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: FTColors.bg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: FTColors.ochre),
+                    color: FTColors.danger.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: FTColors.danger),
                   ),
-                  child: Column(
-                    children: [
-                      Text(
-                        t('code_lbl'),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: FTColors.muted,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(
-                          _generatedCode!,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 3,
-                            color: FTColors.ochre,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: _generatedCode!));
-                          _toast(t('copy_btn'));
-                        },
-                        icon: const Icon(Icons.copy, size: 16),
-                        label: Text(t('copy_btn')),
-                      ),
-                    ],
+                  child: Text(
+                    _licenseError!,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFFCA5A5),
+                    ),
                   ),
+                ),
+              ],
+              if (_generatedLicense != null) ...[
+                const SizedBox(height: 14),
+                OfflineLicenseResultCard(
+                  license: _generatedLicense!,
+                  tr: t,
+                  onCopied: (label) => _toast('$label · ${t('copied_ok')}'),
                 ),
               ],
             ],
@@ -1590,12 +2032,21 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                       ),
                     ),
                     OutlinedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         _logAudit(
                           'Support Sécurisé · ${s.name}',
                           'Diagnostic distant ouvert (${s.city})',
                         );
                         _toast('Session support tracée pour ${s.name}');
+                        final res = await ApiService.logSupport(s.id);
+                        if (!mounted) return;
+                        if (res.ok) {
+                          await _syncFromApi();
+                        } else if (res.statusCode != 401 &&
+                            _apiConnected &&
+                            res.error != null) {
+                          _toastError(res.error!);
+                        }
                       },
                       child: Text(
                         t('btn_support'),
@@ -1614,6 +2065,13 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
   // TAB 5 : JOURNAL D'AUDIT & PROFIL M. TAHA
   // ===========================================================================
   Widget _buildAuditTab() {
+    final admin = widget.adminProfile;
+    final displayTitle = (admin != null && admin.fullName.isNotEmpty)
+        ? 'Super-Admin · ${admin.fullName}'
+        : t('admin_h');
+    final roleLabel = (admin != null && admin.role.isNotEmpty)
+        ? admin.role.replaceAll('_', '-')
+        : 'SUPER-ADMIN';
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
@@ -1627,7 +2085,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                 children: [
                   Flexible(
                     child: Text(
-                      t('admin_h'),
+                      displayTitle,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -1640,9 +2098,9 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                       color: FTColors.ochre.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(99),
                     ),
-                    child: const Text(
-                      'SUPER-ADMIN',
-                      style: TextStyle(
+                    child: Text(
+                      roleLabel,
+                      style: const TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                         color: FTColors.ochre,
@@ -1651,12 +2109,39 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
                   ),
                 ],
               ),
+              if (admin != null &&
+                  (admin.username.isNotEmpty || admin.email.isNotEmpty)) ...[
+                const SizedBox(height: 8),
+                if (admin.username.isNotEmpty)
+                  _infoRow(t('auth_user_lbl'), admin.username),
+                if (admin.email.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  _infoRow('Email', admin.email),
+                ],
+              ],
               const SizedBox(height: 12),
               _infoRow(t('adm_tel'), '+222 42 74 42 42'),
               const SizedBox(height: 6),
               _infoRow(t('adm_bk'), 'FT-22242'),
               const SizedBox(height: 6),
               _infoRow(t('adm_ms'), 'MS-4274'),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: const Key('audit_logout_button'),
+                  onPressed: widget.onLogout,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFFCA5A5),
+                    side: BorderSide(color: FTColors.danger.withValues(alpha: 0.6)),
+                  ),
+                  icon: const Icon(Icons.logout_rounded, size: 17),
+                  label: Text(
+                    t('btn_logout'),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1722,17 +2207,31 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
 
   Widget _infoRow(String label, String val) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: FTColors.ink2)),
-        Directionality(
-          textDirection: TextDirection.ltr,
+        Expanded(
+          flex: 5,
           child: Text(
-            val,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
+            label,
+            style: const TextStyle(fontSize: 13, color: FTColors.ink2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 5,
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text(
+                val,
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
         ),
@@ -1758,7 +2257,20 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
             _toggleLock(store);
             setState(() {});
           },
-          onChanged: () => setState(() {}),
+          onChanged: () async {
+            setState(() {});
+            final res = await ApiService.updateTenant(store);
+            if (!mounted) return;
+            if (res.ok) {
+              await _syncFromApi();
+            } else if (res.statusCode != 401 &&
+                _apiConnected &&
+                res.error != null) {
+              _toastError(res.error!);
+            }
+          },
+          onLicenseGenerated: _syncFromApi,
+          onCatalogImported: _syncFromApi,
         ),
       ),
     );
@@ -1775,14 +2287,26 @@ class _SuperAdminHomeState extends State<SuperAdminHome>
       ),
     );
     if (created == null || !mounted) return;
-    setState(() => _stores.insert(0, created));
-    final payNote = created.initialPayMethod.isNotEmpty
-        ? ' · ${created.initialPayMethod}${created.initialPayRef.isNotEmpty ? ' (${created.initialPayRef})' : ''}'
-        : '';
-    _logAudit(
-      'Nouveau client · ${created.name}',
-      '${created.moduleName} · ${created.tenantId} · ${created.tills} caisses$payNote',
-    );
+    final res = await ApiService.createTenant(created);
+    if (!mounted) return;
+    if (res.ok) {
+      await _syncFromApi();
+    } else if (res.statusCode == 401) {
+      return;
+    } else {
+      if (_apiConnected && res.error != null) {
+        _toastError(res.error!);
+        return;
+      }
+      setState(() => _stores.insert(0, created));
+      final payNote = created.initialPayMethod.isNotEmpty
+          ? ' · ${created.initialPayMethod}${created.initialPayRef.isNotEmpty ? ' (${created.initialPayRef})' : ''}'
+          : '';
+      _logAudit(
+        'Nouveau client · ${created.name}',
+        '${created.moduleName} · ${created.tenantId} · ${created.tills} caisses$payNote',
+      );
+    }
     _toast('${created.name} activé (${created.tenantId})');
   }
 }

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/models.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/external_link.dart';
+import '../utils/file_reader.dart';
+import '../widgets/offline_license_card.dart';
 
-/// Fiche client complète : infos gérant, NIF/RC, matériel, fonctions, thèmes, édition & WhatsApp.
+/// Fiche client complète : infos gérant, NIF/RC, matériel, fonctions, thèmes, édition, catalogue & licence Ed25519.
 class StoreDetailScreen extends StatefulWidget {
   final TenantStore store;
   final String lang;
@@ -12,6 +15,8 @@ class StoreDetailScreen extends StatefulWidget {
   final VoidCallback onExtend;
   final VoidCallback onToggleLock;
   final VoidCallback onChanged;
+  final VoidCallback? onLicenseGenerated;
+  final VoidCallback? onCatalogImported;
 
   const StoreDetailScreen({
     super.key,
@@ -21,6 +26,8 @@ class StoreDetailScreen extends StatefulWidget {
     required this.onExtend,
     required this.onToggleLock,
     required this.onChanged,
+    this.onLicenseGenerated,
+    this.onCatalogImported,
   });
 
   @override
@@ -45,7 +52,17 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
     'kds_screen': 'Écran Cuisine KDS',
   };
 
-  String _offlineCode = '';
+  OfflineLicenseResponse? _license;
+  bool _generatingLicense = false;
+  String? _licenseError;
+  int _licenseDays = 30;
+
+  bool _importingCatalog = false;
+  CatalogImportResult? _lastImportResult;
+  String? _lastImportFilename;
+  String? _importError;
+  List<CatalogImportRowError> _importRowErrors = const [];
+
   bool _showPassword = false;
 
   void _openEditDialog() {
@@ -230,15 +247,164 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
       ..showSnackBar(const SnackBar(content: Text('Rappel WhatsApp prêt (copié)')));
   }
 
-  void _genOfflineCode() {
+  Future<void> _genOfflineCode() async {
+    if (_generatingLicense) return;
+    setState(() {
+      _generatingLicense = true;
+      _licenseError = null;
+    });
+    final res = await ApiService.generateOfflineCode(
+      widget.store.id,
+      _licenseDays,
+    );
+    if (!mounted) return;
+    if (res.ok && res.data != null) {
+      final lic = res.data!;
+      setState(() {
+        _license = lic;
+        _generatingLicense = false;
+      });
+      Clipboard.setData(ClipboardData(text: lic.code));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              '${widget.tr('code_lbl')}: ${lic.code} (${widget.tr('copied_ok')})',
+            ),
+          ),
+        );
+      widget.onLicenseGenerated?.call();
+      return;
+    }
+
+    final msg = (res.error != null && res.error!.trim().isNotEmpty)
+        ? res.error!
+        : widget.tr('lic_err');
+    setState(() {
+      _licenseError = msg;
+      _generatingLicense = false;
+    });
+    if (res.statusCode != 401) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF451616),
+            content: Text(msg),
+          ),
+        );
+    }
+  }
+
+  Future<void> _handleCatalogImportButton() async {
+    if (_importingCatalog) return;
+    try {
+      final picked = await pickCatalogFile();
+      if (!mounted) return;
+      if (picked != null) {
+        await _uploadCatalogFile(picked);
+        return;
+      }
+      if (!canPickCatalogFileNatively) {
+        _openCatalogImportSheet();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is FormatException ? e.message : e.toString();
+      setState(() {
+        _lastImportResult = null;
+        _importError = msg;
+        _importRowErrors = const [];
+      });
+    }
+  }
+
+  Future<void> _importSampleCatalog() async {
     final s = widget.store;
-    final p1 = 1000 + ((s.id * 1731 + 30 * 47) % 9000);
-    final p2 = 1000 + ((s.id * 2917 + 30 * 83) % 9000);
-    setState(() => _offlineCode = '$p1-$p2');
-    Clipboard.setData(ClipboardData(text: _offlineCode));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('Code hors-ligne $_offlineCode copié')));
+    final sample = PickedCatalogFile(
+      filename: 'modele_${s.module.name}.csv',
+      format: 'csv',
+      csvText: catalogSampleCsvForModule(s.module),
+    );
+    await _uploadCatalogFile(sample);
+  }
+
+  Future<void> _uploadCatalogFile(PickedCatalogFile file) async {
+    if (_importingCatalog) return;
+    setState(() {
+      _importingCatalog = true;
+      _importError = null;
+      _importRowErrors = const [];
+      _lastImportResult = null;
+      _lastImportFilename = file.filename;
+    });
+
+    final res = await ApiService.importCatalog(
+      widget.store.id,
+      filename: file.filename,
+      format: file.format,
+      csvText: file.csvText,
+      contentBase64: file.contentBase64,
+    );
+    if (!mounted) return;
+
+    if (res.ok && res.data != null) {
+      final r = res.data!;
+      setState(() {
+        _importingCatalog = false;
+        _lastImportResult = r;
+        _importError = null;
+        _importRowErrors = const [];
+      });
+      final summary = widget.tr('cat_ok')
+          .replaceAll('{total}', '${r.totalRows}')
+          .replaceAll('{created}', '${r.created}')
+          .replaceAll('{updated}', '${r.updated}')
+          .replaceAll('{cats}', '${r.categoriesCreated}');
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(summary)));
+      widget.onCatalogImported?.call();
+      return;
+    }
+
+    final msg = (res.error != null && res.error!.trim().isNotEmpty)
+        ? res.error!
+        : widget.tr('cat_err');
+    setState(() {
+      _importingCatalog = false;
+      _lastImportResult = null;
+      _importError = msg;
+      _importRowErrors = res.errors;
+    });
+    if (res.statusCode != 401) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF451616),
+            content: Text(msg),
+          ),
+        );
+    }
+  }
+
+  void _openCatalogImportSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: FTColors.night2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (ctx) => _CatalogImportSheet(
+        store: widget.store,
+        tr: widget.tr,
+        onImportSample: _importSampleCatalog,
+        onUploadFile: _uploadCatalogFile,
+      ),
+    );
   }
 
   Widget _kv(String k, String v, {bool ltr = false}) {
@@ -288,6 +454,22 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
         children: [
           Hero(
             tag: 'store-${s.id}',
+            flightShuttleBuilder: (
+              BuildContext flightContext,
+              Animation<double> animation,
+              HeroFlightDirection flightDirection,
+              BuildContext fromHeroContext,
+              BuildContext toHeroContext,
+            ) {
+              final Hero toHero = toHeroContext.widget as Hero;
+              return Material(
+                color: Colors.transparent,
+                child: SingleChildScrollView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: toHero.child,
+                ),
+              );
+            },
             child: Material(
               color: Colors.transparent,
               child: GlassCard(
@@ -298,11 +480,15 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '${s.moduleName}${s.subType.isNotEmpty ? ' · ${s.subType}' : ''}',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: s.moduleColor),
+                        Expanded(
+                          child: Text(
+                            '${s.moduleName}${s.subType.isNotEmpty ? ' · ${s.subType}' : ''}',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: s.moduleColor),
+                          ),
                         ),
-                        if (s.tenantId.isNotEmpty)
+                        if (s.tenantId.isNotEmpty) ...[
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
@@ -312,6 +498,7 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                             child: Text(s.tenantId,
                                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: FTColors.ochre)),
                           ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -325,13 +512,22 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Licence ${s.plan}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                        Text('${s.daysLeft} jours restants',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: s.daysLeft <= 5 ? FTColors.warn : FTColors.greenOk,
-                            )),
+                        Flexible(
+                          child: Text(
+                            'Licence ${s.plan}',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.tr('lic_days_left').replaceAll('{d}', '${s.daysLeft}'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: s.daysLeft <= 5 ? FTColors.warn : FTColors.greenOk,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -373,6 +569,21 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [30, 90, 365].map((d) {
+                        final selected = _licenseDays == d;
+                        return ChoiceChip(
+                          label: Text('+${d}j', style: const TextStyle(fontSize: 11.5)),
+                          selected: selected,
+                          onSelected: _generatingLicense
+                              ? null
+                              : (_) => setState(() => _licenseDays = d),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -385,37 +596,51 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: FilledButton.tonalIcon(
-                            onPressed: _genOfflineCode,
-                            icon: const Icon(Icons.vpn_key, size: 17, color: FTColors.ochre),
-                            label: const Text('Code 8 chiffres'),
+                            key: const Key('store_generate_license_btn'),
+                            onPressed: _generatingLicense ? null : _genOfflineCode,
+                            icon: _generatingLicense
+                                ? const SizedBox(
+                                    width: 15,
+                                    height: 15,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.vpn_key, size: 17, color: FTColors.ochre),
+                            label: Text(
+                              _generatingLicense
+                                  ? widget.tr('lic_generating')
+                                  : widget.tr('lic_gen_btn'),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    if (_offlineCode.isNotEmpty) ...[
+                    if (_licenseError != null) ...[
                       const SizedBox(height: 10),
                       Container(
+                        key: const Key('store_license_error'),
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: FTColors.bg,
+                          color: FTColors.danger.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: FTColors.ochre),
+                          border: Border.all(color: FTColors.danger),
                         ),
-                        child: Center(
-                          child: Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: SelectableText(
-                              _offlineCode,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 3,
-                                color: FTColors.ochre,
-                              ),
-                            ),
+                        child: Text(
+                          _licenseError!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFFCA5A5),
                           ),
                         ),
+                      ),
+                    ],
+                    if (_license != null) ...[
+                      const SizedBox(height: 12),
+                      OfflineLicenseResultCard(
+                        license: _license!,
+                        tr: widget.tr,
                       ),
                     ],
                   ],
@@ -423,6 +648,10 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 14),
+
+          // 1-Click Catalog Import Card
+          _buildCatalogImportCard(),
           const SizedBox(height: 14),
 
           // Coordonnées Gérant & Fiscalité
@@ -450,16 +679,18 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Directionality(
-                              textDirection: TextDirection.ltr,
-                              child: SelectableText(
-                                s.accountPassword.isEmpty
-                                    ? 'Non défini'
-                                    : (_showPassword ? s.accountPassword : '••••••••'),
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: FTColors.ochre,
+                            Flexible(
+                              child: Directionality(
+                                textDirection: TextDirection.ltr,
+                                child: SelectableText(
+                                  s.accountPassword.isEmpty
+                                      ? 'Non défini'
+                                      : (_showPassword ? s.accountPassword : '••••••••'),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: FTColors.ochre,
+                                  ),
                                 ),
                               ),
                             ),
@@ -573,6 +804,315 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCatalogImportCard() {
+    final r = _lastImportResult;
+    return GlassCard(
+      key: const Key('catalog_import_card'),
+      borderColor: FTColors.market.withValues(alpha: 0.4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.upload_file_rounded, color: FTColors.ochre, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.tr('cat_h'),
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      widget.tr('cat_sub'),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: FTColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                key: const Key('catalog_import_btn'),
+                onPressed: _importingCatalog ? null : _handleCatalogImportButton,
+                style: FilledButton.styleFrom(
+                  backgroundColor: FTColors.ochre,
+                  foregroundColor: const Color(0xFF101916),
+                ),
+                icon: const Icon(Icons.file_upload_outlined, size: 18),
+                label: Text(
+                  _importingCatalog
+                      ? widget.tr('cat_importing')
+                      : widget.tr('cat_btn'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const Key('catalog_sample_btn'),
+                onPressed: _importingCatalog ? null : _importSampleCatalog,
+                icon: const Icon(Icons.bolt, size: 17, color: FTColors.greenOk),
+                label: Text(
+                  widget.tr('cat_sample_btn'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          if (_importingCatalog) ...[
+            const SizedBox(height: 10),
+            const LinearProgressIndicator(minHeight: 3),
+          ],
+          if (r != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              key: const Key('catalog_import_result'),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: FTColors.market.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: FTColors.greenOk),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_lastImportFilename ?? 'catalog'} · ${r.format.toUpperCase()}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: FTColors.greenOk,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      _statBadge('${widget.tr('cat_total')}: ${r.totalRows}'),
+                      _statBadge('${widget.tr('cat_created')}: ${r.created}'),
+                      _statBadge('${widget.tr('cat_updated')}: ${r.updated}'),
+                      _statBadge(
+                        '${widget.tr('cat_cats')}: ${r.categoriesCreated}',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_importError != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              key: const Key('catalog_import_error'),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: FTColors.danger.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: FTColors.danger),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _importError!,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFFCA5A5),
+                    ),
+                  ),
+                  if (_importRowErrors.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    ..._importRowErrors.map(
+                      (err) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          widget.tr('cat_row_err')
+                              .replaceAll('{row}', '${err.row}')
+                              .replaceAll('{msg}', err.message),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFFFECACA),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _CatalogImportSheet extends StatefulWidget {
+  final TenantStore store;
+  final String Function(String) tr;
+  final Future<void> Function() onImportSample;
+  final Future<void> Function(PickedCatalogFile) onUploadFile;
+
+  const _CatalogImportSheet({
+    required this.store,
+    required this.tr,
+    required this.onImportSample,
+    required this.onUploadFile,
+  });
+
+  @override
+  State<_CatalogImportSheet> createState() => _CatalogImportSheetState();
+}
+
+class _CatalogImportSheetState extends State<_CatalogImportSheet> {
+  final TextEditingController _pathCtrl = TextEditingController();
+  final TextEditingController _pasteCtrl = TextEditingController();
+  String? _localErr;
+
+  @override
+  void dispose() {
+    _pathCtrl.dispose();
+    _pasteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 18,
+        right: 18,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.tr('cat_sheet_title'),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              key: const Key('catalog_sheet_sample_btn'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onImportSample();
+              },
+              icon: const Icon(Icons.auto_awesome, color: FTColors.ochre),
+              label: Text(
+                '${widget.tr('cat_sample_btn')} · ${widget.store.moduleName}',
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('catalog_path_input'),
+              controller: _pathCtrl,
+              decoration: InputDecoration(
+                labelText: widget.tr('cat_path_lbl'),
+                hintText: r'C:\data\catalogue.csv',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('catalog_path_submit'),
+              onPressed: () async {
+                try {
+                  final picked = await readCatalogFileFromPath(_pathCtrl.text);
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                  await widget.onUploadFile(picked);
+                } catch (e) {
+                  if (!mounted) return;
+                  setState(() => _localErr = e.toString());
+                }
+              },
+              icon: const Icon(Icons.folder_open),
+              label: Text(widget.tr('cat_path_btn')),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('catalog_paste_input'),
+              controller: _pasteCtrl,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: widget.tr('cat_paste_lbl'),
+                hintText: 'name_fr,price_retail,category\n...',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              key: const Key('catalog_paste_submit'),
+              onPressed: () {
+                final csv = _pasteCtrl.text.trim();
+                if (csv.isEmpty) {
+                  setState(() => _localErr = widget.tr('cat_err'));
+                  return;
+                }
+                Navigator.of(context).pop();
+                widget.onUploadFile(
+                  PickedCatalogFile(
+                    filename: 'colle_${widget.store.module.name}.csv',
+                    format: 'csv',
+                    csvText: csv,
+                  ),
+                );
+              },
+              child: Text(widget.tr('cat_paste_btn')),
+            ),
+            if (_localErr != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _localErr!,
+                style: const TextStyle(
+                  color: FTColors.danger,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

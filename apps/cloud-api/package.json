@@ -1,0 +1,14 @@
+{
+  "name": "@fulltek/cloud-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-Tek POS Multi-Tenant Cloud API & SQLite/PostgreSQL Database (Mauritanie)",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --no-warnings src/server.js",
+    "start": "node --no-warnings src/server.js",
+    "test": "node --no-warnings --test test/*.test.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
+  }
+}
