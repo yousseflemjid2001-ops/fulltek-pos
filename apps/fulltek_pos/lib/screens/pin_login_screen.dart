@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
+import 'team_profiles_view.dart';
 
 class PinLoginScreen extends StatefulWidget {
   final PosStore store;
@@ -30,6 +32,96 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
       });
     }
     _badgeCtrl.clear();
+  }
+
+  Future<void> _openMasterSettings() async {
+    final store = widget.store;
+    final pinCtrl = TextEditingController();
+    String? err;
+
+    final authorized = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Accès Paramétrage (Master / Admin)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Saisissez le code PIN Administrateur / Master pour configurer les profils, utilisateurs, badges et infos du restaurant.',
+                style: TextStyle(fontSize: 12.5),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('master_settings_pin_input'),
+                controller: pinCtrl,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Code PIN Master *',
+                  errorText: err,
+                  prefixIcon: const Icon(Icons.admin_panel_settings_outlined),
+                ),
+                onSubmitted: (_) {
+                  final pin = pinCtrl.text.trim();
+                  final ok = store.staff.any(
+                    (s) =>
+                        s.isActive &&
+                        s.pinCode == pin &&
+                        store.staffCan(s, PosPermission.manageProfilesUsers),
+                  );
+                  if (!ok) {
+                    setD(() => err = 'Code PIN Master incorrect.');
+                    return;
+                  }
+                  Navigator.of(ctx).pop(true);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('confirm_master_settings_btn'),
+              onPressed: () {
+                final pin = pinCtrl.text.trim();
+                final ok = store.staff.any(
+                  (s) =>
+                      s.isActive &&
+                      s.pinCode == pin &&
+                      store.staffCan(s, PosPermission.manageProfilesUsers),
+                );
+                if (!ok) {
+                  setD(() => err = 'Code PIN Master incorrect.');
+                  return;
+                }
+                Navigator.of(ctx).pop(true);
+              },
+              child: const Text('Ouvrir'),
+            ),
+          ],
+        ),
+      ),
+    );
+    pinCtrl.dispose();
+
+    if (authorized == true && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            appBar: AppBar(
+              title: Text('Paramétrage · ${store.tenantName}'),
+            ),
+            body: TeamProfilesView(store: store),
+          ),
+        ),
+      );
+      if (mounted) setState(() {});
+    }
   }
 
   void _appendDigit(String d) {
@@ -247,14 +339,24 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
             i18n.t('subtitle_demo'),
             style: TextStyle(fontSize: 12.5, color: p.textMuted),
           ),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              key: const Key('change_account_btn'),
-              onPressed: store.logoutAccount,
-              icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-              label: Text(i18n.t('change_account')),
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton.icon(
+                key: const Key('change_account_btn'),
+                onPressed: store.logoutAccount,
+                icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                label: Text(i18n.t('change_account')),
+              ),
+              OutlinedButton.icon(
+                key: const Key('login_settings_btn'),
+                onPressed: _openMasterSettings,
+                icon: const Icon(Icons.settings_outlined, size: 16),
+                label: const Text('Paramétrage'),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Wrap(
