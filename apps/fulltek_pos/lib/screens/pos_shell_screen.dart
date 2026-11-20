@@ -11,7 +11,6 @@ import 'kds_view.dart';
 import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
 import 'pos_register_view.dart';
-import 'team_profiles_view.dart';
 
 class PosShellScreen extends StatefulWidget {
   final PosStore store;
@@ -115,16 +114,6 @@ class _PosShellScreenState extends State<PosShellScreen> {
           label: 'Menu & Stock',
           badge: false,
           view: MenuStockView(store: store),
-        ),
-      if (store.canCurrent(PosPermission.manageProfilesUsers))
-        (
-          id: 'team_profiles',
-          navKey: const Key('nav_tab_team_profiles'),
-          icon: Icons.admin_panel_settings_outlined,
-          selectedIcon: Icons.admin_panel_settings_rounded,
-          label: 'Paramètres & Équipe',
-          badge: false,
-          view: TeamProfilesView(store: store),
         ),
     ];
 
