@@ -14,6 +14,23 @@ class PinLoginScreen extends StatefulWidget {
 class _PinLoginScreenState extends State<PinLoginScreen> {
   String _pin = '';
   String? _error;
+  final _badgeCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _badgeCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submitBadge() {
+    final ok = widget.store.loginWithBadge(_badgeCtrl.text);
+    if (!ok) {
+      setState(() {
+        _error = 'Badge magnétique non reconnu ou inactif.';
+      });
+    }
+    _badgeCtrl.clear();
+  }
 
   void _appendDigit(String d) {
     if (_pin.length >= 4) return;
@@ -307,7 +324,8 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                               ),
                             ),
                             Text(
-                              member.role.label(store.lang),
+                              store.profileForStaff(member)?.name ??
+                                  member.role.label(store.lang),
                               style: TextStyle(fontSize: 12, color: p.textMuted),
                             ),
                           ],
@@ -352,6 +370,30 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
       ),
       child: Column(
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('badge_login_input'),
+                  controller: _badgeCtrl,
+                  onSubmitted: (_) => _submitBadge(),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    prefixIcon: Icon(Icons.badge_outlined, size: 18),
+                    labelText: 'Badge magnétique / RFID',
+                    hintText: 'Passez le badge...',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                key: const Key('badge_login_btn'),
+                onPressed: _submitBadge,
+                child: const Text('Badge'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Text(
             i18n.t('pin_title'),
             style: TextStyle(

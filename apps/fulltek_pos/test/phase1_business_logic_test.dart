@@ -184,5 +184,49 @@ void main() {
       expect(updatedIng.currentStock, 20);
       expect(updatedIng.pmpCostMru, 250);
     });
+
+    test('Granular PosProfile permissions & magnetic badge login', () {
+      final store = PosStore(enablePersistence: false);
+      // Custom profile: Caissier-Superviseur (can viewStats + closeCashZ, cannot manageProfilesUsers)
+      final errProf = store.saveProfile(
+        name: 'Caissier Superviseur',
+        baseRole: PosRole.cashier,
+        permissions: {
+          PosPermission.openTable,
+          PosPermission.serveTable,
+          PosPermission.editCovers,
+          PosPermission.openRegister,
+          PosPermission.takeOrders,
+          PosPermission.checkout,
+          PosPermission.closeCashZ,
+          PosPermission.viewStats,
+        },
+      );
+      expect(errProf, isNull);
+      final customProf = store.profiles.last;
+
+      // Create user with PIN + magnetic badge + custom profile
+      final errUser = store.saveStaffMember(
+        name: 'Moussa',
+        pinCode: '5566',
+        profileId: customProf.id,
+        badgeUid: 'MAG-9988',
+      );
+      expect(errUser, isNull);
+
+      expect(store.loginWithBadge('MAG-9988'), isTrue);
+      expect(store.currentStaff?.name, 'Moussa');
+      expect(store.canCurrent(PosPermission.closeCashZ), isTrue);
+      expect(store.canCurrent(PosPermission.viewStats), isTrue);
+      expect(store.canCurrent(PosPermission.manageProfilesUsers), isFalse);
+
+      // Waiter login via badge has restricted permissions
+      expect(store.loginWithBadge('BADGE-003'), isTrue);
+      expect(store.canCurrent(PosPermission.takeOrders), isTrue);
+      expect(store.canCurrent(PosPermission.openTable), isTrue);
+      expect(store.canCurrent(PosPermission.checkout), isFalse);
+      expect(store.canCurrent(PosPermission.closeCashZ), isFalse);
+      expect(store.canCurrent(PosPermission.viewStats), isFalse);
+    });
   });
 }

@@ -21,6 +21,10 @@ enum PosRole {
 }
 
 enum PosPermission {
+  openTable,
+  serveTable,
+  editCovers,
+  openRegister,
   takeOrders,
   checkout,
   applyDiscount,
@@ -29,12 +33,101 @@ enum PosPermission {
   manageReservations,
   manageKarni,
   closeCashZ,
+  viewStats,
+  manageMenuStock,
+  manageProfilesUsers,
   syncCloud,
+}
+
+extension PosPermissionMeta on PosPermission {
+  String get labelFr => switch (this) {
+        PosPermission.openTable => 'Ouverture de table',
+        PosPermission.serveTable => 'Servir table / Envoi cuisine',
+        PosPermission.editCovers => 'Nombre de couverts',
+        PosPermission.openRegister => 'Ouverture de caisse',
+        PosPermission.takeOrders => 'Prise de commande',
+        PosPermission.checkout => 'Encaissement',
+        PosPermission.applyDiscount => 'Remises & réductions',
+        PosPermission.voidOrComp => 'Annulation / Offert (Comp)',
+        PosPermission.splitBill => 'Division d\'addition',
+        PosPermission.manageReservations => 'Réservations VIP & Arboun',
+        PosPermission.manageKarni => 'Crédit Karni',
+        PosPermission.closeCashZ => 'Clôture & impression Z',
+        PosPermission.viewStats => 'Statistiques & KPIs',
+        PosPermission.manageMenuStock => 'Gestion Menu & Stock',
+        PosPermission.manageProfilesUsers => 'Profils, Utilisateurs & Badges',
+        PosPermission.syncCloud => 'Synchronisation Cloud',
+      };
+}
+
+class PosProfile {
+  final String id;
+  final String name;
+  final PosRole baseRole;
+  final Set<PosPermission> permissions;
+  final bool isMaster;
+
+  const PosProfile({
+    required this.id,
+    required this.name,
+    required this.baseRole,
+    required this.permissions,
+    this.isMaster = false,
+  });
+
+  bool can(PosPermission perm) => isMaster || permissions.contains(perm);
+
+  PosProfile copyWith({
+    String? name,
+    PosRole? baseRole,
+    Set<PosPermission>? permissions,
+  }) {
+    return PosProfile(
+      id: id,
+      name: name ?? this.name,
+      baseRole: baseRole ?? this.baseRole,
+      permissions: permissions ?? Set<PosPermission>.from(this.permissions),
+      isMaster: isMaster,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'baseRole': baseRole.code,
+        'permissions': permissions.map((e) => e.name).toList(),
+        'isMaster': isMaster,
+      };
+
+  factory PosProfile.fromJson(Map<String, dynamic> json) {
+    final roleCode = '${json['baseRole'] ?? 'CASHIER'}'.toUpperCase();
+    final role = PosRole.values.firstWhere(
+      (r) => r.code == roleCode,
+      orElse: () => PosRole.cashier,
+    );
+    final permsRaw = (json['permissions'] as List?) ?? const [];
+    final perms = <PosPermission>{};
+    for (final p in permsRaw) {
+      final found = PosPermission.values.where((e) => e.name == '$p');
+      if (found.isNotEmpty) perms.add(found.first);
+    }
+    return PosProfile(
+      id: '${json['id'] ?? ''}',
+      name: '${json['name'] ?? role.fr}',
+      baseRole: role,
+      permissions: perms,
+      isMaster: json['isMaster'] == true,
+    );
+  }
 }
 
 class RbacMatrix {
   static const Map<PosRole, Set<PosPermission>> grants = {
     PosRole.owner: {
+      PosPermission.openTable,
+      PosPermission.serveTable,
+      PosPermission.editCovers,
+      PosPermission.openRegister,
       PosPermission.takeOrders,
       PosPermission.checkout,
       PosPermission.applyDiscount,
@@ -43,9 +136,16 @@ class RbacMatrix {
       PosPermission.manageReservations,
       PosPermission.manageKarni,
       PosPermission.closeCashZ,
+      PosPermission.viewStats,
+      PosPermission.manageMenuStock,
+      PosPermission.manageProfilesUsers,
       PosPermission.syncCloud,
     },
     PosRole.adminSite: {
+      PosPermission.openTable,
+      PosPermission.serveTable,
+      PosPermission.editCovers,
+      PosPermission.openRegister,
       PosPermission.takeOrders,
       PosPermission.checkout,
       PosPermission.applyDiscount,
@@ -54,9 +154,16 @@ class RbacMatrix {
       PosPermission.manageReservations,
       PosPermission.manageKarni,
       PosPermission.closeCashZ,
+      PosPermission.viewStats,
+      PosPermission.manageMenuStock,
+      PosPermission.manageProfilesUsers,
       PosPermission.syncCloud,
     },
     PosRole.manager: {
+      PosPermission.openTable,
+      PosPermission.serveTable,
+      PosPermission.editCovers,
+      PosPermission.openRegister,
       PosPermission.takeOrders,
       PosPermission.checkout,
       PosPermission.applyDiscount,
@@ -65,9 +172,15 @@ class RbacMatrix {
       PosPermission.manageReservations,
       PosPermission.manageKarni,
       PosPermission.closeCashZ,
+      PosPermission.viewStats,
+      PosPermission.manageMenuStock,
       PosPermission.syncCloud,
     },
     PosRole.cashier: {
+      PosPermission.openTable,
+      PosPermission.serveTable,
+      PosPermission.editCovers,
+      PosPermission.openRegister,
       PosPermission.takeOrders,
       PosPermission.checkout,
       PosPermission.splitBill,
@@ -77,13 +190,20 @@ class RbacMatrix {
       PosPermission.syncCloud,
     },
     PosRole.waiter: {
+      PosPermission.openTable,
+      PosPermission.serveTable,
+      PosPermission.editCovers,
       PosPermission.takeOrders,
       PosPermission.splitBill,
       PosPermission.manageReservations,
     },
     PosRole.kitchen: {},
-    PosRole.stockKeeper: {},
-    PosRole.accountant: {PosPermission.closeCashZ, PosPermission.syncCloud},
+    PosRole.stockKeeper: {PosPermission.manageMenuStock},
+    PosRole.accountant: {
+      PosPermission.closeCashZ,
+      PosPermission.viewStats,
+      PosPermission.syncCloud,
+    },
     PosRole.delivery: {PosPermission.takeOrders},
   };
 
@@ -97,6 +217,8 @@ class StaffMember {
   final String name;
   final PosRole role;
   final String pinCode;
+  final String? profileId;
+  final String badgeUid;
   final bool isActive;
 
   const StaffMember({
@@ -104,10 +226,58 @@ class StaffMember {
     required this.name,
     required this.role,
     required this.pinCode,
+    this.profileId,
+    this.badgeUid = '',
     this.isActive = true,
   });
 
   bool can(PosPermission perm) => RbacMatrix.can(role, perm);
+
+  StaffMember copyWith({
+    String? name,
+    PosRole? role,
+    String? pinCode,
+    String? profileId,
+    String? badgeUid,
+    bool? isActive,
+  }) {
+    return StaffMember(
+      id: id,
+      name: name ?? this.name,
+      role: role ?? this.role,
+      pinCode: pinCode ?? this.pinCode,
+      profileId: profileId ?? this.profileId,
+      badgeUid: badgeUid ?? this.badgeUid,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'role': role.code,
+        'pinCode': pinCode,
+        'profileId': profileId,
+        'badgeUid': badgeUid,
+        'isActive': isActive,
+      };
+
+  factory StaffMember.fromJson(Map<String, dynamic> json) {
+    final roleCode = '${json['role'] ?? 'CASHIER'}'.toUpperCase();
+    final role = PosRole.values.firstWhere(
+      (r) => r.code == roleCode,
+      orElse: () => PosRole.cashier,
+    );
+    return StaffMember(
+      id: '${json['id'] ?? ''}',
+      name: '${json['name'] ?? ''}',
+      role: role,
+      pinCode: '${json['pinCode'] ?? '0000'}',
+      profileId: json['profileId'] as String?,
+      badgeUid: '${json['badgeUid'] ?? ''}',
+      isActive: json['isActive'] != false,
+    );
+  }
 }
 
 enum ServiceMode {

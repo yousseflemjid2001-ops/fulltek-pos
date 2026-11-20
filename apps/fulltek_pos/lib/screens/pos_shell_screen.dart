@@ -11,6 +11,7 @@ import 'kds_view.dart';
 import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
 import 'pos_register_view.dart';
+import 'team_profiles_view.dart';
 
 class PosShellScreen extends StatefulWidget {
   final PosStore store;
@@ -32,21 +33,103 @@ class _PosShellScreenState extends State<PosShellScreen> {
     final staff = store.currentStaff;
     final wide = MediaQuery.of(context).size.width >= 960;
 
-    final body = switch (_tabIndex) {
-      0 => PosRegisterView(
+    final tabs = <({
+      String id,
+      Key navKey,
+      IconData icon,
+      IconData selectedIcon,
+      String label,
+      bool badge,
+      Widget view,
+    })>[
+      (
+        id: 'pos',
+        navKey: const Key('nav_tab_pos'),
+        icon: Icons.point_of_sale_outlined,
+        selectedIcon: Icons.point_of_sale_rounded,
+        label: i18n.t('nav_pos'),
+        badge: false,
+        view: PosRegisterView(
           store: store,
           onOpenFloorPlan: () => setState(() => _tabIndex = 1),
         ),
-      1 => FloorPlanView(
+      ),
+      (
+        id: 'floor',
+        navKey: const Key('nav_tab_floor'),
+        icon: Icons.table_restaurant_outlined,
+        selectedIcon: Icons.table_restaurant_rounded,
+        label: i18n.t('nav_floor'),
+        badge: false,
+        view: FloorPlanView(
           store: store,
           onTableSelected: () => setState(() => _tabIndex = 0),
         ),
-      2 => KdsView(store: store),
-      3 => KarniView(store: store),
-      4 => OwnerDashboardView(store: store),
-      5 => ClosingZView(store: store),
-      _ => MenuStockView(store: store),
-    };
+      ),
+      (
+        id: 'kds',
+        navKey: const Key('nav_tab_kds'),
+        icon: Icons.soup_kitchen_outlined,
+        selectedIcon: Icons.soup_kitchen_rounded,
+        label: i18n.t('nav_kds'),
+        badge: true,
+        view: KdsView(store: store),
+      ),
+      if (store.canCurrent(PosPermission.manageKarni))
+        (
+          id: 'karni',
+          navKey: const Key('nav_tab_karni'),
+          icon: Icons.menu_book_outlined,
+          selectedIcon: Icons.menu_book_rounded,
+          label: i18n.t('nav_karni'),
+          badge: false,
+          view: KarniView(store: store),
+        ),
+      if (store.canCurrent(PosPermission.viewStats))
+        (
+          id: 'dashboard',
+          navKey: const Key('nav_tab_dashboard'),
+          icon: Icons.analytics_outlined,
+          selectedIcon: Icons.analytics_rounded,
+          label: i18n.t('nav_dashboard'),
+          badge: false,
+          view: OwnerDashboardView(store: store),
+        ),
+      if (store.canCurrent(PosPermission.closeCashZ))
+        (
+          id: 'closing',
+          navKey: const Key('nav_tab_closing'),
+          icon: Icons.receipt_long_outlined,
+          selectedIcon: Icons.receipt_long_rounded,
+          label: i18n.t('nav_closing'),
+          badge: false,
+          view: ClosingZView(store: store),
+        ),
+      if (store.canCurrent(PosPermission.manageMenuStock) ||
+          store.canCurrent(PosPermission.voidOrComp))
+        (
+          id: 'menu_stock',
+          navKey: const Key('nav_tab_menu_stock'),
+          icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2_rounded,
+          label: 'Menu & Stock',
+          badge: false,
+          view: MenuStockView(store: store),
+        ),
+      if (store.canCurrent(PosPermission.manageProfilesUsers))
+        (
+          id: 'team_profiles',
+          navKey: const Key('nav_tab_team_profiles'),
+          icon: Icons.admin_panel_settings_outlined,
+          selectedIcon: Icons.admin_panel_settings_rounded,
+          label: 'Profils & Équipe',
+          badge: false,
+          view: TeamProfilesView(store: store),
+        ),
+    ];
+
+    final safeIndex = _tabIndex.clamp(0, tabs.length - 1);
+    final body = tabs[safeIndex].view;
 
     return Scaffold(
       appBar: AppBar(
@@ -260,7 +343,10 @@ class _PosShellScreenState extends State<PosShellScreen> {
           // SyncQueue indicator
           IconButton(
             tooltip: i18n.t('sync_queue'),
-            onPressed: () => setState(() => _tabIndex = 5),
+            onPressed: () {
+              final zIdx = tabs.indexWhere((t) => t.id == 'closing');
+              if (zIdx != -1) setState(() => _tabIndex = zIdx);
+            },
             icon: Badge(
               isLabelVisible: store.pendingSyncCount > 0,
               label: Text('${store.pendingSyncCount}'),
@@ -330,59 +416,25 @@ class _PosShellScreenState extends State<PosShellScreen> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _tabIndex,
+        selectedIndex: safeIndex,
         backgroundColor: p.surface,
         indicatorColor: p.primary.withValues(alpha: 0.2),
         onDestinationSelected: (idx) => setState(() => _tabIndex = idx),
-        destinations: [
-          NavigationDestination(
-            key: const Key('nav_tab_pos'),
-            icon: const Icon(Icons.point_of_sale_outlined),
-            selectedIcon: Icon(Icons.point_of_sale_rounded, color: p.primary),
-            label: i18n.t('nav_pos'),
-          ),
-          NavigationDestination(
-            key: const Key('nav_tab_floor'),
-            icon: const Icon(Icons.table_restaurant_outlined),
-            selectedIcon:
-                Icon(Icons.table_restaurant_rounded, color: p.primary),
-            label: i18n.t('nav_floor'),
-          ),
-          NavigationDestination(
-            key: const Key('nav_tab_kds'),
-            icon: Badge(
-              isLabelVisible: store.activeKdsTickets().isNotEmpty,
-              label: Text('${store.activeKdsTickets().length}'),
-              child: const Icon(Icons.soup_kitchen_outlined),
-            ),
-            selectedIcon: Icon(Icons.soup_kitchen_rounded, color: p.primary),
-            label: i18n.t('nav_kds'),
-          ),
-          NavigationDestination(
-            key: const Key('nav_tab_karni'),
-            icon: const Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book_rounded, color: p.primary),
-            label: i18n.t('nav_karni'),
-          ),
-          NavigationDestination(
-            key: const Key('nav_tab_dashboard'),
-            icon: const Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics_rounded, color: p.primary),
-            label: i18n.t('nav_dashboard'),
-          ),
-          NavigationDestination(
-            key: const Key('nav_tab_closing'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long_rounded, color: p.primary),
-            label: i18n.t('nav_closing'),
-          ),
-          NavigationDestination(
-            key: const Key('nav_tab_menu_stock'),
-            icon: const Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2_rounded, color: p.primary),
-            label: 'Menu & Stock',
-          ),
-        ],
+        destinations: tabs.map((t) {
+          final iconWidget = t.badge
+              ? Badge(
+                  isLabelVisible: store.activeKdsTickets().isNotEmpty,
+                  label: Text('${store.activeKdsTickets().length}'),
+                  child: Icon(t.icon),
+                )
+              : Icon(t.icon);
+          return NavigationDestination(
+            key: t.navKey,
+            icon: iconWidget,
+            selectedIcon: Icon(t.selectedIcon, color: p.primary),
+            label: t.label,
+          );
+        }).toList(),
       ),
     );
   }

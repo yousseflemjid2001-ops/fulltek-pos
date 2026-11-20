@@ -34,6 +34,7 @@ class PosStore extends ChangeNotifier {
   DateTime? lastCatalogSyncAt;
 
   late OfflineLicenseInfo license;
+  late List<PosProfile> profiles;
   late List<StaffMember> staff;
   late List<MenuCategory> categories;
   late List<MenuItem> menuItems;
@@ -123,6 +124,8 @@ class PosStore extends ChangeNotifier {
         'ingredientStocks': {
           for (final i in ingredients) i.id: i.currentStock,
         },
+        'profiles': profiles.map((p) => p.toJson()).toList(),
+        'staff': staff.map((s) => s.toJson()).toList(),
       };
       localStorageWrite(_storageKey, jsonEncode(data));
     } catch (_) {}
@@ -152,6 +155,22 @@ class PosStore extends ChangeNotifier {
         cloudJwtToken = map['cloudJwtToken'] as String?;
         if (tenantCode != 'FT-1041') {
           _resetTenantOperationalState();
+        }
+        final savedProfiles = map['profiles'] as List?;
+        if (savedProfiles != null && savedProfiles.isNotEmpty) {
+          profiles = savedProfiles
+              .whereType<Map>()
+              .map((m) => PosProfile.fromJson(m.cast<String, dynamic>()))
+              .where((p) => p.id.isNotEmpty)
+              .toList();
+        }
+        final savedStaff = map['staff'] as List?;
+        if (savedStaff != null && savedStaff.isNotEmpty) {
+          staff = savedStaff
+              .whereType<Map>()
+              .map((m) => StaffMember.fromJson(m.cast<String, dynamic>()))
+              .where((s) => s.id.isNotEmpty)
+              .toList();
         }
         final themes = map['enabledThemeCodes'] as List?;
         if (themes != null && themes.isNotEmpty) {
@@ -318,13 +337,7 @@ class PosStore extends ChangeNotifier {
     staff = [
       for (final s in staff)
         s.role == PosRole.owner
-            ? StaffMember(
-                id: s.id,
-                name: s.name,
-                role: s.role,
-                pinCode: ownerPin,
-                isActive: s.isActive,
-              )
+            ? s.copyWith(pinCode: ownerPin)
             : s,
     ];
   }
@@ -600,9 +613,36 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
+  bool loginWithBadge(String badgeUid) {
+    final clean = badgeUid.trim().toLowerCase();
+    if (clean.isEmpty) return false;
+    final idx = staff.indexWhere(
+      (s) => s.isActive && s.badgeUid.trim().toLowerCase() == clean,
+    );
+    if (idx == -1) return false;
+    _currentStaff = staff[idx];
+    if (_activeOrderId == null) {
+      startCounterOrder();
+    }
+    notifyListeners();
+    return true;
+  }
+
   void lockPos() {
     _currentStaff = null;
     notifyListeners();
+  }
+
+  PosProfile? profileForStaff(StaffMember member) {
+    if (member.profileId == null || member.profileId!.isEmpty) return null;
+    final found = profiles.where((p) => p.id == member.profileId);
+    return found.isEmpty ? null : found.first;
+  }
+
+  bool staffCan(StaffMember member, PosPermission perm) {
+    final prof = profileForStaff(member);
+    if (prof != null) return prof.can(perm);
+    return member.can(perm);
   }
 
   StaffMember? verifyManagerPin(String pin) {
@@ -610,12 +650,131 @@ class PosStore extends ChangeNotifier {
       (s) =>
           s.isActive &&
           s.pinCode == pin.trim() &&
-          s.can(PosPermission.voidOrComp),
+          staffCan(s, PosPermission.voidOrComp),
     );
     return idx == -1 ? null : staff[idx];
   }
 
-  bool canCurrent(PosPermission perm) => _currentStaff?.can(perm) ?? false;
+  bool canCurrent(PosPermission perm) =>
+      _currentStaff != null && staffCan(_currentStaff!, perm);
+
+  // --- Profils RBAC granulaires & Gestion Utilisateurs / Badges ---
+
+  String? saveProfile({
+    String? existingId,
+    required String name,
+    required PosRole baseRole,
+    required Set<PosPermission> permissions,
+  }) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'Nom du profil requis.';
+    if (existingId != null) {
+      final idx = profiles.indexWhere((p) => p.id == existingId);
+      if (idx == -1) return 'Profil introuvable.';
+      if (profiles[idx].isMaster) {
+        return 'Le profil Master / Administrateur conserve tous les droits.';
+      }
+      profiles[idx] = profiles[idx].copyWith(
+        name: trimmed,
+        baseRole: baseRole,
+        permissions: Set<PosPermission>.from(permissions),
+      );
+      notifyListeners();
+      return null;
+    }
+    final newProf = PosProfile(
+      id: 'prof-${DateTime.now().millisecondsSinceEpoch}',
+      name: trimmed,
+      baseRole: baseRole,
+      permissions: Set<PosPermission>.from(permissions),
+    );
+    profiles.add(newProf);
+    notifyListeners();
+    return null;
+  }
+
+  String? deleteProfile(String id) {
+    final idx = profiles.indexWhere((p) => p.id == id);
+    if (idx == -1) return 'Profil introuvable.';
+    if (profiles[idx].isMaster) return 'Impossible de supprimer le profil Master.';
+    if (staff.any((s) => s.profileId == id)) {
+      return 'Ce profil est assigné à au moins un utilisateur.';
+    }
+    profiles.removeAt(idx);
+    notifyListeners();
+    return null;
+  }
+
+  String? saveStaffMember({
+    String? existingId,
+    required String name,
+    required String pinCode,
+    required String profileId,
+    String badgeUid = '',
+    bool isActive = true,
+  }) {
+    final trimmedName = name.trim();
+    final cleanPin = pinCode.trim();
+    final cleanBadge = badgeUid.trim();
+    if (trimmedName.isEmpty) return 'Nom utilisateur requis.';
+    if (cleanPin.length < 4) return 'Mot de passe / PIN (4 caractères min.) requis.';
+    final profIdx = profiles.indexWhere((p) => p.id == profileId);
+    if (profIdx == -1) return 'Profil invalide.';
+    final prof = profiles[profIdx];
+
+    final duplicatePin = staff.any(
+      (s) => s.id != existingId && s.pinCode == cleanPin,
+    );
+    if (duplicatePin) return 'Ce code PIN / mot de passe est déjà utilisé.';
+    if (cleanBadge.isNotEmpty) {
+      final duplicateBadge = staff.any(
+        (s) =>
+            s.id != existingId &&
+            s.badgeUid.trim().toLowerCase() == cleanBadge.toLowerCase(),
+      );
+      if (duplicateBadge) return 'Ce badge magnétique est déjà assigné.';
+    }
+
+    if (existingId != null) {
+      final idx = staff.indexWhere((s) => s.id == existingId);
+      if (idx == -1) return 'Utilisateur introuvable.';
+      staff[idx] = staff[idx].copyWith(
+        name: trimmedName,
+        role: prof.baseRole,
+        pinCode: cleanPin,
+        profileId: prof.id,
+        badgeUid: cleanBadge,
+        isActive: isActive,
+      );
+      if (_currentStaff?.id == existingId) {
+        _currentStaff = staff[idx];
+      }
+      notifyListeners();
+      return null;
+    }
+
+    staff.add(
+      StaffMember(
+        id: 'ST-${DateTime.now().millisecondsSinceEpoch % 1000000}',
+        name: trimmedName,
+        role: prof.baseRole,
+        pinCode: cleanPin,
+        profileId: prof.id,
+        badgeUid: cleanBadge,
+        isActive: isActive,
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  void toggleStaffActive(String id, bool active) {
+    final idx = staff.indexWhere((s) => s.id == id);
+    if (idx == -1) return;
+    if (staff[idx].role == PosRole.owner && !active) return;
+    staff[idx] = staff[idx].copyWith(isActive: active);
+    notifyListeners();
+  }
 
   // --- Training Mode ---
 
@@ -2062,30 +2221,85 @@ class PosStore extends ChangeNotifier {
       ed25519Verified: true,
     );
 
+    profiles = [
+      PosProfile(
+        id: 'prof-master',
+        name: 'Administrateur (Master)',
+        baseRole: PosRole.owner,
+        permissions: Set<PosPermission>.from(PosPermission.values),
+        isMaster: true,
+      ),
+      PosProfile(
+        id: 'prof-supervisor',
+        name: 'Superviseur / Gérant',
+        baseRole: PosRole.manager,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.manager] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-cashier-z',
+        name: 'Caissier (+ Impression Z)',
+        baseRole: PosRole.cashier,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.cashier] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-cashier',
+        name: 'Caissier (Sans Z)',
+        baseRole: PosRole.cashier,
+        permissions: {
+          PosPermission.openTable,
+          PosPermission.serveTable,
+          PosPermission.editCovers,
+          PosPermission.openRegister,
+          PosPermission.takeOrders,
+          PosPermission.checkout,
+          PosPermission.splitBill,
+          PosPermission.manageReservations,
+          PosPermission.manageKarni,
+        },
+      ),
+      PosProfile(
+        id: 'prof-waiter',
+        name: 'Serveur (Table / Salle)',
+        baseRole: PosRole.waiter,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.waiter] ?? const {}),
+      ),
+    ];
+
     staff = [
       const StaffMember(
         id: 'ST-1',
         name: 'Ahmed Ould Salem (Propriétaire)',
         role: PosRole.owner,
         pinCode: '7410',
+        profileId: 'prof-master',
+        badgeUid: 'BADGE-001',
       ),
       const StaffMember(
         id: 'ST-2',
         name: 'Aïcha (Caissière)',
         role: PosRole.cashier,
         pinCode: '1234',
+        profileId: 'prof-cashier-z',
+        badgeUid: 'BADGE-002',
       ),
       const StaffMember(
         id: 'ST-3',
         name: 'Sidi (Serveur)',
         role: PosRole.waiter,
         pinCode: '2222',
+        profileId: 'prof-waiter',
+        badgeUid: 'BADGE-003',
       ),
       const StaffMember(
         id: 'ST-4',
         name: 'Mariem (Manager)',
         role: PosRole.manager,
         pinCode: '9999',
+        profileId: 'prof-supervisor',
+        badgeUid: 'BADGE-004',
       ),
     ];
 
