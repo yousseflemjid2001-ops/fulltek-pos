@@ -457,6 +457,18 @@ void showReceiptPreviewDialog(
   );
 }
 
-String buildReceiptForClosedOrder(PosOrder order) {
-  return ReceiptFormatter.formatOrderReceipt80mm(order: order);
+String buildReceiptForClosedOrder(PosOrder order, {PosStore? store}) {
+  if (store == null) {
+    return ReceiptFormatter.formatOrderReceipt80mm(order: order);
+  }
+  return ReceiptFormatter.formatOrderReceipt80mm(
+    order: order,
+    storeName: store.tenantName,
+    storeNameAr: store.storeNameAr,
+    address: store.storeAddress,
+    phone: store.storePhone,
+    nif: store.storeNif,
+    rc: store.storeRc,
+    footer: store.receiptFooter,
+  );
 }

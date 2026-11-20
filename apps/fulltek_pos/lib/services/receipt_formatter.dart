@@ -49,7 +49,11 @@ class ReceiptFormatter {
     required PosOrder order,
     String storeName = 'RESTAURANT OASIS · TEVRAGH-ZEINA',
     String storeNameAr = 'مطعم الواحة · تفرغ زينة - نواكشوط',
+    String address = '',
     String phone = '+222 45 25 11 00',
+    String nif = '',
+    String rc = '',
+    String footer = 'Merci de votre visite ! شكراً لزيارتكم',
   }) {
     final buf = StringBuffer();
     if (order.isTraining) {
@@ -59,9 +63,23 @@ class ReceiptFormatter {
     }
     buf.writeln(_line('='));
     buf.writeln(_center('FULL-TEK RESTO POS'));
-    buf.writeln(_center(storeName));
-    buf.writeln(_center(storeNameAr));
-    buf.writeln(_center('Tel: $phone'));
+    buf.writeln(_center(storeName.trim().isEmpty ? 'FULL-TEK RESTO' : storeName.trim()));
+    if (storeNameAr.trim().isNotEmpty) {
+      buf.writeln(_center(storeNameAr.trim()));
+    }
+    if (address.trim().isNotEmpty) {
+      buf.writeln(_center(address.trim()));
+    }
+    if (phone.trim().isNotEmpty) {
+      buf.writeln(_center('Tel: ${phone.trim()}'));
+    }
+    if (nif.trim().isNotEmpty || rc.trim().isNotEmpty) {
+      final taxParts = <String>[
+        if (nif.trim().isNotEmpty) 'NIF: ${nif.trim()}',
+        if (rc.trim().isNotEmpty) 'RC: ${rc.trim()}',
+      ];
+      buf.writeln(_center(taxParts.join(' · ')));
+    }
     buf.writeln(_line('='));
     buf.writeln(_padRow(
       'Ticket: ${order.ticketNumber}',
@@ -172,7 +190,9 @@ class ReceiptFormatter {
           _padRow('Monnaie rendue / الباقي:', formatMru(order.changeDue)));
     }
     buf.writeln(_line());
-    buf.writeln(_center('Merci de votre visite ! شكراً لزيارتكم'));
+    if (footer.trim().isNotEmpty) {
+      buf.writeln(_center(footer.trim()));
+    }
     buf.writeln(_center('Propulse par Full-Tek POS (Mauritanie)'));
     if (order.isTraining) {
       buf.writeln('*** TICKET DE FORMATION - NON VALIDE ***');

@@ -100,6 +100,12 @@ class PosStore extends ChangeNotifier {
         'accountOffline': accountOffline,
         'tenantCode': tenantCode,
         'tenantName': tenantName,
+        'storeNameAr': storeNameAr,
+        'storeAddress': storeAddress,
+        'storePhone': storePhone,
+        'storeNif': storeNif,
+        'storeRc': storeRc,
+        'receiptFooter': receiptFooter,
         'cloudJwtToken': cloudJwtToken,
         'enabledThemeCodes': enabledThemeCodes,
         'enabledPayMethods': enabledPayMethods,
@@ -152,6 +158,12 @@ class PosStore extends ChangeNotifier {
         accountOffline = map['accountOffline'] == true;
         tenantCode = '${map['tenantCode'] ?? tenantCode}';
         tenantName = '${map['tenantName'] ?? tenantName}';
+        storeNameAr = '${map['storeNameAr'] ?? storeNameAr}';
+        storeAddress = '${map['storeAddress'] ?? storeAddress}';
+        storePhone = '${map['storePhone'] ?? storePhone}';
+        storeNif = '${map['storeNif'] ?? storeNif}';
+        storeRc = '${map['storeRc'] ?? storeRc}';
+        receiptFooter = '${map['receiptFooter'] ?? receiptFooter}';
         cloudJwtToken = map['cloudJwtToken'] as String?;
         if (tenantCode != 'FT-1041') {
           _resetTenantOperationalState();
@@ -317,6 +329,12 @@ class PosStore extends ChangeNotifier {
   bool accountLoggedIn = false;
   String tenantName = 'Restaurant Oasis · Tevragh-Zeina';
   String tenantCode = 'DEMO';
+  String storeNameAr = '';
+  String storeAddress = 'Tevragh Zeina, Nouakchott';
+  String storePhone = '+222 45 25 11 00';
+  String storeNif = '';
+  String storeRc = '';
+  String receiptFooter = 'Merci de votre visite ! شكراً لزيارتكم';
   List<String> enabledThemeCodes = const ['01', '04', '06', '07', '11'];
   List<String> enabledPayMethods = const [
     'Cash',
@@ -402,8 +420,19 @@ class PosStore extends ChangeNotifier {
       cloudJwtToken = data['token'] as String?;
       tenantName = (tenant['name'] as String?) ?? tenantName;
       tenantCode = (tenant['tenantId'] as String?) ?? tenantCode;
+      storeAddress = '${tenant['address'] ?? tenant['city'] ?? ''}'.trim();
+      storePhone = '${tenant['phone'] ?? ''}'.trim();
+      storeNif = '${tenant['nif'] ?? ''}'.trim();
+      storeRc = '${tenant['rc'] ?? ''}'.trim();
       if (previousCode != tenantCode || tenantCode != 'FT-1041') {
         _resetTenantOperationalState();
+        final mgrName = '${tenant['manager'] ?? ''}'.trim();
+        final masterDisplay =
+            mgrName.isNotEmpty ? mgrName : '$tenantName (Master)';
+        staff = [
+          for (final s in staff)
+            s.role == PosRole.owner ? s.copyWith(name: masterDisplay) : s,
+        ];
       }
       final themes =
           (tenant['enabledThemes'] as List?)?.map((e) => '$e').toList();
@@ -774,6 +803,50 @@ class PosStore extends ChangeNotifier {
     if (staff[idx].role == PosRole.owner && !active) return;
     staff[idx] = staff[idx].copyWith(isActive: active);
     notifyListeners();
+  }
+
+  Future<String?> updateRestaurantInfo({
+    required String name,
+    String nameAr = '',
+    String address = '',
+    String phone = '',
+    String nif = '',
+    String rc = '',
+    String footer = '',
+  }) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return 'Nom du restaurant requis.';
+    tenantName = cleanName;
+    storeNameAr = nameAr.trim();
+    storeAddress = address.trim();
+    storePhone = phone.trim();
+    storeNif = nif.trim();
+    storeRc = rc.trim();
+    if (footer.trim().isNotEmpty) {
+      receiptFooter = footer.trim();
+    }
+    notifyListeners();
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        await _httpRequest(
+          'PATCH',
+          '$apiBaseUrl/api/pos/tenant-profile',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'name': tenantName,
+            'address': storeAddress,
+            'phone': storePhone,
+            'nif': storeNif,
+            'rc': storeRc,
+          }),
+        );
+      } catch (_) {}
+    }
+    return null;
   }
 
   // --- Training Mode ---

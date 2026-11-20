@@ -1704,6 +1704,24 @@ function createApp(options = {}) {
         return sendJson(res, 404, { error: 'Table not found' });
       }
 
+      // 2d-11. PATCH /api/pos/tenant-profile — Update restaurant basic info & receipt header
+      if (req.method === 'PATCH' && p === '/api/pos/tenant-profile') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const name = typeof b.name === 'string' && b.name.trim() ? b.name.trim() : currentTenant.name;
+        const address = typeof b.address === 'string' ? b.address.trim() : (currentTenant.address || '');
+        const city = typeof b.city === 'string' && b.city.trim() ? b.city.trim() : (currentTenant.city || '');
+        const phone = typeof b.phone === 'string' && b.phone.trim() ? b.phone.trim() : (currentTenant.phone || '');
+        const nif = typeof b.nif === 'string' ? b.nif.trim() : (currentTenant.nif || '');
+        const rc = typeof b.rc === 'string' ? b.rc.trim() : (currentTenant.rc || '');
+        database.prepare(`
+          UPDATE tenants SET name = ?, address = ?, city = ?, phone = ?, nif = ?, rc = ?
+          WHERE id = ?
+        `).run(name, address, city, phone, nif, rc, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM tenants WHERE id = ?').get(currentTenant.id);
+        return sendJson(res, 200, { ok: true, tenant: serializeTenant(updated) });
+      }
+
       // 2e. GET /api/pos/kds[?station=ALL|GRILL|KITCHEN|BAR]
       if (req.method === 'GET' && p === '/api/pos/kds') {
         const station = (url.searchParams.get('station') || 'ALL').trim().toUpperCase();

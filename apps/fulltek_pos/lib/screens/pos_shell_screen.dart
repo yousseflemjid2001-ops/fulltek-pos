@@ -122,7 +122,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
           navKey: const Key('nav_tab_team_profiles'),
           icon: Icons.admin_panel_settings_outlined,
           selectedIcon: Icons.admin_panel_settings_rounded,
-          label: 'Profils & Équipe',
+          label: 'Paramètres & Équipe',
           badge: false,
           view: TeamProfilesView(store: store),
         ),

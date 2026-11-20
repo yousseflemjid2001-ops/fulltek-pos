@@ -275,7 +275,9 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            i18n.t('quick_profiles'),
+            (store.tenantCode == 'DEMO' || store.tenantCode == 'FT-1041')
+                ? i18n.t('quick_profiles')
+                : 'Équipe du restaurant',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -283,12 +285,14 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          ...store.staff.map((member) {
+          ...store.staff.where((m) => m.isActive).map((member) {
+            final isDemo =
+                store.tenantCode == 'DEMO' || store.tenantCode == 'FT-1041';
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: InkWell(
                 key: Key('quick_pin_${member.pinCode}'),
-                onTap: () => store.loginWithPin(member.pinCode),
+                onTap: isDemo ? () => store.loginWithPin(member.pinCode) : null,
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding:
@@ -331,23 +335,27 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: p.bg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: p.border),
-                        ),
-                        child: Text(
-                          'PIN ${member.pinCode}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: p.primary,
+                      if (isDemo)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: p.bg,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: p.border),
                           ),
-                        ),
-                      ),
+                          child: Text(
+                            'PIN ${member.pinCode}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: p.primary,
+                            ),
+                          ),
+                        )
+                      else
+                        Icon(Icons.lock_outline_rounded,
+                            size: 16, color: p.textMuted),
                     ],
                   ),
                 ),

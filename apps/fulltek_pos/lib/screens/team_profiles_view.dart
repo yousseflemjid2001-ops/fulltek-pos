@@ -12,8 +12,42 @@ class TeamProfilesView extends StatefulWidget {
 }
 
 class _TeamProfilesViewState extends State<TeamProfilesView> {
-  int _subTab = 0; // 0 = Profils & Droits, 1 = Utilisateurs & Badges
+  int _subTab = 0; // 0 = Profils & Droits, 1 = Utilisateurs & Badges, 2 = Infos Restaurant
   String? _selectedProfileId;
+
+  late final TextEditingController _restNameCtrl;
+  late final TextEditingController _restNameArCtrl;
+  late final TextEditingController _restAddrCtrl;
+  late final TextEditingController _restPhoneCtrl;
+  late final TextEditingController _restNifCtrl;
+  late final TextEditingController _restRcCtrl;
+  late final TextEditingController _restFooterCtrl;
+  bool _savingRest = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.store;
+    _restNameCtrl = TextEditingController(text: s.tenantName);
+    _restNameArCtrl = TextEditingController(text: s.storeNameAr);
+    _restAddrCtrl = TextEditingController(text: s.storeAddress);
+    _restPhoneCtrl = TextEditingController(text: s.storePhone);
+    _restNifCtrl = TextEditingController(text: s.storeNif);
+    _restRcCtrl = TextEditingController(text: s.storeRc);
+    _restFooterCtrl = TextEditingController(text: s.receiptFooter);
+  }
+
+  @override
+  void dispose() {
+    _restNameCtrl.dispose();
+    _restNameArCtrl.dispose();
+    _restAddrCtrl.dispose();
+    _restPhoneCtrl.dispose();
+    _restNifCtrl.dispose();
+    _restRcCtrl.dispose();
+    _restFooterCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _openNewProfileDialog() async {
     final store = widget.store;
@@ -272,8 +306,9 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
                 children: [
                   ChoiceChip(
                     key: const Key('subtab_profiles'),
@@ -281,31 +316,39 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
                     onSelected: (_) => setState(() => _subTab = 0),
                     label: Text('Profils & Droits (${profiles.length})'),
                   ),
-                  const SizedBox(width: 8),
                   ChoiceChip(
                     key: const Key('subtab_users'),
                     selected: _subTab == 1,
                     onSelected: (_) => setState(() => _subTab = 1),
                     label: Text('Utilisateurs & Badges (${store.staff.length})'),
                   ),
+                  ChoiceChip(
+                    key: const Key('subtab_restaurant_info'),
+                    selected: _subTab == 2,
+                    onSelected: (_) => setState(() => _subTab = 2),
+                    label: const Text('Infos Restaurant & Ticket'),
+                  ),
                 ],
               ),
-              ElevatedButton.icon(
-                key: Key(_subTab == 0 ? 'add_profile_btn' : 'add_user_btn'),
-                onPressed: _subTab == 0
-                    ? _openNewProfileDialog
-                    : () => _openUserDialog(),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text(
-                    _subTab == 0 ? 'Nouveau profil' : 'Nouvel utilisateur'),
-              ),
+              if (_subTab != 2)
+                ElevatedButton.icon(
+                  key: Key(_subTab == 0 ? 'add_profile_btn' : 'add_user_btn'),
+                  onPressed: _subTab == 0
+                      ? _openNewProfileDialog
+                      : () => _openUserDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(
+                      _subTab == 0 ? 'Nouveau profil' : 'Nouvel utilisateur'),
+                ),
             ],
           ),
           const SizedBox(height: 14),
           Expanded(
             child: _subTab == 0
                 ? _buildProfilesMatrix(profiles, activeProfile, store, p)
-                : _buildUsersList(store, p),
+                : (_subTab == 1
+                    ? _buildUsersList(store, p)
+                    : _buildRestaurantInfoForm(store, p)),
           ),
         ],
       ),
@@ -533,6 +576,236 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildRestaurantInfoForm(PosStore store, PosPalette p) {
+    final wide = MediaQuery.of(context).size.width >= 860;
+    final form = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.border),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Informations de base & En-tête du ticket 80mm',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: p.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('rest_name_input'),
+              controller: _restNameCtrl,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Nom du restaurant *',
+                prefixIcon: Icon(Icons.storefront_rounded),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _restNameArCtrl,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Nom du restaurant (Arabe / عربي)',
+                prefixIcon: Icon(Icons.translate_rounded),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('rest_address_input'),
+                    controller: _restAddrCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Adresse / Quartier',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    key: const Key('rest_phone_input'),
+                    controller: _restPhoneCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Téléphone',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _restNifCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(labelText: 'NIF'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _restRcCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(labelText: 'RC'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _restFooterCtrl,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Message bas de ticket',
+                prefixIcon: Icon(Icons.receipt_long_outlined),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                key: const Key('save_rest_info_btn'),
+                onPressed: _savingRest
+                    ? null
+                    : () async {
+                        setState(() => _savingRest = true);
+                        final err = await store.updateRestaurantInfo(
+                          name: _restNameCtrl.text,
+                          nameAr: _restNameArCtrl.text,
+                          address: _restAddrCtrl.text,
+                          phone: _restPhoneCtrl.text,
+                          nif: _restNifCtrl.text,
+                          rc: _restRcCtrl.text,
+                          footer: _restFooterCtrl.text,
+                        );
+                        if (!mounted) return;
+                        setState(() => _savingRest = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              err ?? 'Informations du restaurant enregistrées !',
+                            ),
+                          ),
+                        );
+                      },
+                icon: const Icon(Icons.save_rounded, size: 18),
+                label: const Text('Enregistrer'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final preview = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'APERÇU EN-TÊTE TICKET 80MM',
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Colors.black54),
+          ),
+          const Divider(),
+          Text(
+            _restNameCtrl.text.trim().isEmpty
+                ? store.tenantName
+                : _restNameCtrl.text.trim(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                color: Colors.black),
+          ),
+          if (_restNameArCtrl.text.trim().isNotEmpty)
+            Text(
+              _restNameArCtrl.text.trim(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
+            ),
+          if (_restAddrCtrl.text.trim().isNotEmpty)
+            Text(
+              _restAddrCtrl.text.trim(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 11, color: Colors.black87),
+            ),
+          if (_restPhoneCtrl.text.trim().isNotEmpty)
+            Text(
+              'Tel: ${_restPhoneCtrl.text.trim()}',
+              style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 11, color: Colors.black87),
+            ),
+          if (_restNifCtrl.text.trim().isNotEmpty ||
+              _restRcCtrl.text.trim().isNotEmpty)
+            Text(
+              [
+                if (_restNifCtrl.text.trim().isNotEmpty)
+                  'NIF: ${_restNifCtrl.text.trim()}',
+                if (_restRcCtrl.text.trim().isNotEmpty)
+                  'RC: ${_restRcCtrl.text.trim()}',
+              ].join(' · '),
+              style: const TextStyle(
+                  fontFamily: 'monospace', fontSize: 10.5, color: Colors.black54),
+            ),
+          const Divider(),
+          Text(
+            _restFooterCtrl.text.trim().isEmpty
+                ? store.receiptFooter
+                : _restFooterCtrl.text.trim(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontFamily: 'monospace', fontSize: 10.5, color: Colors.black87),
+          ),
+        ],
+      ),
+    );
+
+    if (wide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 6, child: form),
+          const SizedBox(width: 14),
+          SizedBox(width: 300, child: preview),
+        ],
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          form,
+          const SizedBox(height: 12),
+          preview,
+        ],
+      ),
     );
   }
 }

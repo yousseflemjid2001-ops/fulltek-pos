@@ -68,7 +68,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       builder: (_) => CheckoutDialog(store: widget.store),
     );
     if (closed != null && mounted) {
-      final receipt = buildReceiptForClosedOrder(closed);
+      final receipt = buildReceiptForClosedOrder(closed, store: widget.store);
       showReceiptPreviewDialog(
         context,
         title: widget.store.i18n.t('receipt_preview'),
@@ -89,7 +89,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
         context,
         title: widget.store.i18n.t('receipt_preview'),
         subtitle: widget.store.i18n.t('open_drawer'),
-        receiptText: buildReceiptForClosedOrder(closed),
+        receiptText: buildReceiptForClosedOrder(closed, store: widget.store),
       );
     }
   }
