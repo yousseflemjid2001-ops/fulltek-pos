@@ -10,5 +10,8 @@
     "test": "node --no-warnings --test test/*.test.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
   }
 }

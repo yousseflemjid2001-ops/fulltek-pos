@@ -1469,11 +1469,20 @@ function createDb(dbPath = DB_PATH, options = {}) {
   return database;
 }
 
-const db = createDb(DB_PATH);
+let _singletonDb = null;
+function getDb() {
+  if (!_singletonDb || _singletonDb.isOpen === false) {
+    _singletonDb = createDb(DB_PATH);
+  }
+  return _singletonDb;
+}
 
 module.exports = {
   createDb,
-  db,
+  getDb,
+  get db() {
+    return getDb();
+  },
   DB_PATH,
   DEFAULT_DB_PATH,
   DEFAULT_DELIVERY_ZONES,

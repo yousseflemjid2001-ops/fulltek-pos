@@ -1,12 +1,13 @@
 const http = require('node:http');
 const {
   createDb,
-  db: singletonDb,
+  getDb,
   DEFAULT_DB_PATH,
   DEFAULT_DELIVERY_ZONES,
   hashPassword,
   verifyPassword,
 } = require('./db');
+const { createPgBackupManager } = require('./pg_sync');
 const {
   getPublicKey,
   issueOfflineLicense,
@@ -195,17 +196,15 @@ function resolveDatabase(options = {}) {
     process.env.FULLTEK_DB_PATH ||
     DEFAULT_DB_PATH;
 
-  if (
-    !options.dbPath &&
-    singletonDb &&
-    singletonDb.isOpen !== false &&
-    resolvedDbPath === singletonDb.dbPath
-  ) {
-    return {
-      database: singletonDb,
-      dbPath: resolvedDbPath,
-      ownsDb: false,
-    };
+  if (!options.dbPath && resolvedDbPath === DEFAULT_DB_PATH) {
+    const singletonDb = getDb();
+    if (singletonDb && singletonDb.isOpen !== false) {
+      return {
+        database: singletonDb,
+        dbPath: resolvedDbPath,
+        ownsDb: false,
+      };
+    }
   }
 
   return {
@@ -1082,6 +1081,7 @@ function handlePosSyncItem(database, tenantId, item, nowIso, insertAudit) {
 
 function createApp(options = {}) {
   const { database, dbPath, ownsDb } = resolveDatabase(options);
+  const pgBackup = options.pgBackup || null;
   const effectiveJwtSecret =
     options.jwtSecret !== undefined
       ? options.jwtSecret
@@ -1108,6 +1108,14 @@ function createApp(options = {}) {
       return res.end();
     }
 
+    if (pgBackup && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
+      res.once('finish', () => {
+        if (res.statusCode < 400) {
+          pgBackup.schedulePush(database, dbPath);
+        }
+      });
+    }
+
     const url = new URL(req.url || '/', 'http://localhost');
     const p = url.pathname;
 
@@ -1120,6 +1128,7 @@ function createApp(options = {}) {
           service: 'fulltek-cloud-api',
           dbPath,
           tenants: cnt,
+          pgBackup: pgBackup ? pgBackup.getStatus() : { enabled: false },
         });
       }
 
@@ -2317,24 +2326,51 @@ function createApp(options = {}) {
 
   const close = () =>
     new Promise((resolve) => {
-      if (!server.listening) {
+      const finalize = async () => {
+        if (pgBackup) {
+          await pgBackup.flushAndClose(database, dbPath).catch(() => {});
+        }
         closeDb();
-        return resolve();
+        resolve();
+      };
+      if (!server.listening) {
+        finalize();
+        return;
       }
       server.closeAllConnections?.();
       server.close(() => {
-        closeDb();
-        resolve();
+        finalize();
       });
     });
 
   return { server, handler, db: database, dbPath, close };
 }
 
-function startServer(options = {}) {
+async function startServer(options = {}) {
   const port = options.port !== undefined ? Number(options.port) : Number(process.env.PORT || 4000);
   const host = options.host || process.env.HOST || '0.0.0.0';
-  const app = createApp(options);
+  let pgBackup = options.pgBackup || null;
+  let initialNeedsPush = false;
+
+  if (!pgBackup && !options.db && !options.dbPath && process.env.DATABASE_URL) {
+    pgBackup = createPgBackupManager(process.env.DATABASE_URL);
+    if (pgBackup) {
+      const resolvedDbPath =
+        process.env.DB_PATH || process.env.FULLTEK_DB_PATH || DEFAULT_DB_PATH;
+      try {
+        const { restored, hasRemoteSnapshot } =
+          await pgBackup.restoreIfNeeded(resolvedDbPath);
+        initialNeedsPush = !restored && !hasRemoteSnapshot;
+      } catch (err) {
+        console.error('[PG-SYNC] Startup restore failed:', err?.message || err);
+      }
+    }
+  }
+
+  const app = createApp(pgBackup ? { ...options, pgBackup } : options);
+  if (pgBackup && initialNeedsPush) {
+    await pgBackup.pushNow(app.db, app.dbPath).catch(() => {});
+  }
 
   return new Promise((resolve, reject) => {
     const onError = (err) => {
@@ -2347,7 +2383,7 @@ function startServer(options = {}) {
       const actualPort = addr && typeof addr === 'object' ? addr.port : port;
       const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host;
       if (options.quiet !== true && (require.main === module || options.logStartup === true)) {
-        console.log(`Full·Tek Cloud API (SQLite WAL) running on http://${displayHost}:${actualPort} (DB: ${app.dbPath})`);
+        console.log(`Full·Tek Cloud API (SQLite WAL${pgBackup ? ' + PostgreSQL Sync' : ''}) running on http://${displayHost}:${actualPort} (DB: ${app.dbPath})`);
       }
       resolve({
         ...app,
@@ -2359,10 +2395,18 @@ function startServer(options = {}) {
 }
 
 if (require.main === module) {
-  startServer().catch((err) => {
-    console.error('Failed to start cloud-api server:', err);
-    process.exit(1);
-  });
+  startServer()
+    .then((app) => {
+      const shutdown = () => {
+        app.close().finally(() => process.exit(0));
+      };
+      process.once('SIGTERM', shutdown);
+      process.once('SIGINT', shutdown);
+    })
+    .catch((err) => {
+      console.error('Failed to start cloud-api server:', err);
+      process.exit(1);
+    });
 }
 
 module.exports = {
