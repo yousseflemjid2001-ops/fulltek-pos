@@ -20,7 +20,7 @@ Future<({int status, String body})> httpRequest(
   String url, {
   String? body,
   Map<String, String>? headers,
-  Duration timeout = const Duration(seconds: 5),
+  Duration timeout = const Duration(seconds: 30),
 }) {
   final completer = Completer<({int status, String body})>();
   final xhr = _XHR();
