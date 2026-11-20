@@ -610,10 +610,11 @@ class MenuItem {
   final String nameAr;
   final String nameEn;
   final double priceMru;
-  final String kitchenStation; // KITCHEN | GRILL | BAR
+  final String kitchenStation; // KITCHEN | GRILL | BAR | POULET | PIZZA | SNACK | TRADITIONAL
   final bool available;
   final String icon;
   final String imageUrl;
+  final bool manualPrice;
   final bool isTop;
   final List<ModifierGroup> modifiers;
 
@@ -629,6 +630,7 @@ class MenuItem {
     this.available = true,
     this.icon = '🍽',
     this.imageUrl = '',
+    this.manualPrice = false,
     this.isTop = false,
     this.modifiers = const [],
   });
@@ -651,6 +653,7 @@ class MenuItem {
     bool? isOutOfStock,
     String? icon,
     String? imageUrl,
+    bool? manualPrice,
     bool? isTop,
     List<ModifierGroup>? modifiers,
   }) {
@@ -668,6 +671,7 @@ class MenuItem {
       available: nextAvailable,
       icon: icon ?? this.icon,
       imageUrl: imageUrl ?? this.imageUrl,
+      manualPrice: manualPrice ?? this.manualPrice,
       isTop: isTop ?? this.isTop,
       modifiers: modifiers ?? this.modifiers,
     );
@@ -1288,7 +1292,11 @@ enum KdsStationFilter {
   all,
   grill,
   kitchen,
-  bar;
+  bar,
+  poulet,
+  pizza,
+  snack,
+  traditional;
 
   bool matchesStation(String station) {
     if (this == KdsStationFilter.all) return true;

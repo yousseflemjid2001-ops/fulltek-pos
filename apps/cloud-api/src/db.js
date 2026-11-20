@@ -543,6 +543,7 @@ function initSchema(database) {
       track_fefo INTEGER DEFAULT 0,
       requires_cnam INTEGER DEFAULT 0,
       kitchen_station TEXT DEFAULT 'KITCHEN',
+      manual_price INTEGER DEFAULT 0,
       is_top INTEGER DEFAULT 0,
       is_out_of_stock INTEGER DEFAULT 0,
       modifiers_json TEXT DEFAULT '[]',
@@ -745,6 +746,388 @@ function initSchema(database) {
       is_training INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- 6. GESTION COMMERCIALE (PHASES 1-3: 16 TABLES)
+    CREATE TABLE IF NOT EXISTS commercial_clients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      code TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL,
+      is_b2b INTEGER NOT NULL DEFAULT 0,
+      nif TEXT NOT NULL DEFAULT '',
+      rc TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      payment_terms_days INTEGER NOT NULL DEFAULT 0,
+      credit_limit_mru REAL NOT NULL DEFAULT 0,
+      current_debt_mru REAL NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_suppliers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      code TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL,
+      nif TEXT NOT NULL DEFAULT '',
+      rc TEXT NOT NULL DEFAULT '',
+      contact_name TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      payment_terms_days INTEGER NOT NULL DEFAULT 30,
+      balance_due_mru REAL NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      sku TEXT NOT NULL DEFAULT '',
+      barcode TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL,
+      name_ar TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'Général',
+      unit TEXT NOT NULL DEFAULT 'unité',
+      price_retail_ht REAL NOT NULL DEFAULT 0,
+      price_whole_ht REAL NOT NULL DEFAULT 0,
+      price_cost_mru REAL NOT NULL DEFAULT 0,
+      pmp_cost_mru REAL NOT NULL DEFAULT 0,
+      stock_qty REAL NOT NULL DEFAULT 0,
+      min_stock REAL NOT NULL DEFAULT 0,
+      tva_rate REAL NOT NULL DEFAULT 16,
+      is_exempt INTEGER NOT NULL DEFAULT 0,
+      track_stock INTEGER NOT NULL DEFAULT 1,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_stock_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      article_id INTEGER NOT NULL REFERENCES commercial_articles(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      movement_type TEXT NOT NULL,
+      qty_delta REAL NOT NULL,
+      unit_cost_mru REAL NOT NULL DEFAULT 0,
+      pmp_before_mru REAL NOT NULL DEFAULT 0,
+      pmp_after_mru REAL NOT NULL DEFAULT 0,
+      stock_before REAL NOT NULL DEFAULT 0,
+      stock_after REAL NOT NULL DEFAULT 0,
+      source_type TEXT NOT NULL DEFAULT '',
+      source_id INTEGER,
+      source_number TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_sales_docs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      client_id INTEGER REFERENCES commercial_clients(id) ON DELETE RESTRICT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      doc_type TEXT NOT NULL,
+      doc_number TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'BROUILLON',
+      issue_date TEXT NOT NULL,
+      due_date TEXT NOT NULL DEFAULT '',
+      source_doc_id INTEGER REFERENCES commercial_sales_docs(id) ON DELETE SET NULL,
+      source_doc_type TEXT NOT NULL DEFAULT '',
+      converted_to_doc_id INTEGER,
+      converted_to_type TEXT NOT NULL DEFAULT '',
+      client_name TEXT NOT NULL DEFAULT '',
+      client_nif TEXT NOT NULL DEFAULT '',
+      client_rc TEXT NOT NULL DEFAULT '',
+      delivery_address TEXT NOT NULL DEFAULT '',
+      global_discount_pct REAL NOT NULL DEFAULT 0,
+      subtotal_ht_mru REAL NOT NULL DEFAULT 0,
+      discount_ht_mru REAL NOT NULL DEFAULT 0,
+      total_ht_mru REAL NOT NULL DEFAULT 0,
+      total_tva_mru REAL NOT NULL DEFAULT 0,
+      total_ttc_mru REAL NOT NULL DEFAULT 0,
+      total_cost_mru REAL NOT NULL DEFAULT 0,
+      paid_mru REAL NOT NULL DEFAULT 0,
+      credited_mru REAL NOT NULL DEFAULT 0,
+      stock_deducted INTEGER NOT NULL DEFAULT 0,
+      restock_on_validate INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      validated_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, doc_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_sales_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      doc_id INTEGER NOT NULL REFERENCES commercial_sales_docs(id) ON DELETE CASCADE,
+      article_id INTEGER REFERENCES commercial_articles(id) ON DELETE SET NULL,
+      line_order INTEGER NOT NULL DEFAULT 0,
+      sku TEXT NOT NULL DEFAULT '',
+      designation TEXT NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'unité',
+      qty REAL NOT NULL DEFAULT 1,
+      unit_price_ht_mru REAL NOT NULL DEFAULT 0,
+      discount_pct REAL NOT NULL DEFAULT 0,
+      tva_rate REAL NOT NULL DEFAULT 16,
+      is_exempt INTEGER NOT NULL DEFAULT 0,
+      cost_pmp_mru REAL NOT NULL DEFAULT 0,
+      line_ht_mru REAL NOT NULL DEFAULT 0,
+      line_tva_mru REAL NOT NULL DEFAULT 0,
+      line_ttc_mru REAL NOT NULL DEFAULT 0,
+      line_cost_mru REAL NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_purchase_docs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      supplier_id INTEGER REFERENCES commercial_suppliers(id) ON DELETE RESTRICT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      doc_type TEXT NOT NULL,
+      doc_number TEXT NOT NULL,
+      supplier_ref TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'BROUILLON',
+      issue_date TEXT NOT NULL,
+      due_date TEXT NOT NULL DEFAULT '',
+      source_doc_id INTEGER REFERENCES commercial_purchase_docs(id) ON DELETE SET NULL,
+      source_doc_type TEXT NOT NULL DEFAULT '',
+      converted_to_doc_id INTEGER,
+      converted_to_type TEXT NOT NULL DEFAULT '',
+      supplier_name TEXT NOT NULL DEFAULT '',
+      supplier_nif TEXT NOT NULL DEFAULT '',
+      global_discount_pct REAL NOT NULL DEFAULT 0,
+      subtotal_ht_mru REAL NOT NULL DEFAULT 0,
+      discount_ht_mru REAL NOT NULL DEFAULT 0,
+      total_ht_mru REAL NOT NULL DEFAULT 0,
+      total_tva_mru REAL NOT NULL DEFAULT 0,
+      total_ttc_mru REAL NOT NULL DEFAULT 0,
+      paid_mru REAL NOT NULL DEFAULT 0,
+      credited_mru REAL NOT NULL DEFAULT 0,
+      stock_applied INTEGER NOT NULL DEFAULT 0,
+      deduct_stock_on_validate INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      validated_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, doc_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_purchase_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      doc_id INTEGER NOT NULL REFERENCES commercial_purchase_docs(id) ON DELETE CASCADE,
+      article_id INTEGER REFERENCES commercial_articles(id) ON DELETE SET NULL,
+      line_order INTEGER NOT NULL DEFAULT 0,
+      sku TEXT NOT NULL DEFAULT '',
+      designation TEXT NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'unité',
+      qty REAL NOT NULL DEFAULT 1,
+      unit_cost_ht_mru REAL NOT NULL DEFAULT 0,
+      discount_pct REAL NOT NULL DEFAULT 0,
+      tva_rate REAL NOT NULL DEFAULT 16,
+      is_exempt INTEGER NOT NULL DEFAULT 0,
+      line_ht_mru REAL NOT NULL DEFAULT 0,
+      line_tva_mru REAL NOT NULL DEFAULT 0,
+      line_ttc_mru REAL NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_pos_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      register_id INTEGER REFERENCES pos_registers(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      session_number TEXT NOT NULL,
+      register_code TEXT NOT NULL DEFAULT 'C1',
+      cashier_name TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      opening_float_mru REAL NOT NULL DEFAULT 0,
+      cash_sales_mru REAL NOT NULL DEFAULT 0,
+      bankily_mru REAL NOT NULL DEFAULT 0,
+      masrivi_mru REAL NOT NULL DEFAULT 0,
+      sedad_mru REAL NOT NULL DEFAULT 0,
+      bimbank_mru REAL NOT NULL DEFAULT 0,
+      click_mru REAL NOT NULL DEFAULT 0,
+      karni_mru REAL NOT NULL DEFAULT 0,
+      refund_cash_mru REAL NOT NULL DEFAULT 0,
+      total_sales_ht_mru REAL NOT NULL DEFAULT 0,
+      total_sales_tva_mru REAL NOT NULL DEFAULT 0,
+      total_sales_ttc_mru REAL NOT NULL DEFAULT 0,
+      tickets_count INTEGER NOT NULL DEFAULT 0,
+      expected_cash_mru REAL NOT NULL DEFAULT 0,
+      counted_cash_mru REAL,
+      variance_mru REAL NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
+      opened_at TEXT NOT NULL,
+      closed_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, session_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_pos_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      session_id INTEGER NOT NULL REFERENCES commercial_pos_sessions(id) ON DELETE RESTRICT,
+      client_id INTEGER REFERENCES commercial_clients(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ticket_number TEXT NOT NULL,
+      price_tier TEXT NOT NULL DEFAULT 'retail',
+      status TEXT NOT NULL DEFAULT 'PAID',
+      pay_method TEXT NOT NULL,
+      payments_json TEXT NOT NULL DEFAULT '[]',
+      subtotal_ht_mru REAL NOT NULL DEFAULT 0,
+      discount_mru REAL NOT NULL DEFAULT 0,
+      total_ht_mru REAL NOT NULL DEFAULT 0,
+      total_tva_mru REAL NOT NULL DEFAULT 0,
+      total_ttc_mru REAL NOT NULL DEFAULT 0,
+      total_cost_mru REAL NOT NULL DEFAULT 0,
+      amount_tendered_mru REAL NOT NULL DEFAULT 0,
+      change_mru REAL NOT NULL DEFAULT 0,
+      customer_name TEXT NOT NULL DEFAULT '',
+      void_reason TEXT NOT NULL DEFAULT '',
+      voided_at TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, ticket_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_pos_ticket_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      ticket_id INTEGER NOT NULL REFERENCES commercial_pos_tickets(id) ON DELETE CASCADE,
+      article_id INTEGER REFERENCES commercial_articles(id) ON DELETE SET NULL,
+      sku TEXT NOT NULL DEFAULT '',
+      designation TEXT NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'unité',
+      qty REAL NOT NULL DEFAULT 1,
+      unit_price_ht_mru REAL NOT NULL DEFAULT 0,
+      unit_price_ttc_mru REAL NOT NULL DEFAULT 0,
+      discount_pct REAL NOT NULL DEFAULT 0,
+      tva_rate REAL NOT NULL DEFAULT 16,
+      is_exempt INTEGER NOT NULL DEFAULT 0,
+      cost_pmp_mru REAL NOT NULL DEFAULT 0,
+      line_ht_mru REAL NOT NULL DEFAULT 0,
+      line_tva_mru REAL NOT NULL DEFAULT 0,
+      line_ttc_mru REAL NOT NULL DEFAULT 0,
+      line_cost_mru REAL NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_treasury_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      code TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL,
+      account_type TEXT NOT NULL DEFAULT 'CAISSE',
+      bank_name TEXT NOT NULL DEFAULT '',
+      account_number TEXT NOT NULL DEFAULT '',
+      initial_balance_mru REAL NOT NULL DEFAULT 0,
+      current_balance_mru REAL NOT NULL DEFAULT 0,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_treasury_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      account_id INTEGER NOT NULL REFERENCES commercial_treasury_accounts(id) ON DELETE RESTRICT,
+      transfer_account_id INTEGER REFERENCES commercial_treasury_accounts(id) ON DELETE SET NULL,
+      transfer_group_id TEXT NOT NULL DEFAULT '',
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      movement_date TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      amount_mru REAL NOT NULL,
+      balance_after_mru REAL NOT NULL DEFAULT 0,
+      pay_method TEXT NOT NULL DEFAULT 'Cash',
+      category TEXT NOT NULL DEFAULT 'AUTRE',
+      label TEXT NOT NULL DEFAULT '',
+      ref TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '',
+      source_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_cheques_drafts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      direction TEXT NOT NULL,
+      instrument_type TEXT NOT NULL DEFAULT 'CHEQUE',
+      number TEXT NOT NULL,
+      bank_name TEXT NOT NULL DEFAULT '',
+      client_id INTEGER REFERENCES commercial_clients(id) ON DELETE SET NULL,
+      supplier_id INTEGER REFERENCES commercial_suppliers(id) ON DELETE SET NULL,
+      sales_doc_id INTEGER REFERENCES commercial_sales_docs(id) ON DELETE SET NULL,
+      purchase_doc_id INTEGER REFERENCES commercial_purchase_docs(id) ON DELETE SET NULL,
+      treasury_account_id INTEGER REFERENCES commercial_treasury_accounts(id) ON DELETE SET NULL,
+      party_name TEXT NOT NULL DEFAULT '',
+      issue_date TEXT NOT NULL,
+      due_date TEXT NOT NULL,
+      amount_mru REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'EN_PORTEFEUILLE',
+      collected_at TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_objectives (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      target_ca_ht_mru REAL NOT NULL DEFAULT 0,
+      target_margin_pct REAL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, year, month)
+    );
+
+    CREATE TABLE IF NOT EXISTS commercial_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      payment_number TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      client_id INTEGER REFERENCES commercial_clients(id) ON DELETE SET NULL,
+      supplier_id INTEGER REFERENCES commercial_suppliers(id) ON DELETE SET NULL,
+      sales_doc_id INTEGER REFERENCES commercial_sales_docs(id) ON DELETE SET NULL,
+      purchase_doc_id INTEGER REFERENCES commercial_purchase_docs(id) ON DELETE SET NULL,
+      treasury_account_id INTEGER REFERENCES commercial_treasury_accounts(id) ON DELETE SET NULL,
+      cheque_draft_id INTEGER REFERENCES commercial_cheques_drafts(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      payment_date TEXT NOT NULL,
+      pay_method TEXT NOT NULL,
+      amount_mru REAL NOT NULL,
+      ref TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'POSTED',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, payment_number)
+    );
   `);
 }
 
@@ -785,6 +1168,7 @@ function runMigrations(database) {
   ensureColumn(database, 'products', 'price_cost', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'dci', "TEXT DEFAULT ''");
   ensureColumn(database, 'products', 'kitchen_station', "TEXT DEFAULT 'KITCHEN'");
+  ensureColumn(database, 'products', 'manual_price', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'is_top', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'is_out_of_stock', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'modifiers_json', "TEXT DEFAULT '[]'");
@@ -872,6 +1256,90 @@ function runMigrations(database) {
     CREATE INDEX IF NOT EXISTS idx_dining_zones_tenant ON dining_zones(tenant_id, branch_id);
     CREATE INDEX IF NOT EXISTS idx_reservations_tenant ON reservations_vip(tenant_id, reserved_at);
     CREATE INDEX IF NOT EXISTS idx_returns_tenant ON returns_remakes_comps(tenant_id, type, created_at);
+
+    -- Commercial partial unique & query indexes
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_clients_tenant_code
+      ON commercial_clients(tenant_id, code) WHERE code != '';
+    CREATE INDEX IF NOT EXISTS idx_comm_clients_tenant_name
+      ON commercial_clients(tenant_id, name);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_suppliers_tenant_code
+      ON commercial_suppliers(tenant_id, code) WHERE code != '';
+    CREATE INDEX IF NOT EXISTS idx_comm_suppliers_tenant_name
+      ON commercial_suppliers(tenant_id, name);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_articles_tenant_sku
+      ON commercial_articles(tenant_id, sku) WHERE sku != '';
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_articles_tenant_barcode
+      ON commercial_articles(tenant_id, barcode) WHERE barcode != '';
+    CREATE INDEX IF NOT EXISTS idx_comm_articles_tenant_cat
+      ON commercial_articles(tenant_id, category);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_stock_mvt_article
+      ON commercial_stock_movements(tenant_id, article_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_comm_stock_mvt_source
+      ON commercial_stock_movements(tenant_id, source_type, source_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_sales_docs_type_date
+      ON commercial_sales_docs(tenant_id, doc_type, issue_date);
+    CREATE INDEX IF NOT EXISTS idx_comm_sales_docs_client
+      ON commercial_sales_docs(tenant_id, client_id);
+    CREATE INDEX IF NOT EXISTS idx_comm_sales_docs_source
+      ON commercial_sales_docs(tenant_id, source_doc_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_sales_lines_doc
+      ON commercial_sales_lines(doc_id, line_order);
+    CREATE INDEX IF NOT EXISTS idx_comm_sales_lines_article
+      ON commercial_sales_lines(tenant_id, article_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_purch_docs_type_date
+      ON commercial_purchase_docs(tenant_id, doc_type, issue_date);
+    CREATE INDEX IF NOT EXISTS idx_comm_purch_docs_supplier
+      ON commercial_purchase_docs(tenant_id, supplier_id);
+    CREATE INDEX IF NOT EXISTS idx_comm_purch_docs_source
+      ON commercial_purchase_docs(tenant_id, source_doc_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_purch_lines_doc
+      ON commercial_purchase_lines(doc_id, line_order);
+    CREATE INDEX IF NOT EXISTS idx_comm_purch_lines_article
+      ON commercial_purchase_lines(tenant_id, article_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_pos_sessions_status
+      ON commercial_pos_sessions(tenant_id, register_code, status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_pos_sessions_one_open
+      ON commercial_pos_sessions(tenant_id, register_code) WHERE status = 'OPEN';
+
+    CREATE INDEX IF NOT EXISTS idx_comm_pos_tickets_session
+      ON commercial_pos_tickets(tenant_id, session_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_comm_pos_tickets_client
+      ON commercial_pos_tickets(tenant_id, client_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_pos_ticket_lines_tkt
+      ON commercial_pos_ticket_lines(ticket_id);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_comm_treasury_acc_code
+      ON commercial_treasury_accounts(tenant_id, code) WHERE code != '';
+    CREATE INDEX IF NOT EXISTS idx_comm_treasury_acc_tenant
+      ON commercial_treasury_accounts(tenant_id, active);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_treasury_mvt_acc_date
+      ON commercial_treasury_movements(tenant_id, account_id, movement_date);
+    CREATE INDEX IF NOT EXISTS idx_comm_treasury_mvt_date
+      ON commercial_treasury_movements(tenant_id, movement_date, direction);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_cheques_due
+      ON commercial_cheques_drafts(tenant_id, direction, status, due_date);
+    CREATE INDEX IF NOT EXISTS idx_comm_cheques_sales_doc
+      ON commercial_cheques_drafts(tenant_id, sales_doc_id);
+    CREATE INDEX IF NOT EXISTS idx_comm_cheques_purch_doc
+      ON commercial_cheques_drafts(tenant_id, purchase_doc_id);
+
+    CREATE INDEX IF NOT EXISTS idx_comm_payments_sales
+      ON commercial_payments(tenant_id, sales_doc_id);
+    CREATE INDEX IF NOT EXISTS idx_comm_payments_purch
+      ON commercial_payments(tenant_id, purchase_doc_id);
+    CREATE INDEX IF NOT EXISTS idx_comm_payments_date
+      ON commercial_payments(tenant_id, direction, payment_date);
   `);
 }
 

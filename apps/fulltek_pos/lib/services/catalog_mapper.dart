@@ -170,6 +170,7 @@ class CatalogMapper {
             available: available,
             icon: '${p['icon'] ?? '🍽'}',
             imageUrl: '${p['imageUrl'] ?? p['image_url'] ?? ''}'.trim(),
+            manualPrice: _asBool(p['manualPrice'] ?? p['manual_price'], fallback: false),
             isTop: _asBool(p['isTop'] ?? p['is_top'], fallback: false),
             modifiers: modifiers,
           );

@@ -228,5 +228,80 @@ void main() {
       expect(store.canCurrent(PosPermission.closeCashZ), isFalse);
       expect(store.canCurrent(PosPermission.viewStats), isFalse);
     });
+
+    test('Familles / Catégories (Sans famille, Ajouter, Renommer, Supprimer)',
+        () async {
+      final store = PosStore(enablePersistence: false);
+      expect(store.categories.any((c) => c.id == 'sans-famille'), isTrue);
+
+      final addErr = await store.saveCategory(
+        nameFr: 'Pizzas & Snacks',
+        nameAr: 'بيتزا',
+        icon: '🍕',
+      );
+      expect(addErr, isNull);
+      final created =
+          store.categories.firstWhere((c) => c.nameFr == 'Pizzas & Snacks');
+
+      final renameErr = await store.saveCategory(
+        existingId: created.id,
+        nameFr: 'Pizzas Maison',
+        icon: '🍕',
+      );
+      expect(renameErr, isNull);
+      expect(
+        store.categories.firstWhere((c) => c.id == created.id).nameFr,
+        'Pizzas Maison',
+      );
+
+      final dishErr = await store.saveMenuItem(
+        nameFr: 'Pizza Royale',
+        categoryId: created.id,
+        priceMru: 400,
+        kitchenStation: 'PIZZA',
+      );
+      expect(dishErr, isNull);
+      final dish =
+          store.menuItems.firstWhere((m) => m.nameFr == 'Pizza Royale');
+      expect(dish.kitchenStation, 'PIZZA');
+      expect(KdsStationFilter.pizza.matchesStation(dish.kitchenStation), isTrue);
+
+      // Cannot delete default 'sans-famille'
+      expect(await store.deleteCategory('sans-famille'), isNotNull);
+
+      // Deleting custom family reassigns its dishes to 'sans-famille'
+      expect(await store.deleteCategory(created.id), isNull);
+      expect(store.categories.any((c) => c.id == created.id), isFalse);
+      expect(
+        store.menuItems.firstWhere((m) => m.id == dish.id).categoryId,
+        'sans-famille',
+      );
+    });
+
+    test('Saisie prix manuel (manualPrice) creates distinct lines with customPriceMru',
+        () async {
+      final store = PosStore(enablePersistence: false);
+      final err = await store.saveMenuItem(
+        nameFr: 'Poisson du jour (au poids)',
+        categoryId: 'sans-famille',
+        priceMru: 0,
+        kitchenStation: 'GRILL',
+        manualPrice: true,
+      );
+      expect(err, isNull);
+      final item = store.menuItems
+          .firstWhere((m) => m.nameFr == 'Poisson du jour (au poids)');
+      expect(item.manualPrice, isTrue);
+
+      store.startCounterOrder();
+      store.addItemToActiveOrder(item, customPriceMru: 650);
+      store.addItemToActiveOrder(item, customPriceMru: 900);
+
+      final order = store.activeOrder!;
+      expect(order.items.length, 2);
+      expect(order.items[0].item.priceMru, 650);
+      expect(order.items[1].item.priceMru, 900);
+      expect(order.grossTotal, 1550);
+    });
   });
 }

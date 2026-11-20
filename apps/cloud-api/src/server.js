@@ -24,6 +24,7 @@ const {
   requireTenantAuth,
 } = require('./auth');
 const { importCatalog } = require('./catalogImport');
+const { handleCommercialRoute, ensureCommercialDefaults } = require('./commercial');
 
 const DEFAULT_ENABLED_THEMES = ['01', '04', '06', '07', '11'];
 const DEFAULT_PAY_METHODS = ['Cash', 'Bankily', 'Masrivi', 'Sedad', 'Bimbank', 'Click', 'Karni'];
@@ -31,7 +32,7 @@ const VALID_KDS_STATIONS = new Set(['ALL', 'GRILL', 'KITCHEN', 'BAR']);
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization',
 };
 
@@ -63,6 +64,7 @@ function serializeTenant(r) {
   return {
     id: r.id,
     tenantId: r.tenant_code,
+    tenantCode: r.tenant_code,
     name: r.name,
     module: r.module,
     subType: r.sub_type,
@@ -1142,17 +1144,34 @@ function createApp(options = {}) {
         if (!row || !verifyPassword(b.password, row.password_hash)) {
           return sendJson(res, 401, { error: 'Identifiant ou mot de passe incorrect' });
         }
+        if (row.status === 'locked') {
+          return sendJson(res, 403, { error: 'Tenant account is locked' });
+        }
+        const userRow = database
+          .prepare('SELECT id, full_name, username, role, email, phone FROM users WHERE tenant_id = ? AND LOWER(username) = LOWER(?) LIMIT 1')
+          .get(row.id, row.username);
         const token = signJwt(
           {
             tenantId: row.id,
             tenantCode: row.tenant_code,
             module: row.module,
-            role: 'OWNER',
+            role: userRow?.role || 'OWNER',
           },
           DEFAULT_EXPIRES_IN_SEC,
           effectiveJwtSecret,
         );
-        return sendJson(res, 200, { token, tenant: serializeTenant(row) });
+        return sendJson(res, 200, {
+          token,
+          tenant: serializeTenant(row),
+          user: {
+            id: userRow?.id ?? null,
+            username: userRow?.username || row.username,
+            fullName: userRow?.full_name || row.manager || row.name,
+            role: userRow?.role || 'OWNER',
+            email: userRow?.email || row.email || '',
+            phone: userRow?.phone || row.phone || '',
+          },
+        });
       }
 
       let m;
@@ -1216,6 +1235,7 @@ function createApp(options = {}) {
             priceMru: Number(prod.price_retail ?? 0),
             priceCostMru: Number(prod.price_cost ?? 0),
             kitchenStation: String(prod.kitchen_station || 'KITCHEN').toUpperCase(),
+            manualPrice: Boolean(prod.manual_price),
             isTop: Boolean(prod.is_top),
             isOutOfStock: Boolean(prod.is_out_of_stock),
             available: !Boolean(prod.is_out_of_stock),
@@ -1349,6 +1369,48 @@ function createApp(options = {}) {
         });
       }
 
+      // 2c-bis. POS Categories / Familles CRUD
+      if (req.method === 'POST' && p === '/api/pos/categories') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nameFr = typeof b.nameFr === 'string' ? b.nameFr.trim() : '';
+        if (!nameFr) return sendJson(res, 400, { error: 'nameFr is required' });
+        const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : nameFr;
+        const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : nameFr;
+        const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : '🍽';
+        const sortOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 99;
+        const ins = database.prepare(`
+          INSERT INTO categories (tenant_id, name_fr, name_ar, name_en, icon, sort_order, active, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+        `).run(currentTenant.id, nameFr, nameAr, nameEn, icon, sortOrder, new Date().toISOString());
+        const created = database.prepare('SELECT * FROM categories WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, category: created });
+      }
+
+      if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/categories\/(\d+)$/))) {
+        const catId = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM categories WHERE id = ? AND tenant_id = ? AND active = 1').get(catId, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Category not found' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nameFr = typeof b.nameFr === 'string' && b.nameFr.trim() ? b.nameFr.trim() : cur.name_fr;
+        const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : cur.name_ar;
+        const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : cur.name_en;
+        const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : cur.icon;
+        database.prepare('UPDATE categories SET name_fr = ?, name_ar = ?, name_en = ?, icon = ? WHERE id = ? AND tenant_id = ?')
+          .run(nameFr, nameAr, nameEn, icon, catId, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM categories WHERE id = ?').get(catId);
+        return sendJson(res, 200, { ok: true, category: updated });
+      }
+
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/categories\/(\d+)$/))) {
+        const catId = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM categories WHERE id = ? AND tenant_id = ? AND active = 1').get(catId, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Category not found' });
+        database.prepare('UPDATE categories SET active = 0 WHERE id = ? AND tenant_id = ?').run(catId, currentTenant.id);
+        return sendJson(res, 200, { ok: true, categoryId: catId });
+      }
+
       // 2d. PATCH /api/pos/products/:id/availability — Stock-86 / ÉPUISÉ toggle
       if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/products\/([^/]+)\/availability$/))) {
         let rawKey;
@@ -1437,6 +1499,7 @@ function createApp(options = {}) {
         const kitchenStation = (typeof b.kitchenStation === 'string' ? b.kitchenStation : 'KITCHEN').trim().toUpperCase();
         const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : '🍽';
         const imageUrl = typeof b.imageUrl === 'string' ? b.imageUrl.trim() : (typeof b.image_url === 'string' ? b.image_url.trim() : '');
+        const manualPrice = b.manualPrice === true ? 1 : 0;
         const isTop = b.isTop === true ? 1 : 0;
         const isOutOfStock = b.available === false ? 1 : 0;
 
@@ -1465,10 +1528,10 @@ function createApp(options = {}) {
         const ins = database.prepare(`
           INSERT INTO products (
             tenant_id, category_id, sku, name_fr, name_ar, name_en, icon, image_url,
-            unit, price_retail, kitchen_station, is_top, is_out_of_stock,
+            unit, price_retail, kitchen_station, manual_price, is_top, is_out_of_stock,
             modifiers_json, active, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, '[]', 1, ?, ?)
-        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, imageUrl, priceRetail, kitchenStation, isTop, isOutOfStock, nowIso, nowIso);
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, ?, '[]', 1, ?, ?)
+        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, imageUrl, priceRetail, kitchenStation, manualPrice, isTop, isOutOfStock, nowIso, nowIso);
         const created = database.prepare('SELECT * FROM products WHERE id = ?').get(ins.lastInsertRowid);
 
         database.prepare(`
@@ -1499,6 +1562,7 @@ function createApp(options = {}) {
         const kitchenStation = typeof b.kitchenStation === 'string' && b.kitchenStation.trim() ? b.kitchenStation.trim().toUpperCase() : product.kitchen_station;
         const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : product.icon;
         const imageUrl = typeof b.imageUrl === 'string' ? b.imageUrl.trim() : (typeof b.image_url === 'string' ? b.image_url.trim() : (product.image_url || ''));
+        const manualPrice = typeof b.manualPrice === 'boolean' ? (b.manualPrice ? 1 : 0) : Number(product.manual_price || 0);
         const isTop = typeof b.isTop === 'boolean' ? (b.isTop ? 1 : 0) : product.is_top;
         const isOutOfStock = typeof b.available === 'boolean' ? (b.available ? 0 : 1) : product.is_out_of_stock;
         let categoryId = product.category_id;
@@ -1509,9 +1573,9 @@ function createApp(options = {}) {
         const nowIso = new Date().toISOString();
         database.prepare(`
           UPDATE products SET name_fr = ?, name_ar = ?, name_en = ?, price_retail = ?,
-            category_id = ?, kitchen_station = ?, icon = ?, image_url = ?, is_top = ?, is_out_of_stock = ?, updated_at = ?
+            category_id = ?, kitchen_station = ?, icon = ?, image_url = ?, manual_price = ?, is_top = ?, is_out_of_stock = ?, updated_at = ?
           WHERE id = ? AND tenant_id = ?
-        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, imageUrl, isTop, isOutOfStock, nowIso, product.id, currentTenant.id);
+        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, imageUrl, manualPrice, isTop, isOutOfStock, nowIso, product.id, currentTenant.id);
         const updated = database.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
         return sendJson(res, 200, { ok: true, product: updated });
       }
@@ -2097,6 +2161,41 @@ function createApp(options = {}) {
         });
       }
 
+      // 2i. Centralized Tenant JWT Auth Guard & Router for ALL /api/commercial/* routes
+      if (p === '/api/commercial' || p.startsWith('/api/commercial/')) {
+        currentTenant = requireTenantAuth(req, res, database, {
+          jwtSecret: effectiveJwtSecret,
+          sendJson,
+        });
+        if (!currentTenant) return;
+
+        if (currentTenant.module !== 'commercial') {
+          return sendJson(res, 403, { error: 'Commercial module is not enabled for this tenant' });
+        }
+
+        ensureCommercialDefaults(database, currentTenant.id);
+
+        const handled = await handleCommercialRoute({
+          req,
+          res,
+          url,
+          pathname: p,
+          database,
+          currentTenant,
+          standardLimit,
+          readJsonBody,
+          readRawBody,
+          sendJson,
+          createHttpError,
+          pick,
+          parseJson,
+          nowHM,
+          serializeTenant,
+        });
+        if (handled) return;
+        return sendJson(res, 404, { error: 'Route not found' });
+      }
+
       // 3. Public Ed25519 License Key & Verification Endpoints
       if (req.method === 'GET' && p === '/api/licenses/public-key') {
         const keyId = url.searchParams.get('keyId');
@@ -2217,6 +2316,9 @@ function createApp(options = {}) {
         );
         const freeDeliveryAboveMru = Number(b.freeDeliveryAboveMru ?? 1500);
 
+        const payMethodsList =
+          Array.isArray(b.payMethods) && b.payMethods.length > 0 ? b.payMethods : DEFAULT_PAY_METHODS;
+
         const info = database.prepare(`
           INSERT INTO tenants (
             tenant_code, name, module, sub_type, city, district, address, legal_name,
@@ -2234,7 +2336,7 @@ function createApp(options = {}) {
           Number(b.daysLeft ?? 30), b.status || 'active',
           JSON.stringify(b.enabledThemes || DEFAULT_ENABLED_THEMES),
           JSON.stringify(b.features || []),
-          JSON.stringify(b.payMethods || DEFAULT_PAY_METHODS),
+          JSON.stringify(payMethodsList),
           deliveryZonesJson,
           freeDeliveryAboveMru,
           JSON.stringify(b.hardware || []),
@@ -2246,6 +2348,10 @@ function createApp(options = {}) {
           INSERT INTO users (tenant_id, full_name, username, pass_hash, pin_code, role)
           VALUES (?, ?, ?, ?, ?, 'OWNER')
         `).run(id, b.manager || b.name, b.username, pwHash, String(b.ownerPin || '4242'));
+
+        if (mod === 'commercial') {
+          ensureCommercialDefaults(database, id);
+        }
 
         if (b.initialPayMethod) {
           database.prepare(`
@@ -2283,14 +2389,24 @@ function createApp(options = {}) {
           ? hashPassword(newPw)
           : cur.password_hash;
 
+        const nextPayMethods =
+          b.payMethods !== undefined
+            ? JSON.stringify(
+                Array.isArray(b.payMethods) && b.payMethods.length > 0
+                  ? b.payMethods
+                  : DEFAULT_PAY_METHODS,
+              )
+            : cur.pay_methods;
+
         database.prepare(`
           UPDATE tenants SET
-            name = ?, manager = ?, phone = ?, city = ?, district = ?, nif = ?, rc = ?,
+            name = ?, legal_name = ?, manager = ?, phone = ?, city = ?, district = ?, nif = ?, rc = ?,
             notes = ?, username = ?, account_password = ?, password_hash = ?, owner_pin = ?,
-            tills = ?, enabled_themes = ?, updated_at = CURRENT_TIMESTAMP
+            tills = ?, enabled_themes = ?, pay_methods = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(
           b.name ?? cur.name,
+          b.legalName ?? cur.legal_name,
           b.manager ?? cur.manager,
           b.phone ?? cur.phone,
           b.city ?? cur.city,
@@ -2304,6 +2420,7 @@ function createApp(options = {}) {
           b.ownerPin ?? cur.owner_pin,
           b.tills !== undefined ? Number(b.tills) : cur.tills,
           b.enabledThemes !== undefined ? JSON.stringify(b.enabledThemes) : cur.enabled_themes,
+          nextPayMethods,
           id,
         );
         database.prepare('INSERT INTO audit_logs (tenant_id, actor, title, subtitle, time_label) VALUES (?, ?, ?, ?, ?)')

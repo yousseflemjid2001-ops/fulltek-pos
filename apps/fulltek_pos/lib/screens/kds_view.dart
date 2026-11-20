@@ -42,7 +42,29 @@ class _KdsViewState extends State<KdsView> {
       KdsStationFilter.grill => '🔥 ${i18n.t('kds_station_grill')}',
       KdsStationFilter.kitchen => '🍳 ${i18n.t('kds_station_kitchen')}',
       KdsStationFilter.bar => '🍹 ${i18n.t('kds_station_bar')}',
+      KdsStationFilter.poulet => '🍗 Poulet',
+      KdsStationFilter.pizza => '🍕 Pizza',
+      KdsStationFilter.snack => '🥪 Snack',
+      KdsStationFilter.traditional => '🍲 Traditionnel',
     };
+  }
+
+  List<KdsStationFilter> _visibleFilters(PosStore store) {
+    const core = {
+      KdsStationFilter.all,
+      KdsStationFilter.grill,
+      KdsStationFilter.kitchen,
+      KdsStationFilter.bar,
+    };
+    final activeStations = <String>{
+      for (final m in store.menuItems) m.kitchenStation.trim().toUpperCase(),
+      for (final t in store.activeKdsTickets())
+        for (final it in t.items) it.kitchenStation.trim().toUpperCase(),
+    };
+    return KdsStationFilter.values.where((f) {
+      if (core.contains(f)) return true;
+      return activeStations.contains(f.name.toUpperCase());
+    }).toList();
   }
 
   Color _urgencyColor(KdsUrgency u, PosPalette p) => switch (u) {
@@ -70,7 +92,7 @@ class _KdsViewState extends State<KdsView> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: KdsStationFilter.values.map((f) {
+                    children: _visibleFilters(store).map((f) {
                       final sel = _filter == f;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),

@@ -40,10 +40,85 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     }).toList();
   }
 
+  Future<double?> _promptManualPrice(MenuItem item) async {
+    final ctrl = TextEditingController(
+      text: item.priceMru > 0 ? item.priceMru.toStringAsFixed(0) : '',
+    );
+    String? err;
+    final res = await showDialog<double>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text('Prix manuel — ${item.label(widget.store.lang)}'),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (err != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(err!,
+                        style: const TextStyle(color: Colors.redAccent)),
+                  ),
+                TextField(
+                  key: const Key('manual_price_input'),
+                  controller: ctrl,
+                  autofocus: true,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Montant (MRU) *',
+                    suffixText: 'MRU',
+                  ),
+                  onSubmitted: (_) {
+                    final v = double.tryParse(
+                        ctrl.text.trim().replaceAll(',', '.'));
+                    if (v == null || v <= 0) {
+                      setD(() => err = 'Veuillez saisir un montant > 0.');
+                      return;
+                    }
+                    Navigator.of(ctx).pop(v);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(widget.store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('confirm_manual_price_btn'),
+              onPressed: () {
+                final v =
+                    double.tryParse(ctrl.text.trim().replaceAll(',', '.'));
+                if (v == null || v <= 0) {
+                  setD(() => err = 'Veuillez saisir un montant > 0.');
+                  return;
+                }
+                Navigator.of(ctx).pop(v);
+              },
+              child: Text(widget.store.i18n.t('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
+    return res;
+  }
+
   Future<void> _onTapItem(MenuItem item) async {
     if (!item.available) return;
+    double? customPrice;
+    if (item.manualPrice) {
+      customPrice = await _promptManualPrice(item);
+      if (customPrice == null || !mounted) return;
+    }
     if (!item.hasModifiers) {
-      widget.store.addItemToActiveOrder(item);
+      widget.store.addItemToActiveOrder(item, customPriceMru: customPrice);
       return;
     }
     final res = await showDialog<Map<String, dynamic>>(
@@ -58,6 +133,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             : res['note'] as String?,
         selectedModifiers:
             (res['modifiers'] as List<SelectedModifier>?) ?? const [],
+        customPriceMru: customPrice,
       );
     }
   }

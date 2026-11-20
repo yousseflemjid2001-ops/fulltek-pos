@@ -63,6 +63,170 @@ class _MenuStockViewState extends State<MenuStockView> {
     }
   }
 
+  Future<void> _openCategoryDialog({MenuCategory? existing}) async {
+    final store = widget.store;
+    final frCtrl = TextEditingController(text: existing?.nameFr ?? '');
+    final arCtrl = TextEditingController(text: existing?.nameAr ?? '');
+    final iconCtrl = TextEditingController(text: existing?.icon ?? '🍽');
+    String? err;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(existing == null
+              ? 'Nouvelle famille / catégorie'
+              : 'Renommer la famille'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (err != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(err!,
+                        style: const TextStyle(color: Colors.redAccent)),
+                  ),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 68,
+                      child: TextField(
+                        controller: iconCtrl,
+                        textAlign: TextAlign.center,
+                        decoration: const InputDecoration(labelText: 'Icône'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        key: const Key('category_name_fr_input'),
+                        controller: frCtrl,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                            labelText: 'Nom (Français) *'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  key: const Key('category_name_ar_input'),
+                  controller: arCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Nom (Arabe / عربي)'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('save_category_btn'),
+              onPressed: () async {
+                if (frCtrl.text.trim().isEmpty) {
+                  setD(() => err = 'Veuillez saisir un nom de famille.');
+                  return;
+                }
+                final res = await store.saveCategory(
+                  existingId: existing?.id,
+                  nameFr: frCtrl.text.trim(),
+                  nameAr: arCtrl.text.trim(),
+                  icon: iconCtrl.text.trim().isEmpty
+                      ? '🍽'
+                      : iconCtrl.text.trim(),
+                );
+                if (res != null) {
+                  setD(() => err = res);
+                  return;
+                }
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: Text(store.i18n.t('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+    frCtrl.dispose();
+    arCtrl.dispose();
+    iconCtrl.dispose();
+  }
+
+  Future<void> _openFamiliesManagerDialog() async {
+    final store = widget.store;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Familles / Catégories'),
+          content: SizedBox(
+            width: 420,
+            height: 360,
+            child: ListView.separated(
+              itemCount: store.categories.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
+              itemBuilder: (_, idx) {
+                final c = store.categories[idx];
+                final isDefault = c.id == 'sans-famille';
+                final count = store.menuItems
+                    .where((m) => m.categoryId == c.id)
+                    .length;
+                return ListTile(
+                  dense: true,
+                  leading: Text(c.icon, style: const TextStyle(fontSize: 20)),
+                  title: Text(c.label(store.lang)),
+                  subtitle: Text('$count article(s)'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Renommer',
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        onPressed: () async {
+                          await _openCategoryDialog(existing: c);
+                          setD(() {});
+                        },
+                      ),
+                      if (!isDefault)
+                        IconButton(
+                          tooltip: 'Supprimer',
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              size: 18),
+                          onPressed: () async {
+                            await store.deleteCategory(c.id);
+                            setD(() {});
+                          },
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                await _openCategoryDialog();
+                setD(() {});
+              },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Nouvelle famille'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openDishDialog({MenuItem? existing}) async {
     final store = widget.store;
     final frCtrl = TextEditingController(text: existing?.nameFr ?? '');
@@ -84,10 +248,25 @@ class _MenuStockViewState extends State<MenuStockView> {
       'Dattes': 'assets/images/menu/resto_dattes.jpg',
     };
     String catId = existing?.categoryId ??
-        (store.categories.isNotEmpty ? store.categories.first.id : 'cat-1');
+        (store.categories.isNotEmpty
+            ? store.categories.first.id
+            : 'sans-famille');
+    const stationItems = <DropdownMenuItem<String>>[
+      DropdownMenuItem(value: 'KITCHEN', child: Text('Cuisine')),
+      DropdownMenuItem(value: 'GRILL', child: Text('Grill')),
+      DropdownMenuItem(value: 'BAR', child: Text('Bar')),
+      DropdownMenuItem(value: 'POULET', child: Text('Poulet')),
+      DropdownMenuItem(value: 'PIZZA', child: Text('Pizza')),
+      DropdownMenuItem(value: 'SNACK', child: Text('Snack')),
+      DropdownMenuItem(value: 'TRADITIONAL', child: Text('Traditionnel')),
+    ];
     String station = existing?.kitchenStation ?? 'KITCHEN';
+    if (!stationItems.any((e) => e.value == station)) {
+      station = 'KITCHEN';
+    }
     bool isTop = existing?.isTop ?? false;
     bool available = existing?.available ?? true;
+    bool manualPrice = existing?.manualPrice ?? false;
     String? err;
 
     await showDialog<void>(
@@ -152,16 +331,11 @@ class _MenuStockViewState extends State<MenuStockView> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: DropdownButtonFormField<String>(
+                          key: const Key('dish_station_dropdown'),
                           initialValue: station,
-                          decoration:
-                              const InputDecoration(labelText: 'Poste cuisine'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'KITCHEN', child: Text('Cuisine')),
-                            DropdownMenuItem(
-                                value: 'GRILL', child: Text('Grill')),
-                            DropdownMenuItem(value: 'BAR', child: Text('Bar')),
-                          ],
+                          decoration: const InputDecoration(
+                              labelText: 'Département préparation'),
+                          items: stationItems,
                           onChanged: (v) {
                             if (v != null) setD(() => station = v);
                           },
@@ -171,21 +345,54 @@ class _MenuStockViewState extends State<MenuStockView> {
                   ),
                   const SizedBox(height: 10),
                   if (store.categories.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      initialValue:
-                          store.categories.any((c) => c.id == catId)
-                              ? catId
-                              : store.categories.first.id,
-                      decoration: const InputDecoration(labelText: 'Catégorie'),
-                      items: store.categories
-                          .map((c) => DropdownMenuItem(
-                                value: c.id,
-                                child: Text('${c.icon} ${c.label(store.lang)}'),
-                              ))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setD(() => catId = v);
-                      },
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            key: const Key('dish_category_dropdown'),
+                            initialValue:
+                                store.categories.any((c) => c.id == catId)
+                                    ? catId
+                                    : store.categories.first.id,
+                            decoration: const InputDecoration(
+                                labelText: 'Famille / Catégorie'),
+                            items: store.categories
+                                .map((c) => DropdownMenuItem(
+                                      value: c.id,
+                                      child: Text(
+                                          '${c.icon} ${c.label(store.lang)}'),
+                                    ))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v != null) setD(() => catId = v);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Ajouter / Renommer des familles',
+                          child: OutlinedButton(
+                            key: const Key('manage_families_inline_btn'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(44, 48),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            onPressed: () async {
+                              await _openFamiliesManagerDialog();
+                              setD(() {
+                                if (!store.categories
+                                        .any((c) => c.id == catId) &&
+                                    store.categories.isNotEmpty) {
+                                  catId = store.categories.first.id;
+                                }
+                              });
+                            },
+                            child: const Text('...'),
+                          ),
+                        ),
+                      ],
                     ),
                   const SizedBox(height: 10),
                   Row(
@@ -231,6 +438,15 @@ class _MenuStockViewState extends State<MenuStockView> {
                   ),
                   const SizedBox(height: 8),
                   SwitchListTile(
+                    key: const Key('dish_manual_price_switch'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Saisie prix manuel en caisse (MRU)'),
+                    subtitle: const Text(
+                        'Demande le montant au caissier à chaque ajout'),
+                    value: manualPrice,
+                    onChanged: (v) => setD(() => manualPrice = v),
+                  ),
+                  SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Plat vedette (Badge TOP)'),
                     value: isTop,
@@ -272,6 +488,7 @@ class _MenuStockViewState extends State<MenuStockView> {
                   imageUrl: imageCtrl.text.trim(),
                   isTop: isTop,
                   available: available,
+                  manualPrice: manualPrice,
                 );
                 if (res != null) {
                   setD(() => err = res);
@@ -577,6 +794,11 @@ class _MenuStockViewState extends State<MenuStockView> {
                       'Stock & Achats (${store.ingredients.length})',
                     ),
                   ),
+                  ButtonSegment(
+                    value: 2,
+                    icon: const Icon(Icons.category_rounded, size: 17),
+                    label: Text('Familles (${store.categories.length})'),
+                  ),
                 ],
                 selected: {_subTab},
                 onSelectionChanged: (s) => setState(() => _subTab = s.first),
@@ -597,13 +819,22 @@ class _MenuStockViewState extends State<MenuStockView> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton.icon(
-                    key: Key(_subTab == 0 ? 'add_dish_btn' : 'add_ing_btn'),
+                    key: Key(_subTab == 0
+                        ? 'add_dish_btn'
+                        : _subTab == 1
+                            ? 'add_ing_btn'
+                            : 'add_family_btn'),
                     onPressed: _subTab == 0
                         ? () => _openDishDialog()
-                        : _openNewIngredientDialog,
+                        : _subTab == 1
+                            ? _openNewIngredientDialog
+                            : () => _openCategoryDialog(),
                     icon: const Icon(Icons.add_rounded, size: 18),
-                    label: Text(
-                        _subTab == 0 ? 'Nouveau plat' : 'Nouvel ingrédient'),
+                    label: Text(_subTab == 0
+                        ? 'Nouveau plat'
+                        : _subTab == 1
+                            ? 'Nouvel ingrédient'
+                            : 'Nouvelle famille'),
                   ),
                 ],
               ),
@@ -613,10 +844,72 @@ class _MenuStockViewState extends State<MenuStockView> {
           Expanded(
             child: _subTab == 0
                 ? _buildMenuList(filteredMenu, store, p)
-                : _buildIngredientsList(filteredIngredients, store, p),
+                : _subTab == 1
+                    ? _buildIngredientsList(filteredIngredients, store, p)
+                    : _buildCategoriesList(store, p),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCategoriesList(PosStore store, PosPalette p) {
+    final q = _query.trim().toLowerCase();
+    final cats = store.categories.where((c) {
+      if (q.isEmpty) return true;
+      return c.nameFr.toLowerCase().contains(q) || c.nameAr.contains(q);
+    }).toList();
+    return ListView.separated(
+      itemCount: cats.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, idx) {
+        final c = cats[idx];
+        final isDefault = c.id == 'sans-famille';
+        final count = store.menuItems.where((m) => m.categoryId == c.id).length;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: p.border),
+          ),
+          child: Row(
+            children: [
+              Text(c.icon, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.label(store.lang),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    Text(
+                      '$count article(s)${isDefault ? ' • Famille par défaut' : ''}',
+                      style: TextStyle(color: p.textMuted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: Key('edit_family_${c.id}'),
+                tooltip: 'Renommer',
+                onPressed: () => _openCategoryDialog(existing: c),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              if (!isDefault)
+                IconButton(
+                  key: Key('delete_family_${c.id}'),
+                  tooltip: 'Supprimer',
+                  onPressed: () => store.deleteCategory(c.id),
+                  icon: Icon(Icons.delete_outline_rounded, color: p.danger),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 

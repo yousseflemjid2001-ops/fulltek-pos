@@ -15,7 +15,7 @@ model Tenant {
   id                 Int      @id @default(autoincrement())
   tenantCode         String   @unique @map("tenant_code")
   name               String
-  module             String   // resto | market | pharma
+  module             String   // resto | market | pharma | commercial
   subType            String   @default("") @map("sub_type")
   city               String
   district           String   @default("")
@@ -72,6 +72,22 @@ model Tenant {
   customerCreditsKarni CustomerCreditKarni[]
   karniTransactions    KarniTransaction[]
   closings             CashClosingZ[]
+  commercialClients            CommercialClient[]
+  commercialSuppliers          CommercialSupplier[]
+  commercialArticles           CommercialArticle[]
+  commercialStockMovements     CommercialStockMovement[]
+  commercialSalesDocs          CommercialSalesDoc[]
+  commercialSalesLines         CommercialSalesLine[]
+  commercialPurchaseDocs       CommercialPurchaseDoc[]
+  commercialPurchaseLines      CommercialPurchaseLine[]
+  commercialPosSessions        CommercialPosSession[]
+  commercialPosTickets         CommercialPosTicket[]
+  commercialPosTicketLines     CommercialPosTicketLine[]
+  commercialTreasuryAccounts   CommercialTreasuryAccount[]
+  commercialTreasuryMovements  CommercialTreasuryMovement[]
+  commercialChequesDrafts      CommercialChequeDraft[]
+  commercialObjectives         CommercialObjective[]
+  commercialPayments           CommercialPayment[]
 
   @@map("tenants")
 }
@@ -105,6 +121,18 @@ model Branch {
   returnsRemakesComps  ReturnRemakeComp[]
   customerCreditsKarni CustomerCreditKarni[]
   closings             CashClosingZ[]
+  commercialClients           CommercialClient[]
+  commercialSuppliers         CommercialSupplier[]
+  commercialArticles          CommercialArticle[]
+  commercialStockMovements    CommercialStockMovement[]
+  commercialSalesDocs         CommercialSalesDoc[]
+  commercialPurchaseDocs      CommercialPurchaseDoc[]
+  commercialPosSessions       CommercialPosSession[]
+  commercialPosTickets        CommercialPosTicket[]
+  commercialTreasuryAccounts  CommercialTreasuryAccount[]
+  commercialTreasuryMovements CommercialTreasuryMovement[]
+  commercialChequesDrafts     CommercialChequeDraft[]
+  commercialPayments          CommercialPayment[]
 
   @@unique([tenantId, code])
   @@map("branches")
@@ -130,6 +158,7 @@ model PosRegister {
   offlineLeaseTokens OfflineLeaseToken[]
   orders             Order[]
   closings           CashClosingZ[]
+  commercialPosSessions CommercialPosSession[]
 
   @@unique([tenantId, registerCode])
   @@map("pos_registers")
@@ -228,6 +257,13 @@ model User {
   orders              Order[]
   returnsRemakesComps ReturnRemakeComp[]
   cashClosings        CashClosingZ[]
+  commercialStockMovements    CommercialStockMovement[]
+  commercialSalesDocs         CommercialSalesDoc[]
+  commercialPurchaseDocs      CommercialPurchaseDoc[]
+  commercialPosSessions       CommercialPosSession[]
+  commercialPosTickets        CommercialPosTicket[]
+  commercialTreasuryMovements CommercialTreasuryMovement[]
+  commercialPayments          CommercialPayment[]
 
   @@unique([tenantId, username])
   @@map("users")
@@ -704,4 +740,555 @@ model CashClosingZ {
   createdAt   DateTime     @default(now()) @map("created_at")
 
   @@map("cash_closings_z")
+}
+
+// ============================================================================
+// 6. GESTION COMMERCIALE (PHASES 1-3: 16 MODELS -> 43 TOTAL)
+// ============================================================================
+
+model CommercialClient {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int      @map("tenant_id")
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         Int?     @map("branch_id")
+  branch           Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  code             String   @default("")
+  name             String
+  isB2b            Boolean  @default(false) @map("is_b2b")
+  nif              String   @default("")
+  rc               String   @default("")
+  phone            String   @default("")
+  email            String   @default("")
+  address          String   @default("")
+  city             String   @default("")
+  paymentTermsDays Int      @default(0) @map("payment_terms_days")
+  creditLimitMru   Float    @default(0) @map("credit_limit_mru")
+  currentDebtMru   Float    @default(0) @map("current_debt_mru")
+  notes            String   @default("")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  salesDocs     CommercialSalesDoc[]
+  posTickets    CommercialPosTicket[]
+  chequesDrafts CommercialChequeDraft[]
+  payments      CommercialPayment[]
+
+  // Partial UNIQUE index (WHERE code != '') enforced in SQLite/PG DDL
+  @@index([tenantId, code], map: "idx_comm_clients_tenant_code")
+  @@index([tenantId, name], map: "idx_comm_clients_tenant_name")
+  @@map("commercial_clients")
+}
+
+model CommercialSupplier {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int      @map("tenant_id")
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         Int?     @map("branch_id")
+  branch           Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  code             String   @default("")
+  name             String
+  nif              String   @default("")
+  rc               String   @default("")
+  contactName      String   @default("") @map("contact_name")
+  phone            String   @default("")
+  email            String   @default("")
+  address          String   @default("")
+  city             String   @default("")
+  paymentTermsDays Int      @default(30) @map("payment_terms_days")
+  balanceDueMru    Float    @default(0) @map("balance_due_mru")
+  notes            String   @default("")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  purchaseDocs  CommercialPurchaseDoc[]
+  chequesDrafts CommercialChequeDraft[]
+  payments      CommercialPayment[]
+
+  // Partial UNIQUE index (WHERE code != '') enforced in SQLite/PG DDL
+  @@index([tenantId, code], map: "idx_comm_suppliers_tenant_code")
+  @@index([tenantId, name], map: "idx_comm_suppliers_tenant_name")
+  @@map("commercial_suppliers")
+}
+
+model CommercialArticle {
+  id            Int      @id @default(autoincrement())
+  tenantId      Int      @map("tenant_id")
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId      Int?     @map("branch_id")
+  branch        Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  sku           String   @default("")
+  barcode       String   @default("")
+  name          String
+  nameAr        String   @default("") @map("name_ar")
+  category      String   @default("Général")
+  unit          String   @default("unité")
+  priceRetailHt Float    @default(0) @map("price_retail_ht")
+  priceWholeHt  Float    @default(0) @map("price_whole_ht")
+  priceCostMru  Float    @default(0) @map("price_cost_mru")
+  pmpCostMru    Float    @default(0) @map("pmp_cost_mru")
+  stockQty      Float    @default(0) @map("stock_qty")
+  minStock      Float    @default(0) @map("min_stock")
+  tvaRate       Float    @default(16) @map("tva_rate")
+  isExempt      Boolean  @default(false) @map("is_exempt")
+  trackStock    Boolean  @default(true) @map("track_stock")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  stockMovements CommercialStockMovement[]
+  salesLines     CommercialSalesLine[]
+  purchaseLines  CommercialPurchaseLine[]
+  posTicketLines CommercialPosTicketLine[]
+
+  // Partial UNIQUE indexes (WHERE sku != '' / WHERE barcode != '') enforced in SQLite/PG DDL
+  @@index([tenantId, sku], map: "idx_comm_articles_tenant_sku")
+  @@index([tenantId, barcode], map: "idx_comm_articles_tenant_barcode")
+  @@index([tenantId, category], map: "idx_comm_articles_tenant_cat")
+  @@map("commercial_articles")
+}
+
+model CommercialStockMovement {
+  id           Int               @id @default(autoincrement())
+  tenantId     Int               @map("tenant_id")
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId     Int?              @map("branch_id")
+  branch       Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  articleId    Int               @map("article_id")
+  article      CommercialArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId       Int?              @map("user_id")
+  user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  movementType String            @map("movement_type")
+  qtyDelta     Float             @map("qty_delta")
+  unitCostMru  Float             @default(0) @map("unit_cost_mru")
+  pmpBeforeMru Float             @default(0) @map("pmp_before_mru")
+  pmpAfterMru  Float             @default(0) @map("pmp_after_mru")
+  stockBefore  Float             @default(0) @map("stock_before")
+  stockAfter   Float             @default(0) @map("stock_after")
+  sourceType   String            @default("") @map("source_type")
+  sourceId     Int?              @map("source_id")
+  sourceNumber String            @default("") @map("source_number")
+  reason       String            @default("")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([tenantId, articleId, createdAt], map: "idx_comm_stock_mvt_article")
+  @@index([tenantId, sourceType, sourceId], map: "idx_comm_stock_mvt_source")
+  @@map("commercial_stock_movements")
+}
+
+model CommercialSalesDoc {
+  id                Int                  @id @default(autoincrement())
+  tenantId          Int                  @map("tenant_id")
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          Int?                 @map("branch_id")
+  branch            Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  clientId          Int?                 @map("client_id")
+  client            CommercialClient?    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  userId            Int?                 @map("user_id")
+  user              User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  docType           String               @map("doc_type") // DEVIS | COMMANDE | BL | FACTURE | AVOIR
+  docNumber         String               @map("doc_number")
+  status            String               @default("BROUILLON")
+  issueDate         String               @map("issue_date")
+  dueDate           String               @default("") @map("due_date")
+  sourceDocId       Int?                 @map("source_doc_id")
+  sourceDoc         CommercialSalesDoc?  @relation("SalesDocSource", fields: [sourceDocId], references: [id], onDelete: SetNull)
+  sourceDocType     String               @default("") @map("source_doc_type")
+  convertedToDocId  Int?                 @map("converted_to_doc_id")
+  convertedToType   String               @default("") @map("converted_to_type")
+  clientName        String               @default("") @map("client_name")
+  clientNif         String               @default("") @map("client_nif")
+  clientRc          String               @default("") @map("client_rc")
+  deliveryAddress   String               @default("") @map("delivery_address")
+  globalDiscountPct Float                @default(0) @map("global_discount_pct")
+  subtotalHtMru     Float                @default(0) @map("subtotal_ht_mru")
+  discountHtMru     Float                @default(0) @map("discount_ht_mru")
+  totalHtMru        Float                @default(0) @map("total_ht_mru")
+  totalTvaMru       Float                @default(0) @map("total_tva_mru")
+  totalTtcMru       Float                @default(0) @map("total_ttc_mru")
+  totalCostMru      Float                @default(0) @map("total_cost_mru")
+  paidMru           Float                @default(0) @map("paid_mru")
+  creditedMru       Float                @default(0) @map("credited_mru")
+  stockDeducted     Boolean              @default(false) @map("stock_deducted")
+  restockOnValidate Boolean              @default(false) @map("restock_on_validate")
+  reason            String               @default("")
+  notes             String               @default("")
+  validatedAt       String               @default("") @map("validated_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  derivedDocs   CommercialSalesDoc[]    @relation("SalesDocSource")
+  lines         CommercialSalesLine[]
+  chequesDrafts CommercialChequeDraft[]
+  payments      CommercialPayment[]
+
+  @@unique([tenantId, docNumber])
+  @@index([tenantId, docType, issueDate], map: "idx_comm_sales_docs_type_date")
+  @@index([tenantId, clientId], map: "idx_comm_sales_docs_client")
+  @@index([tenantId, sourceDocId], map: "idx_comm_sales_docs_source")
+  @@map("commercial_sales_docs")
+}
+
+model CommercialSalesLine {
+  id             Int                @id @default(autoincrement())
+  tenantId       Int                @map("tenant_id")
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  docId          Int                @map("doc_id")
+  doc            CommercialSalesDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  articleId      Int?               @map("article_id")
+  article        CommercialArticle? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  lineOrder      Int                @default(0) @map("line_order")
+  sku            String             @default("")
+  designation    String
+  unit           String             @default("unité")
+  qty            Float              @default(1)
+  unitPriceHtMru Float              @default(0) @map("unit_price_ht_mru")
+  discountPct    Float              @default(0) @map("discount_pct")
+  tvaRate        Float              @default(16) @map("tva_rate")
+  isExempt       Boolean            @default(false) @map("is_exempt")
+  costPmpMru     Float              @default(0) @map("cost_pmp_mru")
+  lineHtMru      Float              @default(0) @map("line_ht_mru")
+  lineTvaMru     Float              @default(0) @map("line_tva_mru")
+  lineTtcMru     Float              @default(0) @map("line_ttc_mru")
+  lineCostMru    Float              @default(0) @map("line_cost_mru")
+
+  @@index([docId, lineOrder], map: "idx_comm_sales_lines_doc")
+  @@index([tenantId, articleId], map: "idx_comm_sales_lines_article")
+  @@map("commercial_sales_lines")
+}
+
+model CommercialPurchaseDoc {
+  id                    Int                     @id @default(autoincrement())
+  tenantId              Int                     @map("tenant_id")
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId              Int?                    @map("branch_id")
+  branch                Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  supplierId            Int?                    @map("supplier_id")
+  supplier              CommercialSupplier?     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  userId                Int?                    @map("user_id")
+  user                  User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  docType               String                  @map("doc_type") // COMMANDE_FOURNISSEUR | RECEPTION | FACTURE_FOURNISSEUR | AVOIR_FOURNISSEUR
+  docNumber             String                  @map("doc_number")
+  supplierRef           String                  @default("") @map("supplier_ref")
+  status                String                  @default("BROUILLON")
+  issueDate             String                  @map("issue_date")
+  dueDate               String                  @default("") @map("due_date")
+  sourceDocId           Int?                    @map("source_doc_id")
+  sourceDoc             CommercialPurchaseDoc?  @relation("PurchaseDocSource", fields: [sourceDocId], references: [id], onDelete: SetNull)
+  sourceDocType         String                  @default("") @map("source_doc_type")
+  convertedToDocId      Int?                    @map("converted_to_doc_id")
+  convertedToType       String                  @default("") @map("converted_to_type")
+  supplierName          String                  @default("") @map("supplier_name")
+  supplierNif           String                  @default("") @map("supplier_nif")
+  globalDiscountPct     Float                   @default(0) @map("global_discount_pct")
+  subtotalHtMru         Float                   @default(0) @map("subtotal_ht_mru")
+  discountHtMru         Float                   @default(0) @map("discount_ht_mru")
+  totalHtMru            Float                   @default(0) @map("total_ht_mru")
+  totalTvaMru           Float                   @default(0) @map("total_tva_mru")
+  totalTtcMru           Float                   @default(0) @map("total_ttc_mru")
+  paidMru               Float                   @default(0) @map("paid_mru")
+  creditedMru           Float                   @default(0) @map("credited_mru")
+  stockApplied          Boolean                 @default(false) @map("stock_applied")
+  deductStockOnValidate Boolean                 @default(false) @map("deduct_stock_on_validate")
+  reason                String                  @default("")
+  notes                 String                  @default("")
+  validatedAt           String                  @default("") @map("validated_at")
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+
+  derivedDocs   CommercialPurchaseDoc[] @relation("PurchaseDocSource")
+  lines         CommercialPurchaseLine[]
+  chequesDrafts CommercialChequeDraft[]
+  payments      CommercialPayment[]
+
+  @@unique([tenantId, docNumber])
+  @@index([tenantId, docType, issueDate], map: "idx_comm_purch_docs_type_date")
+  @@index([tenantId, supplierId], map: "idx_comm_purch_docs_supplier")
+  @@index([tenantId, sourceDocId], map: "idx_comm_purch_docs_source")
+  @@map("commercial_purchase_docs")
+}
+
+model CommercialPurchaseLine {
+  id            Int                   @id @default(autoincrement())
+  tenantId      Int                   @map("tenant_id")
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  docId         Int                   @map("doc_id")
+  doc           CommercialPurchaseDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  articleId     Int?                  @map("article_id")
+  article       CommercialArticle?    @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  lineOrder     Int                   @default(0) @map("line_order")
+  sku           String                @default("")
+  designation   String
+  unit          String                @default("unité")
+  qty           Float                 @default(1)
+  unitCostHtMru Float                 @default(0) @map("unit_cost_ht_mru")
+  discountPct   Float                 @default(0) @map("discount_pct")
+  tvaRate       Float                 @default(16) @map("tva_rate")
+  isExempt      Boolean               @default(false) @map("is_exempt")
+  lineHtMru     Float                 @default(0) @map("line_ht_mru")
+  lineTvaMru    Float                 @default(0) @map("line_tva_mru")
+  lineTtcMru    Float                 @default(0) @map("line_ttc_mru")
+
+  @@index([docId, lineOrder], map: "idx_comm_purch_lines_doc")
+  @@index([tenantId, articleId], map: "idx_comm_purch_lines_article")
+  @@map("commercial_purchase_lines")
+}
+
+model CommercialPosSession {
+  id               Int          @id @default(autoincrement())
+  tenantId         Int          @map("tenant_id")
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         Int?         @map("branch_id")
+  branch           Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  registerId       Int?         @map("register_id")
+  register         PosRegister? @relation(fields: [registerId], references: [id], onDelete: SetNull)
+  userId           Int?         @map("user_id")
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionNumber    String       @map("session_number")
+  registerCode     String       @default("C1") @map("register_code")
+  cashierName      String       @default("") @map("cashier_name")
+  status           String       @default("OPEN") // OPEN | CLOSED
+  openingFloatMru  Float        @default(0) @map("opening_float_mru")
+  cashSalesMru     Float        @default(0) @map("cash_sales_mru")
+  bankilyMru       Float        @default(0) @map("bankily_mru")
+  masriviMru       Float        @default(0) @map("masrivi_mru")
+  sedadMru         Float        @default(0) @map("sedad_mru")
+  bimbankMru       Float        @default(0) @map("bimbank_mru")
+  clickMru         Float        @default(0) @map("click_mru")
+  karniMru         Float        @default(0) @map("karni_mru")
+  refundCashMru    Float        @default(0) @map("refund_cash_mru")
+  totalSalesHtMru  Float        @default(0) @map("total_sales_ht_mru")
+  totalSalesTvaMru Float        @default(0) @map("total_sales_tva_mru")
+  totalSalesTtcMru Float        @default(0) @map("total_sales_ttc_mru")
+  ticketsCount     Int          @default(0) @map("tickets_count")
+  expectedCashMru  Float        @default(0) @map("expected_cash_mru")
+  countedCashMru   Float?       @map("counted_cash_mru")
+  varianceMru      Float        @default(0) @map("variance_mru")
+  notes            String       @default("")
+  openedAt         String       @map("opened_at")
+  closedAt         String       @default("") @map("closed_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  tickets CommercialPosTicket[]
+
+  @@unique([tenantId, sessionNumber])
+  @@index([tenantId, registerCode, status], map: "idx_comm_pos_sessions_status")
+  @@map("commercial_pos_sessions")
+}
+
+model CommercialPosTicket {
+  id                Int                  @id @default(autoincrement())
+  tenantId          Int                  @map("tenant_id")
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          Int?                 @map("branch_id")
+  branch            Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  sessionId         Int                  @map("session_id")
+  session           CommercialPosSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  clientId          Int?                 @map("client_id")
+  client            CommercialClient?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  userId            Int?                 @map("user_id")
+  user              User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ticketNumber      String               @map("ticket_number")
+  priceTier         String               @default("retail") @map("price_tier") // retail | whole
+  status            String               @default("PAID") // PAID | VOID
+  payMethod         String               @map("pay_method")
+  paymentsJson      String               @default("[]") @map("payments_json")
+  subtotalHtMru     Float                @default(0) @map("subtotal_ht_mru")
+  discountMru       Float                @default(0) @map("discount_mru")
+  totalHtMru        Float                @default(0) @map("total_ht_mru")
+  totalTvaMru       Float                @default(0) @map("total_tva_mru")
+  totalTtcMru       Float                @default(0) @map("total_ttc_mru")
+  totalCostMru      Float                @default(0) @map("total_cost_mru")
+  amountTenderedMru Float                @default(0) @map("amount_tendered_mru")
+  changeMru         Float                @default(0) @map("change_mru")
+  customerName      String               @default("") @map("customer_name")
+  voidReason        String               @default("") @map("void_reason")
+  voidedAt          String               @default("") @map("voided_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  lines CommercialPosTicketLine[]
+
+  @@unique([tenantId, ticketNumber])
+  @@index([tenantId, sessionId, createdAt], map: "idx_comm_pos_tickets_session")
+  @@index([tenantId, clientId], map: "idx_comm_pos_tickets_client")
+  @@map("commercial_pos_tickets")
+}
+
+model CommercialPosTicketLine {
+  id              Int                 @id @default(autoincrement())
+  tenantId        Int                 @map("tenant_id")
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticketId        Int                 @map("ticket_id")
+  ticket          CommercialPosTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  articleId       Int?                @map("article_id")
+  article         CommercialArticle?  @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  sku             String              @default("")
+  designation     String
+  unit            String              @default("unité")
+  qty             Float               @default(1)
+  unitPriceHtMru  Float               @default(0) @map("unit_price_ht_mru")
+  unitPriceTtcMru Float               @default(0) @map("unit_price_ttc_mru")
+  discountPct     Float               @default(0) @map("discount_pct")
+  tvaRate         Float               @default(16) @map("tva_rate")
+  isExempt        Boolean             @default(false) @map("is_exempt")
+  costPmpMru      Float               @default(0) @map("cost_pmp_mru")
+  lineHtMru       Float               @default(0) @map("line_ht_mru")
+  lineTvaMru      Float               @default(0) @map("line_tva_mru")
+  lineTtcMru      Float               @default(0) @map("line_ttc_mru")
+  lineCostMru     Float               @default(0) @map("line_cost_mru")
+
+  @@index([ticketId], map: "idx_comm_pos_ticket_lines_tkt")
+  @@map("commercial_pos_ticket_lines")
+}
+
+model CommercialTreasuryAccount {
+  id                Int      @id @default(autoincrement())
+  tenantId          Int      @map("tenant_id")
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          Int?     @map("branch_id")
+  branch            Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  code              String   @default("")
+  name              String
+  accountType       String   @default("CAISSE") @map("account_type") // CAISSE | BANQUE | MOBILE_MONEY
+  bankName          String   @default("") @map("bank_name")
+  accountNumber     String   @default("") @map("account_number")
+  initialBalanceMru Float    @default(0) @map("initial_balance_mru")
+  currentBalanceMru Float    @default(0) @map("current_balance_mru")
+  isDefault         Boolean  @default(false) @map("is_default")
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  movements         CommercialTreasuryMovement[] @relation("TreasuryAccountMovements")
+  transferMovements CommercialTreasuryMovement[] @relation("TreasuryTransferCounterpart")
+  chequesDrafts     CommercialChequeDraft[]
+  payments          CommercialPayment[]
+
+  // Partial UNIQUE index (WHERE code != '') enforced in SQLite/PG DDL
+  @@index([tenantId, code], map: "idx_comm_treasury_acc_code")
+  @@index([tenantId, active], map: "idx_comm_treasury_acc_tenant")
+  @@map("commercial_treasury_accounts")
+}
+
+model CommercialTreasuryMovement {
+  id                Int                        @id @default(autoincrement())
+  tenantId          Int                        @map("tenant_id")
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          Int?                       @map("branch_id")
+  branch            Branch?                    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  accountId         Int                        @map("account_id")
+  account           CommercialTreasuryAccount  @relation("TreasuryAccountMovements", fields: [accountId], references: [id], onDelete: Restrict)
+  transferAccountId Int?                       @map("transfer_account_id")
+  transferAccount   CommercialTreasuryAccount? @relation("TreasuryTransferCounterpart", fields: [transferAccountId], references: [id], onDelete: SetNull)
+  transferGroupId   String                     @default("") @map("transfer_group_id")
+  userId            Int?                       @map("user_id")
+  user              User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  movementDate      String                     @map("movement_date")
+  direction         String                     // IN | OUT
+  amountMru         Float                      @map("amount_mru")
+  balanceAfterMru   Float                      @default(0) @map("balance_after_mru")
+  payMethod         String                     @default("Cash") @map("pay_method")
+  category          String                     @default("AUTRE")
+  label             String                     @default("")
+  ref               String                     @default("")
+  sourceType        String                     @default("") @map("source_type")
+  sourceId          Int?                       @map("source_id")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+
+  @@index([tenantId, accountId, movementDate], map: "idx_comm_treasury_mvt_acc_date")
+  @@index([tenantId, movementDate, direction], map: "idx_comm_treasury_mvt_date")
+  @@map("commercial_treasury_movements")
+}
+
+model CommercialChequeDraft {
+  id                Int                        @id @default(autoincrement())
+  tenantId          Int                        @map("tenant_id")
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          Int?                       @map("branch_id")
+  branch            Branch?                    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  direction         String                     // CLIENT | FOURNISSEUR
+  instrumentType    String                     @default("CHEQUE") @map("instrument_type") // CHEQUE | TRAITE
+  number            String
+  bankName          String                     @default("") @map("bank_name")
+  clientId          Int?                       @map("client_id")
+  client            CommercialClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  supplierId        Int?                       @map("supplier_id")
+  supplier          CommercialSupplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  salesDocId        Int?                       @map("sales_doc_id")
+  salesDoc          CommercialSalesDoc?        @relation(fields: [salesDocId], references: [id], onDelete: SetNull)
+  purchaseDocId     Int?                       @map("purchase_doc_id")
+  purchaseDoc       CommercialPurchaseDoc?     @relation(fields: [purchaseDocId], references: [id], onDelete: SetNull)
+  treasuryAccountId Int?                       @map("treasury_account_id")
+  treasuryAccount   CommercialTreasuryAccount? @relation(fields: [treasuryAccountId], references: [id], onDelete: SetNull)
+  partyName         String                     @default("") @map("party_name")
+  issueDate         String                     @map("issue_date")
+  dueDate           String                     @map("due_date")
+  amountMru         Float                      @map("amount_mru")
+  status            String                     @default("EN_PORTEFEUILLE")
+  collectedAt       String                     @default("") @map("collected_at")
+  notes             String                     @default("")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+
+  payments CommercialPayment[]
+
+  @@index([tenantId, direction, status, dueDate], map: "idx_comm_cheques_due")
+  @@index([tenantId, salesDocId], map: "idx_comm_cheques_sales_doc")
+  @@index([tenantId, purchaseDocId], map: "idx_comm_cheques_purch_doc")
+  @@map("commercial_cheques_drafts")
+}
+
+model CommercialObjective {
+  id              Int      @id @default(autoincrement())
+  tenantId        Int      @map("tenant_id")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  year            Int
+  month           Int
+  targetCaHtMru   Float    @default(0) @map("target_ca_ht_mru")
+  targetMarginPct Float?   @map("target_margin_pct")
+  notes           String   @default("")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, year, month])
+  @@map("commercial_objectives")
+}
+
+model CommercialPayment {
+  id                Int                        @id @default(autoincrement())
+  tenantId          Int                        @map("tenant_id")
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          Int?                       @map("branch_id")
+  branch            Branch?                    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  paymentNumber     String                     @map("payment_number")
+  direction         String                     // IN | OUT
+  clientId          Int?                       @map("client_id")
+  client            CommercialClient?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  supplierId        Int?                       @map("supplier_id")
+  supplier          CommercialSupplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  salesDocId        Int?                       @map("sales_doc_id")
+  salesDoc          CommercialSalesDoc?        @relation(fields: [salesDocId], references: [id], onDelete: SetNull)
+  purchaseDocId     Int?                       @map("purchase_doc_id")
+  purchaseDoc       CommercialPurchaseDoc?     @relation(fields: [purchaseDocId], references: [id], onDelete: SetNull)
+  treasuryAccountId Int?                       @map("treasury_account_id")
+  treasuryAccount   CommercialTreasuryAccount? @relation(fields: [treasuryAccountId], references: [id], onDelete: SetNull)
+  chequeDraftId     Int?                       @map("cheque_draft_id")
+  chequeDraft       CommercialChequeDraft?     @relation(fields: [chequeDraftId], references: [id], onDelete: SetNull)
+  userId            Int?                       @map("user_id")
+  user              User?                      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  paymentDate       String                     @map("payment_date")
+  payMethod         String                     @map("pay_method")
+  amountMru         Float                      @map("amount_mru")
+  ref               String                     @default("")
+  status            String                     @default("POSTED") // POSTED | REVERSED
+  notes             String                     @default("")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+
+  @@unique([tenantId, paymentNumber])
+  @@index([tenantId, salesDocId], map: "idx_comm_payments_sales")
+  @@index([tenantId, purchaseDocId], map: "idx_comm_payments_purch")
+  @@index([tenantId, direction, paymentDate], map: "idx_comm_payments_date")
+  @@map("commercial_payments")
 }

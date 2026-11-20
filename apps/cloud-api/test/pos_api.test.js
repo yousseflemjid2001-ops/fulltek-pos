@@ -1084,7 +1084,7 @@ describe('POS Suite 5 — Stock-86, KDS, KPIs, Closing Z, Karni, Reservation & P
     });
   });
 
-  it('keeps prisma/schema.prisma and prisma/schema.postgresql.prisma strictly synchronized across all 27 models', () => {
+  it('keeps prisma/schema.prisma and prisma/schema.postgresql.prisma strictly synchronized across all 43 models', () => {
     const sqlitePath = path.join(__dirname, '..', 'prisma', 'schema.prisma');
     const pgPath = path.join(__dirname, '..', 'prisma', 'schema.postgresql.prisma');
     const sq = parsePrismaModels(sqlitePath);
@@ -1094,8 +1094,8 @@ describe('POS Suite 5 — Stock-86, KDS, KPIs, Closing Z, Karni, Reservation & P
     assert.equal(pg.provider, 'postgresql');
     assert.equal(sq.balanced, true);
     assert.equal(pg.balanced, true);
-    assert.equal(sq.models.size, 27);
-    assert.equal(pg.models.size, 27);
+    assert.equal(sq.models.size, 43);
+    assert.equal(pg.models.size, 43);
 
     for (const [model, fields] of sq.models.entries()) {
       assert.ok(pg.models.has(model), `PostgreSQL schema missing model ${model}`);

@@ -1139,24 +1139,30 @@ class PosStore extends ChangeNotifier {
     MenuItem item, {
     String? note,
     List<SelectedModifier> selectedModifiers = const [],
+    double? customPriceMru,
   }) {
     final live = menuItems.cast<MenuItem?>().firstWhere(
           (m) => m?.id == item.id,
           orElse: () => item,
         )!;
     if (!live.available) return false;
+    final effectiveItem = customPriceMru != null
+        ? live.copyWith(priceMru: customPriceMru)
+        : live;
 
     final order = activeOrder ?? startCounterOrder();
     final items = List<OrderItem>.from(order.items);
     final modKey = _modifiersKey(selectedModifiers);
-    final existingIdx = items.indexWhere(
-      (l) =>
-          l.item.id == live.id &&
-          !l.sentToKitchen &&
-          !l.isComp &&
-          (l.kitchenNote ?? '') == (note ?? '') &&
-          _modifiersKey(l.selectedModifiers) == modKey,
-    );
+    final existingIdx = (customPriceMru != null || live.manualPrice)
+        ? -1
+        : items.indexWhere(
+            (l) =>
+                l.item.id == live.id &&
+                !l.sentToKitchen &&
+                !l.isComp &&
+                (l.kitchenNote ?? '') == (note ?? '') &&
+                _modifiersKey(l.selectedModifiers) == modKey,
+          );
     if (existingIdx != -1) {
       items[existingIdx] = items[existingIdx].copyWith(
         quantity: items[existingIdx].quantity + 1,
@@ -1165,7 +1171,7 @@ class PosStore extends ChangeNotifier {
       items.add(
         OrderItem(
           lineId: 'LN-${_lineCounter++}',
-          item: live,
+          item: effectiveItem,
           quantity: 1,
           kitchenNote: note,
           selectedModifiers: List<SelectedModifier>.unmodifiable(selectedModifiers),
@@ -1374,6 +1380,140 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
+  // --- Familles / Catégories CRUD (Ajouter / Renommer / Supprimer + "Sans famille") ---
+
+  Future<String?> saveCategory({
+    String? existingId,
+    required String nameFr,
+    String? nameAr,
+    String icon = '🍽',
+  }) async {
+    final trimmed = nameFr.trim();
+    if (trimmed.isEmpty) return 'Nom de la famille / catégorie requis.';
+    final ar =
+        (nameAr != null && nameAr.trim().isNotEmpty) ? nameAr.trim() : trimmed;
+
+    if (existingId != null) {
+      final idx = categories.indexWhere((c) => c.id == existingId);
+      if (idx == -1) return 'Famille introuvable.';
+      final old = categories[idx];
+      categories[idx] = MenuCategory(
+        id: old.id,
+        nameFr: trimmed,
+        nameAr: ar,
+        nameEn: trimmed,
+        icon: icon.trim().isEmpty ? old.icon : icon.trim(),
+        sortOrder: old.sortOrder,
+        active: true,
+      );
+      notifyListeners();
+
+      if (cloudConnected &&
+          cloudJwtToken != null &&
+          RegExp(r'^\d+$').hasMatch(old.id)) {
+        try {
+          await _httpRequest(
+            'PATCH',
+            '$apiBaseUrl/api/pos/categories/${old.id}',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $cloudJwtToken',
+            },
+            body: jsonEncode({
+              'nameFr': trimmed,
+              'nameAr': ar,
+              'nameEn': trimmed,
+              'icon': icon.trim().isEmpty ? old.icon : icon.trim(),
+            }),
+          );
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    var newId = 'cat-${DateTime.now().millisecondsSinceEpoch % 1000000}';
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/categories',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'nameFr': trimmed,
+            'nameAr': ar,
+            'nameEn': trimmed,
+            'icon': icon.trim().isEmpty ? '🍽' : icon.trim(),
+            'sortOrder': categories.length + 1,
+          }),
+        );
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final map = jsonDecode(res.body) as Map<String, dynamic>;
+          final c = map['category'] as Map<String, dynamic>?;
+          if (c != null && c['id'] != null) {
+            newId = '${c['id']}';
+          }
+        }
+      } catch (_) {}
+    }
+
+    categories.add(
+      MenuCategory(
+        id: newId,
+        nameFr: trimmed,
+        nameAr: ar,
+        nameEn: trimmed,
+        icon: icon.trim().isEmpty ? '🍽' : icon.trim(),
+        sortOrder: categories.length + 1,
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> deleteCategory(String id) async {
+    if (id == 'sans-famille') {
+      return 'La famille par défaut "Sans famille" ne peut pas être supprimée.';
+    }
+    final idx = categories.indexWhere((c) => c.id == id);
+    if (idx == -1) return 'Famille introuvable.';
+    categories.removeAt(idx);
+    // Reassign items to 'sans-famille'
+    if (!categories.any((c) => c.id == 'sans-famille')) {
+      categories.insert(
+        0,
+        const MenuCategory(
+          id: 'sans-famille',
+          nameFr: 'Sans famille',
+          nameAr: 'بدون تصنيف',
+          nameEn: 'No family',
+          icon: '📦',
+          sortOrder: 0,
+        ),
+      );
+    }
+    menuItems = [
+      for (final m in menuItems)
+        m.categoryId == id ? m.copyWith(categoryId: 'sans-famille') : m,
+    ];
+    notifyListeners();
+
+    if (cloudConnected &&
+        cloudJwtToken != null &&
+        RegExp(r'^\d+$').hasMatch(id)) {
+      try {
+        await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/categories/$id',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+      } catch (_) {}
+    }
+    return null;
+  }
+
   /// Creates or updates a menu dish locally and on Cloud API (/api/pos/products).
   Future<String?> saveMenuItem({
     String? existingId,
@@ -1385,6 +1525,7 @@ class PosStore extends ChangeNotifier {
     String kitchenStation = 'KITCHEN',
     String iconEmoji = '🍽',
     String imageUrl = '',
+    bool manualPrice = false,
     bool isTop = false,
     bool available = true,
   }) async {
@@ -1412,6 +1553,7 @@ class PosStore extends ChangeNotifier {
         kitchenStation: kitchenStation,
         icon: iconEmoji,
         imageUrl: cleanImage,
+        manualPrice: manualPrice,
         isTop: isTop,
         available: available,
       );
@@ -1435,6 +1577,7 @@ class PosStore extends ChangeNotifier {
               'kitchenStation': kitchenStation,
               'icon': iconEmoji,
               'imageUrl': cleanImage,
+              'manualPrice': manualPrice,
               'isTop': isTop,
               'available': available,
             }),
@@ -1457,6 +1600,7 @@ class PosStore extends ChangeNotifier {
       kitchenStation: kitchenStation,
       icon: iconEmoji,
       imageUrl: cleanImage,
+      manualPrice: manualPrice,
       isTop: isTop,
       available: available,
     );
@@ -1482,6 +1626,7 @@ class PosStore extends ChangeNotifier {
             'kitchenStation': kitchenStation,
             'icon': iconEmoji,
             'imageUrl': cleanImage,
+            'manualPrice': manualPrice,
             'isTop': isTop,
             'available': available,
           }),
@@ -1501,6 +1646,7 @@ class PosStore extends ChangeNotifier {
               kitchenStation: finalItem.kitchenStation,
               icon: finalItem.icon,
               imageUrl: finalItem.imageUrl,
+              manualPrice: finalItem.manualPrice,
               isTop: finalItem.isTop,
               available: finalItem.available,
             );
@@ -2549,6 +2695,14 @@ class PosStore extends ChangeNotifier {
     _selectedDeliveryZone = deliveryZones.first;
 
     categories = [
+      const MenuCategory(
+        id: 'sans-famille',
+        nameFr: 'Sans famille',
+        nameAr: 'بدون تصنيف',
+        nameEn: 'No family',
+        icon: '📦',
+        sortOrder: 0,
+      ),
       const MenuCategory(
         id: 'grill',
         nameFr: 'Grillades & Plats',

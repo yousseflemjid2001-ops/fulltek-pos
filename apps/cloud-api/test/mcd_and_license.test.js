@@ -43,7 +43,7 @@ function withTempDir(fn) {
   }
 }
 
-const EXPECTED_27_TABLES = [
+const EXPECTED_43_TABLES = [
   'tenants',
   'branches',
   'pos_registers',
@@ -71,6 +71,22 @@ const EXPECTED_27_TABLES = [
   'customer_credits_karni',
   'karni_transactions',
   'cash_closings_z',
+  'commercial_clients',
+  'commercial_suppliers',
+  'commercial_articles',
+  'commercial_stock_movements',
+  'commercial_sales_docs',
+  'commercial_sales_lines',
+  'commercial_purchase_docs',
+  'commercial_purchase_lines',
+  'commercial_pos_sessions',
+  'commercial_pos_tickets',
+  'commercial_pos_ticket_lines',
+  'commercial_treasury_accounts',
+  'commercial_treasury_movements',
+  'commercial_cheques_drafts',
+  'commercial_objectives',
+  'commercial_payments',
 ];
 
 describe('1. Fresh createDb(tempPath) initialization', () => {
@@ -93,7 +109,7 @@ describe('1. Fresh createDb(tempPath) initialization', () => {
     });
   });
 
-  it('creates all 27 MCD tables', () => {
+  it('creates all 43 MCD tables', () => {
     withTempDir((dir) => {
       const dbPath = path.join(dir, 'tables.db');
       const db = createDb(dbPath);
@@ -102,10 +118,10 @@ describe('1. Fresh createDb(tempPath) initialization', () => {
           .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
           .all();
         const tableNames = rows.map((r) => r.name);
-        for (const expected of EXPECTED_27_TABLES) {
+        for (const expected of EXPECTED_43_TABLES) {
           assert.ok(tableNames.includes(expected), `Missing table: ${expected}`);
         }
-        assert.equal(tableNames.length, 27);
+        assert.equal(tableNames.length, 43);
       } finally {
         db.close();
       }
@@ -179,6 +195,40 @@ describe('1. Fresh createDb(tempPath) initialization', () => {
           db.prepare("INSERT INTO products (tenant_id, sku, barcode, name_fr, price_retail) VALUES (?, '', '629000000001', 'Barcode B', 350)").run(t1);
         }, /UNIQUE/i);
         db.prepare("INSERT INTO products (tenant_id, sku, barcode, name_fr, price_retail) VALUES (?, '', '629000000001', 'Barcode T2', 350)").run(t2);
+      } finally {
+        db.close();
+      }
+    });
+  });
+
+  it('enforces commercial partial unique indexes on commercial_articles, commercial_pos_sessions, and commercial_objectives', () => {
+    withTempDir((dir) => {
+      const dbPath = path.join(dir, 'comm-idx.db');
+      const db = createDb(dbPath);
+      try {
+        const t1 = db.prepare('SELECT id FROM tenants ORDER BY id ASC LIMIT 1').get().id;
+        const t2 = db.prepare('SELECT id FROM tenants ORDER BY id ASC LIMIT 1 OFFSET 1').get().id;
+
+        db.prepare("INSERT INTO commercial_articles (tenant_id, sku, barcode, name) VALUES (?, '', '', 'Sans SKU 1')").run(t1);
+        db.prepare("INSERT INTO commercial_articles (tenant_id, sku, barcode, name) VALUES (?, '', '', 'Sans SKU 2')").run(t1);
+        db.prepare("INSERT INTO commercial_articles (tenant_id, sku, barcode, name) VALUES (?, 'ART-1', 'BAR-1', 'Art 1')").run(t1);
+        assert.throws(() => {
+          db.prepare("INSERT INTO commercial_articles (tenant_id, sku, barcode, name) VALUES (?, 'ART-1', '', 'Art Dup SKU')").run(t1);
+        }, /UNIQUE/i);
+        assert.throws(() => {
+          db.prepare("INSERT INTO commercial_articles (tenant_id, sku, barcode, name) VALUES (?, '', 'BAR-1', 'Art Dup Barcode')").run(t1);
+        }, /UNIQUE/i);
+        db.prepare("INSERT INTO commercial_articles (tenant_id, sku, barcode, name) VALUES (?, 'ART-1', 'BAR-1', 'Art T2')").run(t2);
+
+        db.prepare("INSERT INTO commercial_pos_sessions (tenant_id, session_number, register_code, status, opened_at) VALUES (?, 'SES-1', 'C1', 'OPEN', '2026-01-01T08:00:00Z')").run(t1);
+        assert.throws(() => {
+          db.prepare("INSERT INTO commercial_pos_sessions (tenant_id, session_number, register_code, status, opened_at) VALUES (?, 'SES-2', 'C1', 'OPEN', '2026-01-01T09:00:00Z')").run(t1);
+        }, /UNIQUE/i);
+
+        db.prepare("INSERT INTO commercial_objectives (tenant_id, year, month, target_ca_ht_mru) VALUES (?, 2026, 1, 100000)").run(t1);
+        assert.throws(() => {
+          db.prepare("INSERT INTO commercial_objectives (tenant_id, year, month, target_ca_ht_mru) VALUES (?, 2026, 1, 200000)").run(t1);
+        }, /UNIQUE/i);
       } finally {
         db.close();
       }
@@ -356,7 +406,7 @@ describe('2. Idempotent migration of legacy 11-table SQLite database', () => {
           .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
           .all()
           .map((r) => r.name);
-        for (const t of EXPECTED_27_TABLES) {
+        for (const t of EXPECTED_43_TABLES) {
           assert.ok(tables.includes(t), `Migrated DB missing table ${t}`);
         }
 
