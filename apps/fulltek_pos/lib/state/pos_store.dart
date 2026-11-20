@@ -1463,6 +1463,175 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
+  // --- Dining Zones & Tables Management (Add / Edit / Delete) ---
+
+  Future<String?> addDiningZone({
+    required String nameFr,
+    String? nameAr,
+    bool isVip = false,
+  }) async {
+    final clean = nameFr.trim();
+    if (clean.isEmpty) return 'Nom de zone requis.';
+    final ar = (nameAr != null && nameAr.trim().isNotEmpty)
+        ? nameAr.trim()
+        : clean;
+    var zoneId = 'Z-${DateTime.now().millisecondsSinceEpoch % 1000000}';
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/zones',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'nameFr': clean,
+            'nameAr': ar,
+            'isVip': isVip,
+          }),
+        );
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final map = jsonDecode(res.body) as Map<String, dynamic>;
+          final z = map['zone'] as Map<String, dynamic>?;
+          if (z != null && z['id'] != null) {
+            zoneId = '${z['id']}';
+          }
+        }
+      } catch (_) {}
+    }
+
+    zones.add(
+      DiningZone(
+        id: zoneId,
+        nameFr: clean,
+        nameAr: ar,
+        nameEn: clean,
+        isVip: isVip,
+        zoneType: isVip ? 'VIP' : 'SALLE',
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> saveDiningTable({
+    String? existingId,
+    required String code,
+    required String zoneId,
+    int capacity = 4,
+    TableShape shape = TableShape.square,
+  }) async {
+    final cleanCode = code.trim();
+    if (cleanCode.isEmpty) return 'Numéro / code de table requis.';
+    if (capacity < 1) return 'Capacité invalide.';
+    final duplicate = tables.any(
+      (t) =>
+          t.id != existingId &&
+          t.code.trim().toLowerCase() == cleanCode.toLowerCase(),
+    );
+    if (duplicate) return 'Une table "$cleanCode" existe déjà.';
+
+    if (existingId != null) {
+      final idx = tables.indexWhere((t) => t.id == existingId);
+      if (idx == -1) return 'Table introuvable.';
+      final old = tables[idx];
+      tables[idx] = DiningTable(
+        id: old.id,
+        zoneId: zoneId,
+        code: cleanCode,
+        capacity: capacity,
+        shape: shape,
+        status: old.status,
+        guests: old.guests,
+        activeOrderId: old.activeOrderId,
+        occupiedSince: old.occupiedSince,
+        serverName: old.serverName,
+        arbounMru: old.arbounMru,
+      );
+      notifyListeners();
+
+      if (cloudConnected && cloudJwtToken != null) {
+        try {
+          await _httpRequest(
+            'PATCH',
+            '$apiBaseUrl/api/pos/tables/${Uri.encodeComponent(old.id)}',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $cloudJwtToken',
+            },
+            body: jsonEncode({
+              'code': cleanCode,
+              'capacity': capacity,
+              'shape': shape.name,
+            }),
+          );
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    final newId = 'TBL-${DateTime.now().millisecondsSinceEpoch % 1000000}';
+    final z = zones.where((z) => z.id == zoneId).firstOrNull;
+    tables.add(
+      DiningTable(
+        id: newId,
+        zoneId: zoneId,
+        code: cleanCode,
+        capacity: capacity,
+        shape: shape,
+      ),
+    );
+    notifyListeners();
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/tables',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'id': newId,
+            'code': cleanCode,
+            'zoneId': int.tryParse(zoneId),
+            if (z != null) 'zoneName': z.nameFr,
+            'capacity': capacity,
+            'shape': shape.name,
+          }),
+        );
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<String?> deleteDiningTable(String id) async {
+    final idx = tables.indexWhere((t) => t.id == id);
+    if (idx == -1) return 'Table introuvable.';
+    final t = tables[idx];
+    if (t.status == TableStatus.occupied || orderForTable(id) != null) {
+      return 'Impossible de supprimer une table occupée.';
+    }
+    tables.removeAt(idx);
+    notifyListeners();
+
+    if (cloudConnected && cloudJwtToken != null) {
+      try {
+        await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/tables/${Uri.encodeComponent(t.id)}',
+          headers: {
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+        );
+      } catch (_) {}
+    }
+    return null;
+  }
+
   /// Adds a new raw ingredient locally and on Cloud API (/api/pos/ingredients).
   Future<String?> addIngredient({
     required String nameFr,

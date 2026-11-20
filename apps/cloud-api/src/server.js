@@ -1596,6 +1596,114 @@ function createApp(options = {}) {
         return sendJson(res, 200, { ok: true, ingredient: updated });
       }
 
+      // 2d-7. POST /api/pos/zones — Create dining zone
+      if (req.method === 'POST' && p === '/api/pos/zones') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nameFr = typeof b.nameFr === 'string' ? b.nameFr.trim() : '';
+        if (!nameFr) return sendJson(res, 400, { error: 'nameFr is required' });
+        const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : nameFr;
+        const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : nameFr;
+        const isVip = b.isVip === true ? 1 : 0;
+        const zoneType = isVip ? 'VIP' : 'SALLE';
+        const ins = database.prepare(`
+          INSERT INTO dining_zones (tenant_id, name_fr, name_ar, name_en, zone_type, is_vip, table_count, tables_json, active)
+          VALUES (?, ?, ?, ?, ?, ?, 0, '[]', 1)
+        `).run(currentTenant.id, nameFr, nameAr, nameEn, zoneType, isVip);
+        const created = database.prepare('SELECT * FROM dining_zones WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, zone: created });
+      }
+
+      // 2d-8. POST /api/pos/tables — Add dining table to zone
+      if (req.method === 'POST' && p === '/api/pos/tables') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const code = typeof b.code === 'string' ? b.code.trim() : '';
+        if (!code) return sendJson(res, 400, { error: 'Table code is required' });
+        const capacity = Math.max(1, Math.round(Number(b.capacity ?? 4)));
+        const shape = typeof b.shape === 'string' && b.shape.trim() ? b.shape.trim().toLowerCase() : 'square';
+
+        let zone = null;
+        if (b.zoneId != null && /^\d+$/.test(String(b.zoneId))) {
+          zone = database.prepare('SELECT * FROM dining_zones WHERE id = ? AND tenant_id = ? AND active = 1').get(Number(b.zoneId), currentTenant.id);
+        }
+        if (!zone && typeof b.zoneName === 'string' && b.zoneName.trim()) {
+          zone = database.prepare('SELECT * FROM dining_zones WHERE tenant_id = ? AND active = 1 AND LOWER(name_fr) = LOWER(?) LIMIT 1').get(currentTenant.id, b.zoneName.trim());
+          if (!zone) {
+            const zn = b.zoneName.trim();
+            const insZ = database.prepare(`
+              INSERT INTO dining_zones (tenant_id, name_fr, name_ar, name_en, zone_type, is_vip, table_count, tables_json, active)
+              VALUES (?, ?, ?, ?, 'SALLE', 0, 0, '[]', 1)
+            `).run(currentTenant.id, zn, zn, zn);
+            zone = database.prepare('SELECT * FROM dining_zones WHERE id = ?').get(insZ.lastInsertRowid);
+          }
+        }
+        if (!zone) {
+          zone = database.prepare('SELECT * FROM dining_zones WHERE tenant_id = ? AND active = 1 ORDER BY id ASC LIMIT 1').get(currentTenant.id);
+        }
+        if (!zone) {
+          const insZ = database.prepare(`
+            INSERT INTO dining_zones (tenant_id, name_fr, name_ar, name_en, zone_type, is_vip, table_count, tables_json, active)
+            VALUES (?, 'Salle Principale', 'القاعة الرئيسية', 'Main Hall', 'SALLE', 0, 0, '[]', 1)
+          `).run(currentTenant.id);
+          zone = database.prepare('SELECT * FROM dining_zones WHERE id = ?').get(insZ.lastInsertRowid);
+        }
+
+        const rawTables = parseJson(zone.tables_json, []);
+        const currentTables = rawTables.length > 0 ? rawTables : synthesizeTablesForZone(zone);
+        const tableId = typeof b.id === 'string' && b.id.trim() ? b.id.trim() : `TBL-${Date.now()}`;
+        const newTable = { id: tableId, code, capacity, shape, status: 'free' };
+        currentTables.push(newTable);
+        database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
+          .run(JSON.stringify(currentTables), currentTables.length, zone.id, currentTenant.id);
+        return sendJson(res, 201, { ok: true, table: { ...newTable, zoneId: zone.id } });
+      }
+
+      // 2d-9. PATCH /api/pos/tables/:id — Update table
+      if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/tables\/([^/]+)$/))) {
+        let targetId;
+        try { targetId = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid table id' }); }
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const zonesList = database.prepare('SELECT * FROM dining_zones WHERE tenant_id = ? AND active = 1').all(currentTenant.id);
+        for (const z of zonesList) {
+          const rawTables = parseJson(z.tables_json, []);
+          const currentTables = rawTables.length > 0 ? rawTables : synthesizeTablesForZone(z);
+          const idx = currentTables.findIndex((t) => String(t.id) === targetId || String(t.code) === targetId);
+          if (idx !== -1) {
+            const cur = currentTables[idx];
+            currentTables[idx] = {
+              ...cur,
+              code: typeof b.code === 'string' && b.code.trim() ? b.code.trim() : cur.code,
+              capacity: b.capacity != null ? Math.max(1, Math.round(Number(b.capacity))) : cur.capacity,
+              shape: typeof b.shape === 'string' && b.shape.trim() ? b.shape.trim().toLowerCase() : (cur.shape || 'square'),
+            };
+            database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
+              .run(JSON.stringify(currentTables), currentTables.length, z.id, currentTenant.id);
+            return sendJson(res, 200, { ok: true, table: currentTables[idx] });
+          }
+        }
+        return sendJson(res, 404, { error: 'Table not found' });
+      }
+
+      // 2d-10. DELETE /api/pos/tables/:id — Remove table
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/tables\/([^/]+)$/))) {
+        let targetId;
+        try { targetId = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid table id' }); }
+        const zonesList = database.prepare('SELECT * FROM dining_zones WHERE tenant_id = ? AND active = 1').all(currentTenant.id);
+        for (const z of zonesList) {
+          const rawTables = parseJson(z.tables_json, []);
+          const currentTables = rawTables.length > 0 ? rawTables : synthesizeTablesForZone(z);
+          const nextTables = currentTables.filter((t) => String(t.id) !== targetId && String(t.code) !== targetId);
+          if (nextTables.length !== currentTables.length) {
+            database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
+              .run(JSON.stringify(nextTables), nextTables.length, z.id, currentTenant.id);
+            return sendJson(res, 200, { ok: true, tableId: targetId });
+          }
+        }
+        return sendJson(res, 404, { error: 'Table not found' });
+      }
+
       // 2e. GET /api/pos/kds[?station=ALL|GRILL|KITCHEN|BAR]
       if (req.method === 'GET' && p === '/api/pos/kds') {
         const station = (url.searchParams.get('station') || 'ALL').trim().toUpperCase();

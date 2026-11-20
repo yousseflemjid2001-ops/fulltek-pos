@@ -217,6 +217,210 @@ class _FloorPlanViewState extends State<FloorPlanView> {
     );
   }
 
+  Future<void> _openNewZoneDialog() async {
+    final store = widget.store;
+    final frCtrl = TextEditingController();
+    final arCtrl = TextEditingController();
+    bool isVip = false;
+    String? err;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Nouvelle zone de salle'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (err != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(err!,
+                      style: const TextStyle(color: Colors.redAccent)),
+                ),
+              TextField(
+                key: const Key('new_zone_name_input'),
+                controller: frCtrl,
+                decoration: const InputDecoration(
+                    labelText: 'Nom de la zone (Français) *',
+                    hintText: 'Ex: Étage, Jardin, Salon VIP...'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: arCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'Nom (Arabe / عربي)'),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Zone VIP / Khaima'),
+                value: isVip,
+                onChanged: (v) => setD(() => isVip = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('save_zone_btn'),
+              onPressed: () async {
+                final res = await store.addDiningZone(
+                  nameFr: frCtrl.text,
+                  nameAr: arCtrl.text,
+                  isVip: isVip,
+                );
+                if (res != null) {
+                  setD(() => err = res);
+                  return;
+                }
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: Text(store.i18n.t('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+    frCtrl.dispose();
+    arCtrl.dispose();
+  }
+
+  Future<void> _openTableDialog({DiningTable? existing}) async {
+    final store = widget.store;
+    final codeCtrl = TextEditingController(text: existing?.code ?? '');
+    final capCtrl =
+        TextEditingController(text: '${existing?.capacity ?? 4}');
+    String zoneId = existing?.zoneId ??
+        (store.zones.isNotEmpty ? store.zones.first.id : 'salle');
+    if (!store.zones.any((z) => z.id == zoneId) && store.zones.isNotEmpty) {
+      zoneId = store.zones.first.id;
+    }
+    TableShape shape = existing?.shape ?? TableShape.square;
+    String? err;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(existing == null
+              ? 'Nouvelle table'
+              : 'Modifier table ${existing.code}'),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (err != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(err!,
+                          style: const TextStyle(color: Colors.redAccent)),
+                    ),
+                  TextField(
+                    key: const Key('table_code_input'),
+                    controller: codeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Numéro / Code table *',
+                      hintText: 'Ex: T7, VIP-4, TER-5...',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: const Key('table_capacity_input'),
+                    controller: capCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de places (couverts) *',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (store.zones.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      initialValue: zoneId,
+                      decoration: const InputDecoration(labelText: 'Zone'),
+                      items: store.zones
+                          .map((z) => DropdownMenuItem(
+                                value: z.id,
+                                child: Text(z.label(store.lang)),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setD(() => zoneId = v);
+                      },
+                    ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<TableShape>(
+                    initialValue: shape,
+                    decoration: const InputDecoration(labelText: 'Forme'),
+                    items: const [
+                      DropdownMenuItem(
+                          value: TableShape.square, child: Text('Carrée')),
+                      DropdownMenuItem(
+                          value: TableShape.round, child: Text('Ronde')),
+                      DropdownMenuItem(
+                          value: TableShape.khaima, child: Text('Khaima VIP')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setD(() => shape = v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (existing != null)
+              TextButton.icon(
+                key: const Key('delete_table_btn'),
+                onPressed: () async {
+                  final res = await store.deleteDiningTable(existing.id);
+                  if (res != null) {
+                    setD(() => err = res);
+                    return;
+                  }
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                },
+                icon: const Icon(Icons.delete_outline_rounded,
+                    color: Colors.redAccent, size: 18),
+                label: const Text('Supprimer',
+                    style: TextStyle(color: Colors.redAccent)),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('save_table_btn'),
+              onPressed: () async {
+                final cap = int.tryParse(capCtrl.text.trim()) ?? 4;
+                final res = await store.saveDiningTable(
+                  existingId: existing?.id,
+                  code: codeCtrl.text,
+                  zoneId: zoneId,
+                  capacity: cap,
+                  shape: shape,
+                );
+                if (res != null) {
+                  setD(() => err = res);
+                  return;
+                }
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: Text(store.i18n.t('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+    codeCtrl.dispose();
+    capCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
@@ -260,6 +464,22 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
+                  if (store.canCurrent(PosPermission.voidOrComp) ||
+                      store.canCurrent(PosPermission.manageMenuStock)) ...[
+                    OutlinedButton.icon(
+                      key: const Key('add_zone_btn'),
+                      onPressed: _openNewZoneDialog,
+                      icon: const Icon(Icons.add_location_alt_outlined,
+                          size: 17),
+                      label: const Text('+ Zone'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('add_table_btn'),
+                      onPressed: () => _openTableDialog(),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('+ Table'),
+                    ),
+                  ],
                   if (store.tables.any((t) => store.orderForTable(t.id) != null))
                     OutlinedButton.icon(
                       key: const Key('open_transfer_merge_btn'),
@@ -407,14 +627,31 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                     '👥 ${t.guests > 0 ? t.guests : t.capacity} ${i18n.t('guests')}',
                     style: TextStyle(fontSize: 12, color: p.textMuted),
                   ),
-                  Text(
-                    order != null
-                        ? '${order.netTotal.toStringAsFixed(0)} ${i18n.t('mru')}'
-                        : '—',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: p.primary),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        order != null
+                            ? '${order.netTotal.toStringAsFixed(0)} ${i18n.t('mru')}'
+                            : '—',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: p.primary),
+                      ),
+                      if (store.canCurrent(PosPermission.voidOrComp) ||
+                          store.canCurrent(PosPermission.manageMenuStock))
+                        InkWell(
+                          key: Key('edit_table_${t.id}'),
+                          onTap: () => _openTableDialog(existing: t),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(3),
+                            child: Icon(Icons.edit_outlined,
+                                size: 16, color: p.textMuted),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
