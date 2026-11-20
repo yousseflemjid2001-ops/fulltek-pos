@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
+import '../services/fullscreen_helper.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
@@ -21,6 +22,7 @@ class PosShellScreen extends StatefulWidget {
 
 class _PosShellScreenState extends State<PosShellScreen> {
   int _tabIndex = 0;
+  bool _isFullscreen = isFullscreenActive();
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +265,22 @@ class _PosShellScreenState extends State<PosShellScreen> {
               isLabelVisible: store.pendingSyncCount > 0,
               label: Text('${store.pendingSyncCount}'),
               child: Icon(Icons.sync_rounded, color: p.textPrimary),
+            ),
+          ),
+
+          // Fullscreen toggle (Web & Tablet POS)
+          IconButton(
+            key: const Key('fullscreen_btn'),
+            tooltip: _isFullscreen ? 'Quitter plein écran' : 'Mode plein écran',
+            onPressed: () async {
+              final next = await toggleFullscreen();
+              if (mounted) setState(() => _isFullscreen = next);
+            },
+            icon: Icon(
+              _isFullscreen
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              color: p.textPrimary,
             ),
           ),
 
