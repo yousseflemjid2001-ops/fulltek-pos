@@ -150,6 +150,9 @@ class PosStore extends ChangeNotifier {
         tenantCode = '${map['tenantCode'] ?? tenantCode}';
         tenantName = '${map['tenantName'] ?? tenantName}';
         cloudJwtToken = map['cloudJwtToken'] as String?;
+        if (tenantCode != 'FT-1041') {
+          _resetTenantOperationalState();
+        }
         final themes = map['enabledThemeCodes'] as List?;
         if (themes != null && themes.isNotEmpty) {
           enabledThemeCodes = themes.map((e) => '$e').toList();
@@ -330,6 +333,32 @@ class PosStore extends ChangeNotifier {
   /// then fetches the tenant's POS catalog (`GET /api/pos/catalog`).
   /// Falls back to the cached demo account when the cloud is unreachable
   /// (Offline-First). Returns null on success, or an error message.
+  void _resetTenantOperationalState() {
+    _openOrdersById.clear();
+    _completedOrders.clear();
+    _kdsTickets.clear();
+    _syncQueue.clear();
+    _closingsZ.clear();
+    _orderFoodCostById.clear();
+    _todayRemakeWasteMru = 0.0;
+    _lastZClosedAt = null;
+    _activeOrderId = null;
+    _currentStaff = null;
+    _trainingMode = false;
+    reservations = [];
+    karniCustomers = [];
+    tables = tables
+        .map((t) => DiningTable(
+              id: t.id,
+              zoneId: t.zoneId,
+              code: t.code,
+              capacity: t.capacity,
+              shape: t.shape,
+              status: TableStatus.free,
+            ))
+        .toList();
+  }
+
   Future<String?> loginAccount(String username, String password) async {
     final u = username.trim();
     if (u.isEmpty || password.isEmpty) {
@@ -356,9 +385,13 @@ class PosStore extends ChangeNotifier {
       if (tenant['status'] == 'expired') {
         return 'Abonnement expiré — contactez M. Taha (+222 42 74 42 42).';
       }
+      final previousCode = tenantCode;
       cloudJwtToken = data['token'] as String?;
       tenantName = (tenant['name'] as String?) ?? tenantName;
       tenantCode = (tenant['tenantId'] as String?) ?? tenantCode;
+      if (previousCode != tenantCode || tenantCode != 'FT-1041') {
+        _resetTenantOperationalState();
+      }
       final themes =
           (tenant['enabledThemes'] as List?)?.map((e) => '$e').toList();
       if (themes != null && themes.isNotEmpty) enabledThemeCodes = themes;
@@ -442,12 +475,6 @@ class PosStore extends ChangeNotifier {
       }
 
       final parsed = CatalogMapper.fromJson(data);
-      if (parsed.menuItems.isEmpty) {
-        cloudConnected = true;
-        catalogSource = 'offline_demo';
-        if (menuItems.isEmpty) _seedMauritanianRestaurantData();
-        return false;
-      }
 
       if (parsed.tenantName != null && parsed.tenantName!.isNotEmpty) {
         tenantName = parsed.tenantName!;
@@ -492,7 +519,11 @@ class PosStore extends ChangeNotifier {
       if (parsed.categories.isNotEmpty) {
         categories = List<MenuCategory>.from(parsed.categories);
       }
-      menuItems = List<MenuItem>.from(parsed.menuItems);
+      if (parsed.menuItems.isNotEmpty) {
+        menuItems = List<MenuItem>.from(parsed.menuItems);
+      } else if (menuItems.isEmpty) {
+        _seedMauritanianRestaurantData();
+      }
 
       if (parsed.zones.isNotEmpty && parsed.tables.isNotEmpty) {
         final openByTable = {
@@ -528,9 +559,10 @@ class PosStore extends ChangeNotifier {
 
       cloudConnected = true;
       accountOffline = false;
-      catalogSource = 'cloud_api';
+      catalogSource =
+          parsed.menuItems.isNotEmpty ? 'cloud_api' : 'offline_demo';
       lastCatalogSyncAt = DateTime.now();
-      return true;
+      return parsed.menuItems.isNotEmpty;
     } catch (_) {
       cloudConnected = false;
       catalogSource = 'offline_demo';
@@ -544,12 +576,17 @@ class PosStore extends ChangeNotifier {
 
   void logoutAccount() {
     accountLoggedIn = false;
-    _currentStaff = null;
     cloudJwtToken = null;
     cloudConnected = false;
     catalogSource = 'offline_demo';
-    _trainingMode = false;
-    notifyListeners();
+    _resetTenantOperationalState();
+    _seedMauritanianRestaurantData();
+    if (_enablePersistence) {
+      try {
+        localStorageWrite(_storageKey, '');
+      } catch (_) {}
+    }
+    super.notifyListeners();
   }
 
   bool loginWithPin(String pin) {
