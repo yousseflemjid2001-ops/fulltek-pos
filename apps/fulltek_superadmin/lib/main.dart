@@ -1836,11 +1836,13 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
                 children: [
                   _filterChip('all', t('flt_all')),
                   const SizedBox(width: 6),
-                  _filterChip('resto', 'Resto'),
+                  _filterChip('resto', t('mod_resto')),
                   const SizedBox(width: 6),
-                  _filterChip('market', 'Market'),
+                  _filterChip('market', t('mod_market')),
                   const SizedBox(width: 6),
-                  _filterChip('pharma', 'Pharma'),
+                  _filterChip('pharma', t('mod_pharma')),
+                  const SizedBox(width: 6),
+                  _filterChip('commercial', t('flt_commercial')),
                   const SizedBox(width: 6),
                   _filterChip('warn', t('flt_due')),
                 ],
@@ -2027,6 +2029,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
   Widget _filterChip(String key, String label) {
     final selected = _filter == key;
     return ChoiceChip(
+      key: ValueKey<String>('filter_chip_$key'),
       label: Text(label),
       selected: selected,
       onSelected: (_) => setState(() => _filter = key),

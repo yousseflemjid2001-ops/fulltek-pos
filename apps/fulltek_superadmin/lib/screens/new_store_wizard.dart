@@ -29,6 +29,7 @@ const Map<String, Map<String, String>> _wizStrings = {
     'mod_resto': 'Resto',
     'mod_market': 'Market',
     'mod_pharma': 'Pharma',
+    'mod_commercial': 'Commercial',
     'sub_h': 'Type d\'établissement',
     'trade': 'Nom du commerce *',
     'mgr': 'Nom complet du gérant *',
@@ -63,6 +64,9 @@ const Map<String, Map<String, String>> _wizStrings = {
     'plan_start_d': '1 caisse · hors-ligne',
     'plan_pro_d': '4 caisses · Boss · KDS/FEFO',
     'plan_ent_d': '10 caisses · multi-sites · formation',
+    'plan_start_comm_d': '1 poste · Devis/Factures · hors-ligne',
+    'plan_pro_comm_d': '4 postes · Achats/PMP · Caisse & Trésorerie',
+    'plan_ent_comm_d': '10 postes · Multi-dépôts · Analyses & Objectifs',
     'trial_h': 'Essai gratuit 15 jours (0 MRU)',
     'trial_d': 'Activation immédiate sans règlement.',
     'tills': 'Caisses autorisées',
@@ -75,6 +79,7 @@ const Map<String, Map<String, String>> _wizStrings = {
     'adv_exp': 'Fonctions métier, paiements & thèmes UI',
     'adv_sub': 'Pré-configuré automatiquement · modifiable',
     'feat_h': 'Fonctions caisse',
+    'feat_h_comm': 'Modules commerciaux',
     'pay_h': 'Paiements en caisse',
     'themes_h': 'Thèmes UI autorisés',
     's3_h': 'Récapitulatif avant activation',
@@ -116,6 +121,7 @@ const Map<String, Map<String, String>> _wizStrings = {
     'mod_resto': 'مطعم',
     'mod_market': 'متجر',
     'mod_pharma': 'صيدلية',
+    'mod_commercial': 'تجاري',
     'sub_h': 'تصنيف المنشأة',
     'trade': 'اسم المتجر *',
     'mgr': 'اسم المدير الكامل *',
@@ -150,6 +156,9 @@ const Map<String, Map<String, String>> _wizStrings = {
     'plan_start_d': 'صندوق واحد · أوفلاين',
     'plan_pro_d': '4 صناديق · تطبيق المدير · KDS/FEFO',
     'plan_ent_d': '10 صناديق · عدة فروع · تدريب ميداني',
+    'plan_start_comm_d': 'جهاز واحد · عروض الأسعار والفواتير · أوفلاين',
+    'plan_pro_comm_d': '4 أجهزة · المشتريات وPMP · الصندوق والخزينة',
+    'plan_ent_comm_d': '10 أجهزة · عدة مخازن · التحليلات والأهداف',
     'trial_h': 'تجربة مجانية 15 يوماً (0 أوقية)',
     'trial_d': 'تفعيل فوري دون دفع مسبق.',
     'tills': 'عدد الصناديق المسموحة',
@@ -162,6 +171,7 @@ const Map<String, Map<String, String>> _wizStrings = {
     'adv_exp': 'الوظائف ووسائل الدفع والواجهات',
     'adv_sub': 'مُعدّة تلقائياً · قابلة للتعديل',
     'feat_h': 'وظائف الكاشير',
+    'feat_h_comm': 'الوظائف التجارية',
     'pay_h': 'وسائل الدفع في الكاشير',
     'themes_h': 'الواجهات المسموحة',
     's3_h': 'ملخص قبل التفعيل',
@@ -203,6 +213,7 @@ const Map<String, Map<String, String>> _wizStrings = {
     'mod_resto': 'Resto',
     'mod_market': 'Market',
     'mod_pharma': 'Pharma',
+    'mod_commercial': 'Commercial',
     'sub_h': 'Establishment type',
     'trade': 'Business name *',
     'mgr': 'Manager full name *',
@@ -237,6 +248,9 @@ const Map<String, Map<String, String>> _wizStrings = {
     'plan_start_d': '1 till · offline',
     'plan_pro_d': '4 tills · Boss · KDS/FEFO',
     'plan_ent_d': '10 tills · multi-store · training',
+    'plan_start_comm_d': '1 station · Quotes/Invoices · offline',
+    'plan_pro_comm_d': '4 stations · Purchases/PMP · POS & Treasury',
+    'plan_ent_comm_d': '10 stations · Multi-branch · Analytics & Targets',
     'trial_h': '15-day free trial (0 MRU)',
     'trial_d': 'Immediate activation with no payment.',
     'tills': 'Authorized tills',
@@ -249,6 +263,7 @@ const Map<String, Map<String, String>> _wizStrings = {
     'adv_exp': 'Features, payments & UI themes',
     'adv_sub': 'Auto-configured · customizable',
     'feat_h': 'POS features',
+    'feat_h_comm': 'Commercial modules',
     'pay_h': 'Accepted payments',
     'themes_h': 'Allowed UI themes',
     's3_h': 'Review before activation',
@@ -297,6 +312,12 @@ const Map<StoreModule, List<List<String>>> _subTypes = {
     ['Dépôt pharmaceutique', 'مخزن أدوية', 'Pharma depot'],
     ['Parapharmacie', 'مستحضرات طبية', 'Parapharmacy'],
   ],
+  StoreModule.commercial: [
+    ['Négoce / Distribution', 'تجارة وتوزيع', 'Trading / Distribution'],
+    ['Grossiste / Import-Export', 'تاجر جملة / استيراد وتصدير', 'Wholesaler / Import-Export'],
+    ['Quincaillerie / Matériaux', 'خردوات ومواد البناء', 'Hardware / Building Materials'],
+    ['Services & Facturation B2B', 'خدمات وفوترة للشركات', 'B2B Services & Invoicing'],
+  ],
 };
 
 class _HwItem {
@@ -333,10 +354,28 @@ const List<_FeatItem> _featureList = [
   _FeatItem('cnam', StoreModule.pharma, ['Tiers-payant CNAM', 'تأمين CNAM', 'CNAM Insurance']),
   _FeatItem('cold', StoreModule.pharma, ['Chaîne froid +4°C', 'سلسلة التبريد +4°C', 'Cold chain +4°C']),
   _FeatItem('generic', StoreModule.pharma, ['Équivalents génériques', 'البدائل الجنيسة', 'Generics']),
+  _FeatItem('quotes_invoices', StoreModule.commercial, ['Devis & Factures A4', 'عروض الأسعار والفواتير A4', 'Quotes & A4 Invoices']),
+  _FeatItem('sales_cycle', StoreModule.commercial, ['Commandes, BL & Avoirs', 'الطلبات والتسليم والإشعارات', 'Orders, Delivery & Credit Notes']),
+  _FeatItem('purchases_pmp', StoreModule.commercial, ['Achats, Fournisseurs & PMP', 'المشتريات والموردون و PMP', 'Purchases, Suppliers & PMP']),
+  _FeatItem('pos_register', StoreModule.commercial, ['Caisse intégrée & Rapports Z', 'نقطة البيع وتقارير Z', 'Integrated POS & Z-Reports']),
+  _FeatItem('treasury', StoreModule.commercial, ['Trésorerie Caisse & Banques', 'الخزينة والصندوق والبنوك', 'Cash & Bank Treasury']),
+  _FeatItem('cheques_due', StoreModule.commercial, ['Chèques & traites à échéance', 'الشيكات والكمبيالات المستحقة', 'Cheques & Due Dates']),
+  _FeatItem('objectives', StoreModule.commercial, ['Objectifs mensuels & Analyses', 'الأهداف الشهرية والتحليلات', 'Monthly Targets & Analytics']),
+  _FeatItem('karni_credit', StoreModule.commercial, ['Encours clients & Karni', 'ديون العملاء وكارني', 'Client Credit & Karni']),
   _FeatItem('boss', null, ['App Mobile Boss', 'تطبيق المدير Boss', 'Boss Mobile App']),
   _FeatItem('offline', null, ['Mode hors-ligne', 'بدون إنترنت', 'Offline mode']),
   _FeatItem('lan', null, ['Synchro LAN locale', 'مزامنة محلية LAN', 'Local LAN sync']),
   _FeatItem('printer', null, ['Ticket 80mm FR/AR', 'فاتورة 80 ملم', '80mm FR/AR Ticket']),
+];
+
+const List<String> _allPayMethods = [
+  'Cash',
+  'Bankily',
+  'Masrivi',
+  'Sedad',
+  'Bimbank',
+  'Click',
+  'Karni',
 ];
 
 const List<String> _cities = [
@@ -405,7 +444,15 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
 
   late Set<String> _hwSel = _defaultHw(StoreModule.resto);
   late Set<String> _featSel = _defaultFeatures(StoreModule.resto);
-  final Set<String> _paySel = {'Bankily', 'Masrivi', 'Sedad', 'Cash'};
+  final Set<String> _paySel = {
+    'Cash',
+    'Bankily',
+    'Masrivi',
+    'Sedad',
+    'Bimbank',
+    'Click',
+    'Karni',
+  };
   final Set<String> _themesSel = {'01', '06', '07', '11'};
 
   String _tenantId = '';
@@ -430,6 +477,8 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
         return {'printer', 'scanner', 'scale', 'drawer'};
       case StoreModule.pharma:
         return {'printer', 'scanner', 'drawer'};
+      case StoreModule.commercial:
+        return {'printer', 'scanner', 'drawer'};
     }
   }
 
@@ -451,6 +500,8 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
         return FTColors.market;
       case StoreModule.pharma:
         return FTColors.pharma;
+      case StoreModule.commercial:
+        return FTColors.commercial;
     }
   }
 
@@ -820,8 +871,54 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
       (StoreModule.resto, Icons.restaurant, FTColors.resto),
       (StoreModule.market, Icons.shopping_cart_outlined, FTColors.market),
       (StoreModule.pharma, Icons.local_pharmacy_outlined, FTColors.pharma),
+      (StoreModule.commercial, Icons.business_center_outlined, FTColors.commercial),
     ];
     final subs = _subTypes[_mod]!;
+
+    Widget buildModuleCard((StoreModule, IconData, Color) m) {
+      final sel = _mod == m.$1;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: InkWell(
+            key: ValueKey('wizard_mod_${m.$1.name}'),
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => setState(() {
+              _mod = m.$1;
+              _subIdx = 0;
+              _featSel = _defaultFeatures(m.$1);
+              _hwSel = _defaultHw(m.$1);
+            }),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: sel ? m.$3.withValues(alpha: 0.16) : Colors.white.withValues(alpha: 0.04),
+                border: Border.all(color: sel ? m.$3 : Colors.white12, width: sel ? 1.8 : 1),
+              ),
+              child: Column(
+                children: [
+                  Icon(m.$2, color: sel ? m.$3 : FTColors.muted, size: 24),
+                  const SizedBox(height: 6),
+                  Text(
+                    t('mod_${m.$1.name}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: sel ? Colors.white : FTColors.ink2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Form(
       key: _formStep1,
@@ -833,48 +930,20 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
           Text(t('s1_sub'), style: const TextStyle(fontSize: 12, color: FTColors.muted)),
           const SizedBox(height: 12),
 
-          // 3 Module Cards Row
-          Row(
-            children: mods.map((m) {
-              final sel = _mod == m.$1;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => setState(() {
-                      _mod = m.$1;
-                      _subIdx = 0;
-                      _featSel = _defaultFeatures(m.$1);
-                      _hwSel = _defaultHw(m.$1);
-                    }),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        color: sel ? m.$3.withValues(alpha: 0.16) : Colors.white.withValues(alpha: 0.04),
-                        border: Border.all(color: sel ? m.$3 : Colors.white12, width: sel ? 1.8 : 1),
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(m.$2, color: sel ? m.$3 : FTColors.muted, size: 24),
-                          const SizedBox(height: 6),
-                          Text(
-                            t('mod_${m.$1.name}'),
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              color: sel ? Colors.white : FTColors.ink2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
+          // 4 Module Cards (2x2 on narrow screens < 460px, 4-column Row on wider screens)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 460) {
+                return Column(
+                  children: [
+                    Row(children: mods.sublist(0, 2).map(buildModuleCard).toList()),
+                    const SizedBox(height: 8),
+                    Row(children: mods.sublist(2, 4).map(buildModuleCard).toList()),
+                  ],
+                );
+              }
+              return Row(children: mods.map(buildModuleCard).toList());
+            },
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -1035,6 +1104,8 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
                 borderRadius: BorderRadius.circular(18),
               ),
               child: ExpansionTile(
+                key: ValueKey('adm_exp_${_mod == StoreModule.commercial}'),
+                initiallyExpanded: _mod == StoreModule.commercial,
                 shape: const Border(),
                 collapsedShape: const Border(),
                 leading: const Icon(Icons.folder_shared_outlined, color: FTColors.ochre),
@@ -1165,7 +1236,7 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
                           children: [
                             Text(t('plan_${p.key}'),
                                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                            Text(t('plan_${p.key}_d'),
+                            Text(t(_mod == StoreModule.commercial ? 'plan_${p.key}_comm_d' : 'plan_${p.key}_d'),
                                 style: const TextStyle(fontSize: 11.5, color: FTColors.muted)),
                           ],
                         ),
@@ -1245,7 +1316,7 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    for (final m in ['Bankily', 'Masrivi', 'Sedad', 'Cash', 'later'])
+                    for (final m in ['Bankily', 'Masrivi', 'Sedad', 'Bimbank', 'Click', 'Cash', 'later'])
                       ChoiceChip(
                         label: Text(m == 'later' ? t('pay_later') : m, style: const TextStyle(fontSize: 12)),
                         selected: _initialPay == m,
@@ -1313,7 +1384,10 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
               children: [
                 Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: Text(t('feat_h'), style: const TextStyle(fontSize: 12, color: FTColors.muted)),
+                  child: Text(
+                    t(_mod == StoreModule.commercial ? 'feat_h_comm' : 'feat_h'),
+                    style: const TextStyle(fontSize: 12, color: FTColors.muted),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Wrap(
@@ -1340,7 +1414,7 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: ['Bankily', 'Masrivi', 'Sedad', 'Cash', 'Karni'].map((p) {
+                  children: _allPayMethods.map((p) {
                     return FilterChip(
                       label: Text(p, style: const TextStyle(fontSize: 11.5)),
                       selected: _paySel.contains(p),
@@ -1440,6 +1514,9 @@ class _NewStoreWizardState extends State<NewStoreWizard> {
               row(t('temp_pw'), _passCtrl.text.trim(), ltr: true, color: FTColors.ochre),
               row(t('pin'), _pinCtrl.text.trim(), ltr: true),
               row(t('sum_mod'), 'Full·Tek ${t('mod_${_mod.name}')} · ${_subTypes[_mod]![_subIdx][_lIdx]}'),
+              if (_legalCtrl.text.trim().isNotEmpty) row(t('legal'), _legalCtrl.text.trim()),
+              if (_nifCtrl.text.trim().isNotEmpty) row(t('nif'), _nifCtrl.text.trim(), ltr: true),
+              if (_rcCtrl.text.trim().isNotEmpty) row(t('rc'), _rcCtrl.text.trim(), ltr: true),
               const Divider(color: Colors.white10),
               row(
                 t('sum_plan'),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-enum StoreModule { resto, market, pharma }
+enum StoreModule { resto, market, pharma, commercial }
 
 enum StoreStatus { active, trial, warn, expired, locked }
 
@@ -149,6 +149,8 @@ class TenantStore {
         return FTColors.market;
       case StoreModule.pharma:
         return FTColors.pharma;
+      case StoreModule.commercial:
+        return FTColors.commercial;
     }
   }
 
@@ -160,6 +162,8 @@ class TenantStore {
         return 'Full·Tek Market';
       case StoreModule.pharma:
         return 'Full·Tek Pharma';
+      case StoreModule.commercial:
+        return 'Full·Tek Commercial';
     }
   }
 }
@@ -393,7 +397,12 @@ const Map<String, Map<String, String>> kStrings = {
     'urgent_h': 'Actions Urgentes (Échéances)',
     'search_ph': 'Rechercher boutique, ville, téléphone...',
     'flt_all': 'Toutes',
+    'flt_commercial': 'Commercial',
     'flt_due': 'Échéance / Expirées',
+    'mod_resto': 'Resto',
+    'mod_market': 'Market',
+    'mod_pharma': 'Pharma',
+    'mod_commercial': 'Commercial',
     'off_gen_h': 'Code Déblocage Hors-Ligne (8 chiffres)',
     'off_gen_s': 'Lease 30j sans Internet',
     'sel_store': 'Boutique cliente',
@@ -491,7 +500,7 @@ const Map<String, Map<String, String>> kStrings = {
     'new_client_btn': 'Nouveau client',
     'supervised_stores': '{n} établissements supervisés',
     'refresh_api': 'Actualiser API',
-    'login_hero_title': 'Pilotez votre réseau de caisses Resto, Market & Pharma en Mauritanie.',
+    'login_hero_title': 'Pilotez votre réseau de caisses Resto, Market, Pharma & Commercial en Mauritanie.',
     'login_f1_t': 'Licences cryptographiques Ed25519',
     'login_f1_s': 'Génération et renouvellement de clés hors-ligne sécurisées.',
     'login_f2_t': 'Multi-établissements & Flotte POS',
@@ -515,7 +524,12 @@ const Map<String, Map<String, String>> kStrings = {
     'urgent_h': 'إجراءات عاجلة (تنتهي قريباً)',
     'search_ph': 'ابحث عن متجر، مدينة، رقم هاتف...',
     'flt_all': 'الكل',
+    'flt_commercial': 'تجاري',
     'flt_due': 'قريبة / منتهية',
+    'mod_resto': 'مطعم',
+    'mod_market': 'متجر',
+    'mod_pharma': 'صيدلية',
+    'mod_commercial': 'تجاري',
     'off_gen_h': 'رمز فك القفل بدون إنترنت (8 أرقام)',
     'off_gen_s': 'تمديد 30 يوماً أوفلاين',
     'sel_store': 'المتجر',
@@ -613,7 +627,7 @@ const Map<String, Map<String, String>> kStrings = {
     'new_client_btn': 'عميل جديد',
     'supervised_stores': '{n} متجر تحت الإشراف',
     'refresh_api': 'تحديث API',
-    'login_hero_title': 'أدِر شبكة نقاط البيع للمطاعم والأسواق والصيدليات في موريتانيا.',
+    'login_hero_title': 'أدِر شبكة نقاط البيع للمطاعم والأسواق والصيدليات والتجارة في موريتانيا.',
     'login_f1_t': 'تراخيص مشفرة Ed25519',
     'login_f1_s': 'توليد وتجديد مفاتيح العمل بدون إنترنت بأمان.',
     'login_f2_t': 'متاجر متعددة وأسطول نقاط البيع',
@@ -637,7 +651,12 @@ const Map<String, Map<String, String>> kStrings = {
     'urgent_h': 'Urgent Actions (Due soon)',
     'search_ph': 'Search store, city, phone...',
     'flt_all': 'All',
+    'flt_commercial': 'Commercial',
     'flt_due': 'Due / Expired',
+    'mod_resto': 'Resto',
+    'mod_market': 'Market',
+    'mod_pharma': 'Pharma',
+    'mod_commercial': 'Commercial',
     'off_gen_h': 'Offline Unlock Code (8 digits)',
     'off_gen_s': '30d Lease without Internet',
     'sel_store': 'Client store',
@@ -735,7 +754,7 @@ const Map<String, Map<String, String>> kStrings = {
     'new_client_btn': 'New client',
     'supervised_stores': '{n} supervised stores',
     'refresh_api': 'Refresh API',
-    'login_hero_title': 'Manage your Resto, Market & Pharma POS network in Mauritania.',
+    'login_hero_title': 'Manage your Resto, Market, Pharma & Commercial POS network in Mauritania.',
     'login_f1_t': 'Ed25519 Cryptographic Licenses',
     'login_f1_s': 'Secure offline license key generation & renewal.',
     'login_f2_t': 'Multi-Store & POS Fleet',
@@ -762,6 +781,11 @@ String catalogSampleCsvForModule(StoreModule module) {
           'PHM-001,6150000003015,Paracétamol 500mg,باراسيتامول 500مغ,Antalgiques,boite,110,95,70,true,true\n'
           'PHM-002,6150000003022,Amoxicilline 1g,أموكسيسيلين 1غ,Antibiotiques,boite,260,230,180,true,true\n'
           'PHM-003,6150000003039,Sérum Physiologique,محلول ملحي,Soins,flacon,90,75,55,true,false\n';
+    case StoreModule.commercial:
+      return 'sku,barcode,name_fr,name_ar,category,unit,price_retail,price_whole,price_cost,qty,track_fefo,requires_cnam\n'
+          'COM-001,6150000004012,Ramette Papier A4 80g,رزمة ورق A4,Fournitures Bureau,ramette,240,210,175,120,false,false\n'
+          'COM-002,6150000004029,Ciment CPJ45 Sac 50kg,أسمنت CPJ45 50كغ,Matériaux,sac,380,355,320,250,false,false\n'
+          'COM-003,6150000004036,Câble Réseau Cat6 305m,كابل شبكة Cat6 305م,Équipements IT,carton,2800,2500,2150,18,false,false\n';
   }
 }
 
@@ -910,6 +934,43 @@ List<TenantStore> initialStores() => [
     ..hardware = {'printer', 'scanner'}
     ..payMethods = {'Bankily', 'Sedad', 'Cash', 'Karni'}
     ..features = {'barcode', 'karni', 'offline', 'printer'},
+  TenantStore(
+    id: 8,
+    name: 'Mauritanie Négoce & Distribution',
+    module: StoreModule.commercial,
+    city: 'Tevragh Zeina',
+    phone: '+222 45 25 80 90',
+    plan: 'Entreprise',
+    mrr: 5500,
+    tills: 3,
+    daysLeft: 29,
+    status: StoreStatus.active,
+    ownerPin: '4820',
+  )
+    ..tenantId = 'FT-8014'
+    ..username = 'mauritanienegoce'
+    ..manager = 'Cheikh Ould Brahim'
+    ..subType = 'Négoce / Distribution'
+    ..legalName = 'Mauritanie Négoce & Distribution SARL'
+    ..nif = '00528190'
+    ..rc = 'RC-NKC-4418'
+    ..district = 'Zone Industrielle · Nouakchott'
+    ..hardware = {'printer', 'scanner', 'drawer'}
+    ..payMethods = {'Cash', 'Bankily', 'Masrivi', 'Sedad', 'Bimbank', 'Click', 'Karni'}
+    ..features = {
+      'quotes_invoices',
+      'sales_cycle',
+      'purchases_pmp',
+      'pos_register',
+      'treasury',
+      'cheques_due',
+      'objectives',
+      'karni_credit',
+      'boss',
+      'offline',
+      'lan',
+      'printer',
+    },
 ];
 
 List<SubscriptionPayment> initialPayments() => [

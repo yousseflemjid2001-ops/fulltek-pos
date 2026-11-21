@@ -52,6 +52,33 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
     'kds_screen': 'Écran Cuisine KDS',
   };
 
+  static const Map<String, String> _featureLabels = {
+    'quotes_invoices': 'Devis & Factures A4',
+    'sales_cycle': 'Commandes, BL & Avoirs',
+    'purchases_pmp': 'Achats, Fournisseurs & PMP',
+    'pos_register': 'Caisse intégrée & Rapports Z',
+    'treasury': 'Trésorerie Caisse & Banques',
+    'cheques_due': 'Chèques & traites à échéance',
+    'objectives': 'Objectifs mensuels & Analyses',
+    'karni_credit': 'Encours clients & Karni',
+    'kds': 'Écran cuisine KDS',
+    'khaima': 'Plan Khaima VIP',
+    'tablet': 'Tablette serveur',
+    'split': 'Division de note',
+    'scale': 'Balance COM1',
+    'barcode': 'Scanner EAN-13',
+    'wholesale': 'Détail / Demi-gros',
+    'karni': 'Carnet Karni',
+    'fefo': 'Lots FEFO & blocage',
+    'cnam': 'Tiers-payant CNAM',
+    'cold': 'Chaîne froid +4°C',
+    'generic': 'Équivalents génériques',
+    'boss': 'App Mobile Boss',
+    'offline': 'Mode hors-ligne',
+    'lan': 'Synchro LAN locale',
+    'printer': 'Ticket 80mm FR/AR',
+  };
+
   OfflineLicenseResponse? _license;
   bool _generatingLicense = false;
   String? _licenseError;
@@ -237,7 +264,7 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
     final s = widget.store;
     final cleanPhone = s.phone.replaceAll(RegExp(r'\D'), '');
     final msg =
-        'Bonjour ${s.manager.isNotEmpty ? s.manager : s.name}, suivi Full·Tek POS (${s.name}) : il reste ${s.daysLeft} jour(s) sur votre licence ${s.plan}. Règlement Bankily : FT-22242 ou Masrivi : MS-4274. Support M. Taha : +222 42 74 42 42.';
+        'Bonjour ${s.manager.isNotEmpty ? s.manager : s.name}, suivi ${s.moduleName} (${s.name}) : il reste ${s.daysLeft} jour(s) sur votre licence ${s.plan}. Règlement Bankily : FT-22242 ou Masrivi : MS-4274. Support M. Taha : +222 42 74 42 42.';
     Clipboard.setData(ClipboardData(text: msg));
     if (canOpenUrlDirectly) {
       openExternalUrl('https://wa.me/$cleanPhone?text=${Uri.encodeComponent(msg)}');
@@ -738,8 +765,8 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Matériel & Moyens de paiement
-          if (s.hardware.isNotEmpty || s.payMethods.isNotEmpty)
+          // Matériel, Fonctions & Moyens de paiement
+          if (s.hardware.isNotEmpty || s.payMethods.isNotEmpty || s.features.isNotEmpty)
             GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,7 +781,7 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                           .map((k) => Chip(label: Text(_hwLabels[k] ?? k, style: const TextStyle(fontSize: 11.5))))
                           .toList(),
                     ),
-                    const SizedBox(height: 12),
+                    if (s.payMethods.isNotEmpty || s.features.isNotEmpty) const SizedBox(height: 12),
                   ],
                   if (s.payMethods.isNotEmpty) ...[
                     const Text('Paiements acceptés en caisse',
@@ -767,11 +794,24 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                           .map((p) => Chip(label: Text(p, style: const TextStyle(fontSize: 11.5))))
                           .toList(),
                     ),
+                    if (s.features.isNotEmpty) const SizedBox(height: 12),
+                  ],
+                  if (s.features.isNotEmpty) ...[
+                    const Text('Fonctions & modules activés',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: s.features
+                          .map((f) => Chip(label: Text(_featureLabels[f] ?? f, style: const TextStyle(fontSize: 11.5))))
+                          .toList(),
+                    ),
                   ],
                 ],
               ),
             ),
-          if (s.hardware.isNotEmpty || s.payMethods.isNotEmpty) const SizedBox(height: 14),
+          if (s.hardware.isNotEmpty || s.payMethods.isNotEmpty || s.features.isNotEmpty) const SizedBox(height: 14),
 
           // Thèmes POS autorisés
           GlassCard(

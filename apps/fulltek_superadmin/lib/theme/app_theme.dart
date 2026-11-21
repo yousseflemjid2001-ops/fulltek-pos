@@ -13,6 +13,7 @@ class FTColors {
   static const Color resto = Color(0xFFE4572E);
   static const Color market = Color(0xFF2E9E5B);
   static const Color pharma = Color(0xFF1B8FD9);
+  static const Color commercial = Color(0xFF818CF8);
   static const Color greenOk = Color(0xFF4ADE80);
   static const Color warn = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFEF4444);
