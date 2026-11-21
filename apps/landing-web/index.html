@@ -25,6 +25,7 @@
   --market: #2E9E5B;
   --pharma: #1B8FD9;
   --boss: #C99A2E;
+  --commercial: #2563EB;
 
   --ink: #F4F7F8;
   --ink-secondary: #D2DEE2;
@@ -209,7 +210,7 @@ h1 em {
 
 /* Portail des 4 Solutions */
 .portal { margin-top: -50px; position: relative; z-index: 10; padding-bottom: var(--sp-6); }
-.portal__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-4); }
+.portal__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--sp-4); }
 .gate {
   position: relative; display: flex; flex-direction: column; gap: var(--sp-4); padding: 22px 20px 22px;
   border-radius: var(--r-xl); background: linear-gradient(170deg, var(--night-3) 0%, var(--night-2) 100%);
@@ -231,7 +232,7 @@ h1 em {
 .gate__go span { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--c); color: #FFFFFF; transition: transform 0.25s var(--ease); }
 .gate:hover .gate__go span { transform: translateX(5px); }
 html[dir=rtl] .gate:hover .gate__go span { transform: translateX(-5px); }
-@media (max-width: 1040px) { .portal__grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1200px) { .portal__grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 580px) { .portal__grid { grid-template-columns: 1fr; } }
 
 /* Bandeau Confiance */
@@ -871,6 +872,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
      <a href="#market" style="--c:var(--market)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#2E9E5B"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div><b>Full·Tek Market</b><span data-i="m_market">Supermarchés, balances, carnet Karni</span></div></a>
      <a href="#pharma" style="--c:var(--pharma)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#1B8FD9"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div><b>Full·Tek Pharma</b><span data-i="m_pharma">Pharmacies, lots FEFO &amp; CNAM</span></div></a>
      <a href="#boss" style="--c:var(--boss)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#C99A2E"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div><b>Full·Tek Boss</b><span data-i="m_boss">App Mobile (iOS &amp; Android)</span></div></a>
+     <a href="#commercial" style="--c:var(--commercial)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#2563EB"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div><b>Full·Tek Commercial</b><span data-i="m_comm">Devis, factures TVA 16%, stock PMP &amp; trésorerie</span></div></a>
     </div>
    </div>
    <a href="#offline" data-i="n_off">Sans Internet</a>
@@ -955,6 +957,12 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
     <h3 data-i="gt_boss">App Mobile Gérant</h3>
     <p data-i="g_boss">Votre commerce en poche : ventes par boutique, alertes anti-fraude et clôture Z à distance.</p>
     <div class="gate__go"><b data-i="discover4">Tester l'App Boss</b><span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h11M9 3.5 13.5 8 9 12.5"/></svg></span></div>
+   </a>
+   <a class="gate" href="#commercial" style="--c:var(--commercial);--d:.35s" data-reveal>
+    <div class="gate__logo"><svg class="ft-logo-svg" viewBox="0 0 400 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Full-Tek Commercial" dir="ltr"><g><rect class="p p1" x="10" y="18" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="10" y="43" width="52" height="16" rx="8" fill="#2563EB"/><rect class="p p3" x="10" y="68" width="30" height="16" rx="8" fill="#FFFFFF"/></g><text class="w" x="120" y="56" font-family="'Plus Jakarta Sans','Segoe UI',Arial,sans-serif" font-size="44" font-weight="800" text-anchor="start" fill="#FFFFFF">Full·Tek</text><g class="w" transform="translate(120,67) scale(.95)"><g fill="none" stroke="#2563EB" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M7 16v-5M12 16V7M17 16v-8"/></g></g><text class="w" x="147" y="87" font-family="'Plus Jakarta Sans','Segoe UI',Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="2.5" fill="#2563EB">COMMERCIAL</text></svg></div>
+    <h3 data-i="gt_comm">Gestion Commerciale</h3>
+    <p data-i="g_comm">Devis, factures B2B/NIF TVA 16%, stock PMP, achats, trésorerie, chèques et caisse POS.</p>
+    <div class="gate__go"><b data-i="discover5">Découvrir Commercial</b><span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h11M9 3.5 13.5 8 9 12.5"/></svg></span></div>
    </a>
   </div>
  </div>
@@ -1387,6 +1395,77 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
  </div>
 </section>
 
+<!-- SOLUTION 5 : FULL-TEK COMMERCIAL -->
+<section class="sol" id="commercial" style="--c:var(--commercial)">
+ <div class="wrap sol__in">
+  <div class="sol__txt" data-reveal>
+   <div class="sol__logo-glass"><svg class="ft-logo-svg" viewBox="0 0 400 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Full-Tek Commercial" dir="ltr"><g><rect class="p p1" x="10" y="18" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="10" y="43" width="52" height="16" rx="8" fill="#2563EB"/><rect class="p p3" x="10" y="68" width="30" height="16" rx="8" fill="#FFFFFF"/></g><text class="w" x="120" y="56" font-family="'Plus Jakarta Sans','Segoe UI',Arial,sans-serif" font-size="44" font-weight="800" text-anchor="start" fill="#FFFFFF">Full·Tek</text><g class="w" transform="translate(120,67) scale(.95)"><g fill="none" stroke="#2563EB" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M7 16v-5M12 16V7M17 16v-8"/></g></g><text class="w" x="147" y="87" font-family="'Plus Jakarta Sans','Segoe UI',Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="2.5" fill="#2563EB">COMMERCIAL</text></svg></div>
+   <div class="sol__tag"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg> <span data-i="tag_comm">SAAS WEB · DEVIS, FACTURES &amp; TRÉSORERIE</span></div>
+   <h2 data-i="cm_h">Pilotez toute votre gestion commerciale en MRU.</h2>
+   <p class="sub" data-i="cm_p">Devis, bons de livraison, factures B2B avec NIF/RC et TVA 16%, achats fournisseurs avec PMP automatique, trésorerie multi-comptes, chèques à échéance et caisse POS intégrée.</p>
+   <ul class="benefits">
+    <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/></svg><span data-i="cm1">Chaîne ventes complète : Devis → Commande → BL → Facture A4 (TVA 16% / Exonéré)</span></li>
+    <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/></svg><span data-i="cm2">Achats fournisseurs, réceptions avec recalcul PMP &amp; suivi stock temps réel</span></li>
+    <li><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/></svg><span data-i="cm3">Trésorerie Caisses &amp; Banques, Chèques/Traites, Carnet Karni &amp; Caisse POS</span></li>
+   </ul>
+   <div class="sol__cta">
+    <a class="btn btn--c" href="#contact" data-pick="Full-Tek Commercial (Gestion Commerciale)" data-i="try">Essayer gratuitement</a>
+    <a class="btn btn--ghost" id="comm-direct-link" href="http://localhost:8091/" target="_blank" rel="noopener" data-i="cm_open">Ouvrir Gestion Commerciale</a>
+   </div>
+  </div>
+
+  <!-- APERÇU SAAS GESTION COMMERCIALE -->
+  <div data-reveal style="--d:.15s">
+   <div style="background:#0F172A;border:1px solid rgba(255,255,255,0.12);border-radius:18px;overflow:hidden;box-shadow:0 28px 64px rgba(0,0,0,0.45)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#0B1220;border-bottom:1px solid rgba(255,255,255,0.08)">
+     <div style="display:flex;align-items:center;gap:10px">
+      <span style="display:inline-flex;width:10px;height:10px;border-radius:999px;background:#2563EB"></span>
+      <strong style="color:#fff;font-size:13px">Full·Tek Gestion Commerciale</strong>
+     </div>
+     <span style="font-size:11px;color:#93C5FD;background:rgba(37,99,235,0.18);padding:3px 9px;border-radius:999px" data-i="cm_badge">NIF / RC · TVA 16% · MRU</span>
+    </div>
+    <div style="display:grid;grid-template-columns:138px 1fr;min-height:310px">
+     <div style="background:#0F172A;padding:12px 10px;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:#CBD5E1">
+      <div style="background:#1E293B;color:#fff;padding:7px 9px;border-radius:7px;font-weight:600" data-i="cm_nav1">Tableau de bord</div>
+      <div style="padding:6px 9px" data-i="cm_nav2">Devis &amp; Factures</div>
+      <div style="padding:6px 9px" data-i="cm_nav3">Clients &amp; Karni</div>
+      <div style="padding:6px 9px" data-i="cm_nav4">Articles &amp; Stock PMP</div>
+      <div style="padding:6px 9px" data-i="cm_nav5">Achats &amp; Fournisseurs</div>
+      <div style="padding:6px 9px" data-i="cm_nav6">Trésorerie &amp; Chèques</div>
+      <div style="padding:6px 9px" data-i="cm_nav7">Caisse POS &amp; Z</div>
+     </div>
+     <div style="background:#F8FAFC;padding:14px;color:#0F172A">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#64748B" data-i="cm_k1">CA HT Période</div>
+        <div style="font-size:16px;font-weight:800;color:#0F172A" dir="ltr">4 280 000 MRU</div>
+       </div>
+       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#64748B" data-i="cm_k2">Marge Brute</div>
+        <div style="font-size:16px;font-weight:800;color:#10B981" dir="ltr">28,4 %</div>
+       </div>
+       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#64748B" data-i="cm_k3">Trésorerie globale</div>
+        <div style="font-size:16px;font-weight:800;color:#2563EB" dir="ltr">1 940 000 MRU</div>
+       </div>
+       <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#64748B" data-i="cm_k4">Valeur Stock PMP</div>
+        <div style="font-size:16px;font-weight:800;color:#0F172A" dir="ltr">3 150 000 MRU</div>
+       </div>
+      </div>
+      <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px;font-size:12px">
+       <div style="font-weight:700;margin-bottom:6px;color:#0F172A" data-i="cm_docs">Derniers documents B2B</div>
+       <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F1F5F9"><span>FAC-2026-0142 · Mauritel B2B</span><strong style="color:#10B981" dir="ltr">480 000 MRU</strong></div>
+       <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F1F5F9"><span>BL-2026-0098 · Groupe El-Mina</span><strong style="color:#2563EB" dir="ltr">215 000 MRU</strong></div>
+       <div style="display:flex;justify-content:space-between;padding:5px 0"><span>REC-2026-0054 · Entrée PMP</span><strong style="color:#F59E0B" dir="ltr">640 000 MRU</strong></div>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+</section>
+
 <!-- SIMULATEUR HORS LIGNE -->
 <section class="offline-sec" id="offline">
  <div class="wrap off__in">
@@ -1487,7 +1566,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
   <form class="f-box" id="form" data-reveal style="--d:.15s" novalidate>
    <label class="col-full"><span data-i="f_biz">Nom du commerce *</span><input id="fn" required autocomplete="organization" data-i-ph="f_biz_ph" placeholder="Ex : Restaurant Al Khaima"></label>
    <label><span data-i="f_wa">Votre WhatsApp *</span><input id="fp" type="tel" required autocomplete="tel" placeholder="+222 XX XX XX XX" dir="ltr"></label>
-   <label><span data-i="f_sol">Solution souhaitée</span><select id="fs"><option value="Full-Tek Resto" data-i="opt_r">Full-Tek Resto</option><option value="Full-Tek Market" data-i="opt_m">Full-Tek Market</option><option value="Full-Tek Pharma" data-i="opt_p">Full-Tek Pharma</option><option value="Full-Tek Boss (App Mobile)" data-i="opt_b">Full-Tek Boss (App Mobile)</option></select></label>
+   <label><span data-i="f_sol">Solution souhaitée</span><select id="fs"><option value="Full-Tek Resto" data-i="opt_r">Full-Tek Resto</option><option value="Full-Tek Market" data-i="opt_m">Full-Tek Market</option><option value="Full-Tek Pharma" data-i="opt_p">Full-Tek Pharma</option><option value="Full-Tek Boss (App Mobile)" data-i="opt_b">Full-Tek Boss (App Mobile)</option><option value="Full-Tek Commercial (Gestion Commerciale)" data-i="opt_c">Full-Tek Commercial (Gestion Commerciale)</option></select></label>
    <button class="btn btn--ochre" type="submit" id="btn-submit"><span data-i="c_btn">Activer mon essai gratuit</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 8h11M9 3.5 13.5 8 9 12.5"/></svg></button>
    <div class="form-ok-msg" id="ok" role="status" aria-live="polite"></div>
   </form>
@@ -1500,7 +1579,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
  <div class="wrap">
   <div class="foot-grid">
    <div><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgMTAwIj48Zz48cmVjdCBjbGFzcz0icCBwMSIgeD0iMTAiIHk9IjE4IiB3aWR0aD0iNzgiIGhlaWdodD0iMTYiIHJ4PSI4IiBmaWxsPSIjRkZGRkZGIi8+PHJlY3QgY2xhc3M9InAgcDIiIHg9IjEwIiB5PSI0MyIgd2lkdGg9IjUyIiBoZWlnaHQ9IjE2IiByeD0iOCIgZmlsbD0iI0U5QTIzQiIvPjxyZWN0IGNsYXNzPSJwIHAzIiB4PSIxMCIgeT0iNjgiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNiIgcng9IjgiIGZpbGw9IiNGRkZGRkYiLz48L2c+PHRleHQgY2xhc3M9InciIHg9IjEyMCIgeT0iNTYiIGZvbnQtZmFtaWx5PSInU2Vnb2UgVUknLEFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDQiIHRleHQtYW5jaG9yPSJzdGFydCIgZmlsbD0iI0ZGRkZGRiI+PHRzcGFuIGZvbnQtd2VpZ2h0PSI4MDAiPkZ1bGzCtzwvdHNwYW4+PHRzcGFuIGZvbnQtd2VpZ2h0PSI4MDAiIGZpbGw9IiNGRkZGRkYiPlRlazwvdHNwYW4+PC90ZXh0Pjx0ZXh0IGNsYXNzPSJ3IiB4PSIxMjEiIHk9IjgyIiBmb250LWZhbWlseT0iU2Vnb2UgVUksQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9IjcwMCIgbGV0dGVyLXNwYWNpbmc9IjUiIGZpbGw9IiM5NEEzQjgiPlNVSVRFIFBPUzwvdGV4dD48L3N2Zz4=" alt="Full·Tek POS"><p data-i="ft_desc">La suite de caisse intelligente pour restaurants, supermarchés et pharmacies de Mauritanie.</p></div>
-   <div><h4 data-i="ft_c1">Solutions Métiers</h4><a href="#resto">Full·Tek Resto</a><a href="#market">Full·Tek Market</a><a href="#pharma">Full·Tek Pharma</a><a href="#boss" data-i="ft_boss">Full·Tek Boss (Mobile)</a></div>
+   <div><h4 data-i="ft_c1">Solutions Métiers</h4><a href="#resto">Full·Tek Resto</a><a href="#market">Full·Tek Market</a><a href="#pharma">Full·Tek Pharma</a><a href="#boss" data-i="ft_boss">Full·Tek Boss (Mobile)</a><a href="#commercial" data-i="ft_comm">Full·Tek Commercial</a></div>
    <div><h4 data-i="ft_c2">Infrastructure</h4><a href="#offline" data-i="ft_off">Résilience hors ligne</a><a href="#tarifs" data-i="ft_pr">Tarifs en ouguiya</a><a href="#contact" data-i="ft_sup">Assistance 7j/7</a></div>
    <div>
      <h4 data-i="ft_c3">Contact M. Taha Chouaib</h4>
@@ -1534,6 +1613,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
    <a class="acc-link" href="#market" style="--c:var(--market)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#2E9E5B"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div>Full·Tek Market<small data-i="mod_m">Balance &amp; Carnet Karni</small></div></a>
    <a class="acc-link" href="#pharma" style="--c:var(--pharma)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#1B8FD9"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div>Full·Tek Pharma<small data-i="mod_p">Lots FEFO &amp; CNAM</small></div></a>
    <a class="acc-link" href="#boss" style="--c:var(--boss)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#C99A2E"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div>Full·Tek Boss<small data-i="m_boss">App Mobile (iOS &amp; Android)</small></div></a>
+   <a class="acc-link" id="acc-link-commercial" href="http://localhost:8091/" target="_blank" rel="noopener" style="--c:var(--commercial)"><span class="emblem-badge"><svg class="ft-mini-pill" width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect class="p p1" x="11" y="20" width="78" height="16" rx="8" fill="#FFFFFF"/><rect class="p p2" x="11" y="42" width="54" height="16" rx="8" fill="#2563EB"/><rect class="p p3" x="11" y="64" width="32" height="16" rx="8" fill="#FFFFFF"/></svg></span><div>Full·Tek Commercial<small data-i="mod_c">Devis, Factures, Stock PMP &amp; Trésorerie</small></div></a>
   </div>
  </div>
 </div>
@@ -1549,7 +1629,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
   fr: {
    dir:'ltr', cur:'MRU', doc_title:'Full·Tek : la caisse qui ne s\'arrête jamais — Mauritanie (Resto, Market, Pharma, Boss)', pre_init:'Initialisation du noyau POS...',
    n_sol:'Solutions', n_off:'Sans Internet', n_price:'Tarifs', n_contact:'Contact', n_login:'Se connecter', n_trial:'Essai gratuit',
-   m_resto:'Restaurants, cafés, salons Khaima VIP', m_market:'Supermarchés, balances, carnet Karni', m_pharma:'Pharmacies, lots FEFO &amp; CNAM', m_boss:'App Mobile (iOS &amp; Android)',
+   m_resto:'Restaurants, cafés, salons Khaima VIP', m_market:'Supermarchés, balances, carnet Karni', m_pharma:'Pharmacies, lots FEFO &amp; CNAM', m_boss:'App Mobile (iOS &amp; Android)', m_comm:'Devis, factures TVA 16%, stock PMP &amp; trésorerie',
    badge:'Fonctionne même sans Internet', h1:'La caisse qui <em>ne s\'arrête jamais</em>, pour votre commerce.',
    lead:'Restaurant, supermarché ou pharmacie en Mauritanie : encaissez en un éclair, acceptez Bankily, Masrivi, Sedad ou Karni, et pilotez vos boutiques en direct.',
    cta1:'Essai gratuit 15 jours', cta2:'Choisir ma solution', f1_n:'0,08 s', f1:'par article scanné', f2_n:'100 %', f2:'ventes sans coupure', f3_n:'15 j', f3:'d\'essai offert',
@@ -1557,14 +1637,19 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
    h_it1:'1/2 Agneau Méchoui', h_it2:'Thé Atay 3 Services', h_it3:'Plateau Dattes Atar',
    h_tot:'TOTAL À PAYER', h_pay:'Encaisser · Bankily / Masrivi',
    h_bok:'Bankily confirmé', h_bref:'Réf. ••4821 · 3 200 MRU', h_boss:'BOSS MOBILE',
-   gt_resto:'Restaurants &amp; cafés', gt_market:'Supermarchés &amp; épiceries', gt_pharma:'Pharmacies &amp; dépôts', gt_boss:'App Mobile Gérant',
+   gt_resto:'Restaurants &amp; cafés', gt_market:'Supermarchés &amp; épiceries', gt_pharma:'Pharmacies &amp; dépôts', gt_boss:'App Mobile Gérant', gt_comm:'Gestion Commerciale',
    g_resto:'Salons Khaima VIP, commandes sur tablette, écran cuisine KDS et addition partagée.',
    g_market:'Balances connectées, scan rapide, prix Détail / Demi-gros et Carnet de crédit Karni.',
    g_pharma:'Lots FEFO, blocage automatique des produits périmés et prise en charge CNAM.',
    g_boss:'Votre commerce en poche : ventes par boutique, alertes anti-fraude et clôture Z à distance.',
-   discover:'Tester Resto en direct', discover2:'Tester Market en direct', discover3:'Tester Pharma en direct', discover4:'Tester l\'App Boss', try:'Essayer gratuitement', demo:'Demander une démo',
+   g_comm:'Devis, factures B2B/NIF TVA 16%, stock PMP, achats, trésorerie, chèques et caisse POS.',
+   discover:'Tester Resto en direct', discover2:'Tester Market en direct', discover3:'Tester Pharma en direct', discover4:'Tester l\'App Boss', discover5:'Découvrir Commercial', try:'Essayer gratuitement', demo:'Demander une démo',
    st_bk:'Bankily', st_ms:'Masrivi', st_sd:'Sedad', st_kr:'Carnet Karni', st_pr:'Imprimante 80 mm FR/AR', st_sc:'Douchette EAN-13', st_bl:'Balance COM1', st_cn:'CNAM Officine',
-   tag_resto:'RESTAURANTS, MÉCHOUIS &amp; SALONS KHAIMA VIP', tag_market:'SUPERMARCHÉS, BOUCHERIES &amp; GROS', tag_pharma:'PHARMACIES, OFFICINES &amp; CNAM MAURITANIE', tag_boss:'APPLICATION MOBILE · iOS &amp; ANDROID',
+   tag_resto:'RESTAURANTS, MÉCHOUIS &amp; SALONS KHAIMA VIP', tag_market:'SUPERMARCHÉS, BOUCHERIES &amp; GROS', tag_pharma:'PHARMACIES, OFFICINES &amp; CNAM MAURITANIE', tag_boss:'APPLICATION MOBILE · iOS &amp; ANDROID', tag_comm:'SAAS WEB · DEVIS, FACTURES &amp; TRÉSORERIE',
+   cm_h:'Pilotez toute votre gestion commerciale en MRU.', cm_p:'Devis, bons de livraison, factures B2B avec NIF/RC et TVA 16%, achats fournisseurs avec PMP automatique, trésorerie multi-comptes, chèques à échéance et caisse POS intégrée.',
+   cm1:'Chaîne ventes complète : Devis → Commande → BL → Facture A4 (TVA 16% / Exonéré)', cm2:'Achats fournisseurs, réceptions avec recalcul PMP &amp; suivi stock temps réel', cm3:'Trésorerie Caisses &amp; Banques, Chèques/Traites, Carnet Karni &amp; Caisse POS',
+   cm_open:'Ouvrir Gestion Commerciale', cm_badge:'NIF / RC · TVA 16% · MRU', cm_nav1:'Tableau de bord', cm_nav2:'Devis &amp; Factures', cm_nav3:'Clients &amp; Karni', cm_nav4:'Articles &amp; Stock PMP', cm_nav5:'Achats &amp; Fournisseurs', cm_nav6:'Trésorerie &amp; Chèques', cm_nav7:'Caisse POS &amp; Z',
+   cm_k1:'CA HT Période', cm_k2:'Marge Brute', cm_k3:'Trésorerie globale', cm_k4:'Valeur Stock PMP', cm_docs:'Derniers documents B2B', opt_c:'Full-Tek Commercial (Gestion Commerciale)', ft_comm:'Full·Tek Commercial', mod_c:'Devis, Factures, Stock PMP &amp; Trésorerie',
    r_h:'Servez plus vite, encaissez sans erreur.', r_p:'Du salon Khaima VIP à la terrasse : prenez la commande bilingue FR/AR sur tablette, envoyez en cuisine KDS et encaissez via Bankily, Masrivi ou Cash.',
    r1:'Plan de salle, Terrasses et Salons Khaima VIP (vente au plateau)', r2:'Écran cuisine KDS avec chronomètre et alerte rupture immédiate', r3:'Encaissement mixte Cash + Bankily / Masrivi + ticket 80 mm FR/AR',
    pr_brand:'Dar El-Karam · دار الكرم', pr_sub:'Tevragh Zeina · Serveur : Ahmed · Imprimante 80mm PRÊTE', pr_t1:'Caisse Tactile', pr_t2:'Khaima VIP (4)', pr_t3:'Cuisine KDS (3)',
@@ -1655,7 +1740,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
   ar: {
    dir:'rtl', cur:'أوقية', doc_title:'Full·Tek : منظومة الكاشير التي لا تتوقف أبداً — موريتانيا', pre_init:'جاري تشغيل نواة نظام البيع...',
    n_sol:'الحلول', n_off:'بدون إنترنت', n_price:'الأسعار', n_contact:'اتصل بنا', n_login:'تسجيل الدخول', n_trial:'جرّب مجاناً',
-   m_resto:'المطاعم والمقاهي وصالونات الخيمة VIP', m_market:'السوبرماركت، الميزان، ودفتر الكارني', m_pharma:'الصيدليات، تتبّع الصلاحية وتأمين CNAM', m_boss:'تطبيق المدير على الهاتف (iOS و Android)',
+   m_resto:'المطاعم والمقاهي وصالونات الخيمة VIP', m_market:'السوبرماركت، الميزان، ودفتر الكارني', m_pharma:'الصيدليات، تتبّع الصلاحية وتأمين CNAM', m_boss:'تطبيق المدير على الهاتف (iOS و Android)', m_comm:'عروض الأسعار، فواتير TVA 16%، المخزون PMP والخزينة',
    badge:'يعمل حتى بدون إنترنت', h1:'نظام الكاشير الذي <em>لا يتوقف أبداً</em> عن خدمة تجارتك.',
    lead:'لمطعمك أو متجرك أو صيدليتك في موريتانيا: بع وحصّل في ثوانٍ عبر بنكيلي ومصرفي وسداد أو دفتر الكارني، وتابع جميع فروعك لحظة بلحظة.',
    cta1:'تجربة مجانية 15 يوماً', cta2:'اختر الحل المناسب', f1_n:'<span dir="ltr">0.08</span> ث', f1:'سرعة قراءة الباركود', f2_n:'<span dir="ltr">100%</span>', f2:'بيع مستمر بلا انقطاع', f3_n:'<span dir="ltr">15</span> يوماً', f3:'تجربة مجانية متكاملة',
@@ -1663,14 +1748,19 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
    h_it1:'نصف خروف مشوي', h_it2:'صينية أتاي 3 كؤوس', h_it3:'طبق تمور أطار',
    h_tot:'الإجمالي للدفع', h_pay:'تحصيل · بنكيلي / مصرفي',
    h_bok:'تم تأكيد الدفع عبر بنكيلي', h_bref:'مرجع <span dir="ltr">••4821</span> · <span dir="ltr">3 200</span> أوقية', h_boss:'تطبيق المدير',
-   gt_resto:'المطاعم والمقاهي', gt_market:'السوبرماركت والبقالات', gt_pharma:'الصيدليات ومخازن الأدوية', gt_boss:'تطبيق المدير على الهاتف',
+   gt_resto:'المطاعم والمقاهي', gt_market:'السوبرماركت والبقالات', gt_pharma:'الصيدليات ومخازن الأدوية', gt_boss:'تطبيق المدير على الهاتف', gt_comm:'التسيير التجاري',
    g_resto:'قاعات الخيمة VIP، طلبات التابلت، شاشة المطبخ KDS وتقسيم الفاتورة.',
    g_market:'موازين إلكترونية متصلة، مسح سريع، أسعار التجزئة ونصف الجملة، ودفتر الكارني.',
    g_pharma:'إدارة الصلاحية بنظام FEFO، حظر فوري للأدوية المنتهية، وحساب تغطية CNAM.',
    g_boss:'متجرك في جيبك: مبيعات كل فرع لحظياً، تنبيهات الحماية، وإقفال الصندوق Z عن بُعد.',
-   discover:'جرّب نظام Resto مباشرة', discover2:'جرّب نظام Market مباشرة', discover3:'جرّب نظام Pharma مباشرة', discover4:'جرّب تطبيق Boss', try:'جرّب مجاناً', demo:'اطلب عرضاً توضيحياً',
+   g_comm:'عروض الأسعار، فواتير B2B مع NIF وTVA 16%، المخزون PMP، المشتريات، الخزينة والكاشير.',
+   discover:'جرّب نظام Resto مباشرة', discover2:'جرّب نظام Market مباشرة', discover3:'جرّب نظام Pharma مباشرة', discover4:'جرّب تطبيق Boss', discover5:'اكتشف التسيير التجاري', try:'جرّب مجاناً', demo:'اطلب عرضاً توضيحياً',
    st_bk:'دفع بنكيلي', st_ms:'دفع مصرفي', st_sd:'دفع سداد', st_kr:'دفتر الدَّين (كارني)', st_pr:'طابعة إيصالات 80 ملم', st_sc:'قارئ باركود EAN-13', st_bl:'ميزان COM1 متصل', st_cn:'تأمين CNAM للصيدليات',
-   tag_resto:'المطاعم والمشويات وصالونات الخيمة VIP', tag_market:'السوبرماركت والملاحم والبيع بالجملة', tag_pharma:'الصيدليات وتأمين CNAM في موريتانيا', tag_boss:'تطبيق الهاتف · iOS و Android',
+   tag_resto:'المطاعم والمشويات وصالونات الخيمة VIP', tag_market:'السوبرماركت والملاحم والبيع بالجملة', tag_pharma:'الصيدليات وتأمين CNAM في موريتانيا', tag_boss:'تطبيق الهاتف · iOS و Android', tag_comm:'منصة سحابية · الفواتير والمخزون والخزينة',
+   cm_h:'أدِر كامل نشاطك التجاري بالأوقية (MRU).', cm_p:'عروض الأسعار، سندات التسليم، فواتير B2B مع NIF/RC وTVA 16%، مشتريات الموردين بحساب PMP التلقائي، الخزينة والبنوك، الشيكات والكاشير.',
+   cm1:'سلسلة المبيعات الكاملة: عرض سعر ← طلبية ← تسليم ← فاتورة A4 (TVA 16% / معفى)', cm2:'المشتريات والاستلامات مع إعادة حساب PMP وتتبّع المخزون لحظياً', cm3:'الخزينة والبنوك، الشيكات والكمبيالات، دفتر الكارني وشاشة الكاشير POS',
+   cm_open:'فتح التسيير التجاري', cm_badge:'NIF / RC · TVA 16% · MRU', cm_nav1:'لوحة القيادة', cm_nav2:'العروض والفواتير', cm_nav3:'العملاء والكارني', cm_nav4:'المواد والمخزون PMP', cm_nav5:'المشتريات والموردون', cm_nav6:'الخزينة والشيكات', cm_nav7:'شاشة الكاشير و Z',
+   cm_k1:'رقم الأعمال HT', cm_k2:'هامش الربح الإجمالي', cm_k3:'الرصيد الإجمالي للخزينة', cm_k4:'قيمة المخزون PMP', cm_docs:'أحدث وثائق B2B', opt_c:'Full·Tek Commercial — التسيير التجاري', ft_comm:'Full·Tek Commercial', mod_c:'الفواتير، المخزون PMP والخزينة',
    r_h:'خدمة أسرع، ومحاسبة دقيقة بلا أخطاء.', r_p:'من صالون الخيمة VIP إلى الجلسات الخارجية: سجّل الطلب بالعربية أو الفرنسية على التابلت، أرسله فوراً إلى شاشة المطبخ KDS، وحصّل عبر بنكيلي أو مصرفي أو نقداً.',
    r1:'مخطط القاعة والجلسات وصالونات الخيمة VIP (البيع بالصينية أو بالطبق)', r2:'شاشة المطبخ KDS مع مؤقّت التحضير وتنبيه فوري عند نفاد الأصناف', r3:'دفع مختلط (نقدي + بنكيلي / مصرفي) مع طباعة فاتورة 80 ملم بالعربية والفرنسية',
    pr_brand:'مطعم دار الكرم · تفرغ زينة', pr_sub:'النادل: أحمد · طابعة 80 ملم جاهزة', pr_t1:'شاشة الكاشير', pr_t2:'خيمة VIP (4)', pr_t3:'مطبخ KDS (3)',
@@ -1761,7 +1851,7 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
   en: {
    dir:'ltr', cur:'MRU', doc_title:'Full·Tek: the POS that never stops — Mauritania (Resto, Market, Pharma, Boss)', pre_init:'Initializing POS core...',
    n_sol:'Solutions', n_off:'Offline', n_price:'Pricing', n_contact:'Contact', n_login:'Sign in', n_trial:'Free trial',
-   m_resto:'Restaurants, cafés, Khaima VIP', m_market:'Supermarkets, scales, Karni credit', m_pharma:'Pharmacies, FEFO batches &amp; CNAM', m_boss:'Mobile App (iOS &amp; Android)',
+   m_resto:'Restaurants, cafés, Khaima VIP', m_market:'Supermarkets, scales, Karni credit', m_pharma:'Pharmacies, FEFO batches &amp; CNAM', m_boss:'Mobile App (iOS &amp; Android)', m_comm:'Quotes, 16% VAT invoices, PMP stock &amp; treasury',
    badge:'Works even without Internet', h1:'The register that <em>never stops</em>, for your business.',
    lead:'Restaurant, supermarket or pharmacy in Mauritania: check out fast, accept Bankily, Masrivi, Sedad or Karni, and manage live.',
    cta1:'15-day free trial', cta2:'Pick my solution', f1_n:'0.08 s', f1:'per scanned item', f2_n:'100 %', f2:'sales, no downtime', f3_n:'15 d', f3:'free trial',
@@ -1769,14 +1859,19 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
    h_it1:'1/2 Lamb Mechoui', h_it2:'Attaya Tea 3 Services', h_it3:'Atar Dates Platter',
    h_tot:'TOTAL DUE', h_pay:'Charge · Bankily / Masrivi',
    h_bok:'Bankily confirmed', h_bref:'Ref. ••4821 · 3,200 MRU', h_boss:'BOSS MOBILE',
-   gt_resto:'Restaurants &amp; cafés', gt_market:'Supermarkets &amp; groceries', gt_pharma:'Pharmacies &amp; depots', gt_boss:'Owner Mobile App',
+   gt_resto:'Restaurants &amp; cafés', gt_market:'Supermarkets &amp; groceries', gt_pharma:'Pharmacies &amp; depots', gt_boss:'Owner Mobile App', gt_comm:'Commercial ERP',
    g_resto:'Khaima VIP lounges, tablet orders, kitchen KDS screen and split bills.',
    g_market:'Connected scales, fast scan, Retail/Wholesale pricing and Karni credit book.',
    g_pharma:'FEFO batches, expired medicine blocking and CNAM insurance split.',
    g_boss:'Your business in your pocket: live store sales, fraud alerts and remote Z closing.',
-   discover:'Try Resto live', discover2:'Try Market live', discover3:'Try Pharma live', discover4:'Try Boss App', try:'Try for free', demo:'Request a demo',
+   g_comm:'Quotes, B2B/NIF 16% VAT invoices, PMP stock, purchases, treasury, cheques and POS.',
+   discover:'Try Resto live', discover2:'Try Market live', discover3:'Try Pharma live', discover4:'Try Boss App', discover5:'Explore Commercial', try:'Try for free', demo:'Request a demo',
    st_bk:'Bankily', st_ms:'Masrivi', st_sd:'Sedad', st_kr:'Karni Ledger', st_pr:'80mm FR/AR Printer', st_sc:'EAN-13 Scanner', st_bl:'COM1 Scale', st_cn:'CNAM Pharmacy',
-   tag_resto:'RESTAURANTS, MECHOUI &amp; KHAIMA VIP', tag_market:'SUPERMARKETS, BUTCHERY &amp; WHOLESALE', tag_pharma:'PHARMACIES &amp; CNAM MAURITANIA', tag_boss:'MOBILE APP · iOS &amp; ANDROID',
+   tag_resto:'RESTAURANTS, MECHOUI &amp; KHAIMA VIP', tag_market:'SUPERMARKETS, BUTCHERY &amp; WHOLESALE', tag_pharma:'PHARMACIES &amp; CNAM MAURITANIA', tag_boss:'MOBILE APP · iOS &amp; ANDROID', tag_comm:'WEB SAAS · QUOTES, INVOICES &amp; TREASURY',
+   cm_h:'Run your entire commercial operations in MRU.', cm_p:'Quotes, delivery notes, B2B invoices with NIF/RC and 16% VAT, supplier purchases with automatic PMP costing, multi-account treasury, cheques and built-in POS.',
+   cm1:'Full sales chain: Quote → Order → Delivery → A4 Invoice (16% VAT / Exempt)', cm2:'Supplier purchases, receipts with automatic PMP recalculation &amp; live stock', cm3:'Cash &amp; Bank treasury, Cheques/Drafts, Karni ledger &amp; POS register',
+   cm_open:'Open Commercial ERP', cm_badge:'NIF / RC · 16% VAT · MRU', cm_nav1:'Dashboard', cm_nav2:'Quotes &amp; Invoices', cm_nav3:'Clients &amp; Karni', cm_nav4:'Items &amp; PMP Stock', cm_nav5:'Purchases &amp; Suppliers', cm_nav6:'Treasury &amp; Cheques', cm_nav7:'POS Register &amp; Z',
+   cm_k1:'Period Revenue HT', cm_k2:'Gross Margin', cm_k3:'Total Treasury', cm_k4:'PMP Stock Value', cm_docs:'Recent B2B documents', opt_c:'Full-Tek Commercial (Commercial ERP)', ft_comm:'Full·Tek Commercial', mod_c:'Quotes, Invoices, PMP Stock &amp; Treasury',
    r_h:'Serve faster, charge without errors.', r_p:'From Khaima VIP lounges to the terrace: order in FR/AR on tablet, send to KDS kitchen and charge via Bankily, Masrivi or Cash.',
    r1:'Floor plan, Terraces and Khaima VIP lounges', r2:'KDS kitchen screen with live timers & stock alerts', r3:'Mixed Cash + Bankily / Masrivi & 80mm FR/AR receipt',
    pr_brand:'Dar El-Karam · دار الكرم', pr_sub:'Tevragh Zeina · Waiter: Ahmed · 80mm Printer READY', pr_t1:'Touch Till', pr_t2:'Khaima VIP (4)', pr_t3:'Kitchen KDS (3)',
@@ -2208,6 +2303,12 @@ footer { padding: 70px 0 36px; background: #091216; color: var(--muted); font-si
  const restoLink = document.getElementById('acc-link-resto');
  if (restoLink && (window.location.hostname.includes('full-tek.com') || window.location.protocol === 'https:')) {
    restoLink.href = 'https://app.full-tek.com/';
+ }
+ const commModalLink = document.getElementById('acc-link-commercial');
+ const commDirectLink = document.getElementById('comm-direct-link');
+ if (window.location.hostname.includes('full-tek.com') || window.location.protocol === 'https:') {
+   if (commModalLink) commModalLink.href = 'https://commercial.full-tek.com/';
+   if (commDirectLink) commDirectLink.href = 'https://commercial.full-tek.com/';
  }
 })();
 </script>
