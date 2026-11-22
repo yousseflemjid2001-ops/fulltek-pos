@@ -1357,6 +1357,20 @@ function createApp(options = {}) {
             status: k.status || 'active',
           }));
 
+        const staffRows = database
+          .prepare('SELECT id, full_name, username, pin_code, role, profile_id, badge_uid, active FROM users WHERE tenant_id = ? ORDER BY id ASC')
+          .all(tenantId)
+          .map((u) => ({
+            id: String(u.id),
+            name: u.full_name || u.username,
+            username: u.username,
+            pinCode: u.pin_code || '',
+            role: u.role || 'CASHIER',
+            profileId: u.profile_id || '',
+            badgeUid: u.badge_uid || '',
+            isActive: Number(u.active ?? 1) === 1,
+          }));
+
         return sendJson(res, 200, {
           ok: true,
           tenantId,
@@ -1385,6 +1399,78 @@ function createApp(options = {}) {
           ingredients,
           recipesBom,
           karniCustomers,
+          staff: staffRows,
+        });
+      }
+
+      // 2c-0. POS Staff / Users CRUD (Tenant-scoped)
+      if (req.method === 'POST' && p === '/api/pos/staff') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const name = typeof b.name === 'string' ? b.name.trim() : '';
+        const pinCode = typeof b.pinCode === 'string' ? b.pinCode.trim() : '';
+        const role = (typeof b.role === 'string' ? b.role : 'CASHIER').trim().toUpperCase();
+        const profileId = typeof b.profileId === 'string' ? b.profileId.trim() : '';
+        const badgeUid = typeof b.badgeUid === 'string' ? b.badgeUid.trim() : '';
+        const isActive = b.isActive === false ? 0 : 1;
+        if (!name || pinCode.length < 4) {
+          return sendJson(res, 400, { error: 'Nom et code PIN (4 caractères min.) requis.' });
+        }
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '') || 'user';
+        const username = `${slug}.${currentTenant.id}.${Date.now().toString().slice(-4)}`;
+        const passHash = hashPassword(pinCode);
+        const ins = database.prepare(`
+          INSERT INTO users (tenant_id, full_name, username, pass_hash, pin_code, role, profile_id, badge_uid, active, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(currentTenant.id, name, username, passHash, pinCode, role, profileId, badgeUid, isActive, new Date().toISOString());
+        const created = database
+          .prepare('SELECT id, full_name, username, pin_code, role, profile_id, badge_uid, active FROM users WHERE id = ?')
+          .get(Number(ins.lastInsertRowid));
+        return sendJson(res, 201, {
+          ok: true,
+          staff: {
+            id: String(created.id),
+            name: created.full_name,
+            username: created.username,
+            pinCode: created.pin_code,
+            role: created.role,
+            profileId: created.profile_id || '',
+            badgeUid: created.badge_uid || '',
+            isActive: Number(created.active ?? 1) === 1,
+          },
+        });
+      }
+
+      if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/staff\/(\d+)$/))) {
+        const staffId = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM users WHERE id = ? AND tenant_id = ?').get(staffId, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Utilisateur introuvable' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const name = typeof b.name === 'string' && b.name.trim() ? b.name.trim() : cur.full_name;
+        const pinCode = typeof b.pinCode === 'string' && b.pinCode.trim().length >= 4 ? b.pinCode.trim() : cur.pin_code;
+        const role = typeof b.role === 'string' && b.role.trim() ? b.role.trim().toUpperCase() : cur.role;
+        const profileId = typeof b.profileId === 'string' ? b.profileId.trim() : (cur.profile_id || '');
+        const badgeUid = typeof b.badgeUid === 'string' ? b.badgeUid.trim() : (cur.badge_uid || '');
+        const active = typeof b.isActive === 'boolean' ? (b.isActive ? 1 : 0) : Number(cur.active ?? 1);
+        const passHash = pinCode !== cur.pin_code ? hashPassword(pinCode) : cur.pass_hash;
+        database.prepare(`
+          UPDATE users
+          SET full_name = ?, pin_code = ?, pass_hash = ?, role = ?, profile_id = ?, badge_uid = ?, active = ?, updated_at = ?
+          WHERE id = ? AND tenant_id = ?
+        `).run(name, pinCode, passHash, role, profileId, badgeUid, active, new Date().toISOString(), staffId, currentTenant.id);
+        return sendJson(res, 200, {
+          ok: true,
+          staff: {
+            id: String(staffId),
+            name,
+            username: cur.username,
+            pinCode,
+            role,
+            profileId,
+            badgeUid,
+            isActive: active === 1,
+          },
         });
       }
 

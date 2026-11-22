@@ -165,6 +165,11 @@ class PosStore extends ChangeNotifier {
         storeRc = '${map['storeRc'] ?? storeRc}';
         receiptFooter = '${map['receiptFooter'] ?? receiptFooter}';
         cloudJwtToken = map['cloudJwtToken'] as String?;
+        if (cloudJwtToken != null &&
+            cloudJwtToken!.isNotEmpty &&
+            !accountOffline) {
+          cloudConnected = true;
+        }
         if (tenantCode != 'FT-1041') {
           _resetTenantOperationalState();
         }
@@ -563,16 +568,20 @@ class PosStore extends ChangeNotifier {
       }
       if (parsed.menuItems.isNotEmpty) {
         menuItems = List<MenuItem>.from(parsed.menuItems);
-      } else if (menuItems.isEmpty) {
+      } else if (tenantCode == 'FT-1041' && menuItems.isEmpty) {
         _seedMauritanianRestaurantData();
+      } else if (tenantCode != 'FT-1041') {
+        menuItems = [];
       }
 
-      if (parsed.zones.isNotEmpty && parsed.tables.isNotEmpty) {
+      if (parsed.zones.isNotEmpty) {
+        zones = List<DiningZone>.from(parsed.zones);
+      }
+      if (parsed.tables.isNotEmpty) {
         final openByTable = {
           for (final t in tables)
             if (t.activeOrderId != null) t.id: t,
         };
-        zones = List<DiningZone>.from(parsed.zones);
         tables = parsed.tables.map((t) {
           final prev = openByTable[t.id];
           if (prev != null && _openOrdersById.containsKey(prev.activeOrderId)) {
@@ -589,6 +598,42 @@ class PosStore extends ChangeNotifier {
         }).toList();
         reservations = List<VipReservation>.from(parsed.reservations);
       }
+      final rawStaff = data['staff'];
+      if (rawStaff is List && rawStaff.isNotEmpty) {
+        final mappedStaff = <StaffMember>[];
+        for (final item in rawStaff.whereType<Map>()) {
+          final m = item.cast<String, dynamic>();
+          final roleStr = '${m['role'] ?? 'CASHIER'}'.toUpperCase();
+          final posRole = switch (roleStr) {
+            'OWNER' => PosRole.owner,
+            'MANAGER' => PosRole.manager,
+            'WAITER' => PosRole.waiter,
+            'KITCHEN' => PosRole.kitchen,
+            _ => PosRole.cashier,
+          };
+          final profId = '${m['profileId'] ?? ''}'.trim();
+          mappedStaff.add(StaffMember(
+            id: '${m['id'] ?? ''}',
+            name: '${m['name'] ?? m['username'] ?? 'Utilisateur'}',
+            role: posRole,
+            pinCode: '${m['pinCode'] ?? '1234'}',
+            profileId: profId.isNotEmpty
+                ? profId
+                : (posRole == PosRole.owner
+                    ? 'PROF-OWNER'
+                    : posRole == PosRole.manager
+                        ? 'PROF-MGR'
+                        : posRole == PosRole.waiter
+                            ? 'PROF-WAIT'
+                            : 'PROF-CASH'),
+            badgeUid: '${m['badgeUid'] ?? ''}',
+            isActive: m['isActive'] != false,
+          ));
+        }
+        if (mappedStaff.isNotEmpty) {
+          staff = mappedStaff;
+        }
+      }
       if (parsed.ingredients.isNotEmpty) {
         ingredients = List<Ingredient>.from(parsed.ingredients);
       }
@@ -601,8 +646,7 @@ class PosStore extends ChangeNotifier {
 
       cloudConnected = true;
       accountOffline = false;
-      catalogSource =
-          parsed.menuItems.isNotEmpty ? 'cloud_api' : 'offline_demo';
+      catalogSource = 'cloud_api';
       lastCatalogSyncAt = DateTime.now();
       return parsed.menuItems.isNotEmpty;
     } catch (_) {
@@ -779,22 +823,88 @@ class PosStore extends ChangeNotifier {
         _currentStaff = staff[idx];
       }
       notifyListeners();
+      _syncStaffToCloud(staff[idx], isNew: false);
       return null;
     }
 
-    staff.add(
-      StaffMember(
-        id: 'ST-${DateTime.now().millisecondsSinceEpoch % 1000000}',
-        name: trimmedName,
-        role: prof.baseRole,
-        pinCode: cleanPin,
-        profileId: prof.id,
-        badgeUid: cleanBadge,
-        isActive: isActive,
-      ),
+    final createdStaff = StaffMember(
+      id: 'ST-${DateTime.now().millisecondsSinceEpoch % 1000000}',
+      name: trimmedName,
+      role: prof.baseRole,
+      pinCode: cleanPin,
+      profileId: prof.id,
+      badgeUid: cleanBadge,
+      isActive: isActive,
     );
+    staff.add(createdStaff);
     notifyListeners();
+    _syncStaffToCloud(createdStaff, isNew: true);
     return null;
+  }
+
+  Future<void> _syncStaffToCloud(StaffMember member,
+      {required bool isNew}) async {
+    if (cloudJwtToken == null || cloudJwtToken!.isEmpty || accountOffline) {
+      return;
+    }
+    final roleStr = member.role.name.toUpperCase();
+    try {
+      if (!isNew && RegExp(r'^\d+$').hasMatch(member.id)) {
+        await _httpRequest(
+          'PATCH',
+          '$apiBaseUrl/api/pos/staff/${member.id}',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'name': member.name,
+            'pinCode': member.pinCode,
+            'role': roleStr,
+            'profileId': member.profileId,
+            'badgeUid': member.badgeUid,
+            'isActive': member.isActive,
+          }),
+        );
+      } else if (isNew) {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/staff',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'name': member.name,
+            'pinCode': member.pinCode,
+            'role': roleStr,
+            'profileId': member.profileId,
+            'badgeUid': member.badgeUid,
+            'isActive': member.isActive,
+          }),
+        );
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final map = jsonDecode(res.body) as Map<String, dynamic>;
+          final s = map['staff'] as Map<String, dynamic>?;
+          if (s != null && s['id'] != null) {
+            final idx = staff.indexWhere((e) => e.id == member.id);
+            if (idx >= 0) {
+              final cur = staff[idx];
+              staff[idx] = StaffMember(
+                id: '${s['id']}',
+                name: cur.name,
+                role: cur.role,
+                pinCode: cur.pinCode,
+                profileId: cur.profileId,
+                badgeUid: cur.badgeUid,
+                isActive: cur.isActive,
+              );
+              notifyListeners();
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   void toggleStaffActive(String id, bool active) {
@@ -803,6 +913,7 @@ class PosStore extends ChangeNotifier {
     if (staff[idx].role == PosRole.owner && !active) return;
     staff[idx] = staff[idx].copyWith(isActive: active);
     notifyListeners();
+    _syncStaffToCloud(staff[idx], isNew: false);
   }
 
   Future<String?> updateRestaurantInfo({
@@ -827,7 +938,7 @@ class PosStore extends ChangeNotifier {
     }
     notifyListeners();
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         await _httpRequest(
           'PATCH',
@@ -1317,7 +1428,7 @@ class PosStore extends ChangeNotifier {
           'status': nextTicket.status,
         },
       );
-      if (cloudConnected && cloudJwtToken != null) {
+      if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
         try {
           await _httpRequest(
             'PATCH',
@@ -1360,7 +1471,7 @@ class PosStore extends ChangeNotifier {
     );
     notifyListeners();
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final key = old.sku.isNotEmpty ? old.sku : old.id;
         await _httpRequest(
@@ -1432,7 +1543,7 @@ class PosStore extends ChangeNotifier {
     }
 
     var newId = 'cat-${DateTime.now().millisecondsSinceEpoch % 1000000}';
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final res = await _httpRequest(
           'POST',
@@ -1559,7 +1670,7 @@ class PosStore extends ChangeNotifier {
       );
       notifyListeners();
 
-      if (cloudConnected && cloudJwtToken != null) {
+      if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
         try {
           final key = old.sku.isNotEmpty ? old.sku : old.id;
           await _httpRequest(
@@ -1605,7 +1716,7 @@ class PosStore extends ChangeNotifier {
       available: available,
     );
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final cat = categories.where((c) => c.id == categoryId).firstOrNull;
         final res = await _httpRequest(
@@ -1632,6 +1743,7 @@ class PosStore extends ChangeNotifier {
           }),
         );
         if (res.statusCode >= 200 && res.statusCode < 300) {
+          cloudConnected = true;
           final map = jsonDecode(res.body) as Map<String, dynamic>;
           final p = map['product'] as Map<String, dynamic>?;
           if (p != null && p['id'] != null) {
@@ -1667,7 +1779,7 @@ class PosStore extends ChangeNotifier {
     final old = menuItems.removeAt(idx);
     notifyListeners();
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final key = old.sku.isNotEmpty ? old.sku : old.id;
         await _httpRequest(
@@ -1696,7 +1808,7 @@ class PosStore extends ChangeNotifier {
         : clean;
     var zoneId = 'Z-${DateTime.now().millisecondsSinceEpoch % 1000000}';
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final res = await _httpRequest(
           'POST',
@@ -1771,7 +1883,7 @@ class PosStore extends ChangeNotifier {
       );
       notifyListeners();
 
-      if (cloudConnected && cloudJwtToken != null) {
+      if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
         try {
           await _httpRequest(
             'PATCH',
@@ -1804,7 +1916,7 @@ class PosStore extends ChangeNotifier {
     );
     notifyListeners();
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         await _httpRequest(
           'POST',
@@ -1837,7 +1949,7 @@ class PosStore extends ChangeNotifier {
     tables.removeAt(idx);
     notifyListeners();
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         await _httpRequest(
           'DELETE',
@@ -1875,7 +1987,7 @@ class PosStore extends ChangeNotifier {
       pmpCostMru: pmpCostMru < 0 ? 0 : pmpCostMru,
     );
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final res = await _httpRequest(
           'POST',
@@ -1955,7 +2067,7 @@ class PosStore extends ChangeNotifier {
     );
     notifyListeners();
 
-    if (cloudConnected && cloudJwtToken != null) {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final key = old.sku.isNotEmpty ? old.sku : old.id;
         await _httpRequest(
