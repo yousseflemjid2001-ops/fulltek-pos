@@ -805,6 +805,19 @@ class PosStore extends ChangeNotifier {
     return idx == -1 ? null : staff[idx];
   }
 
+  /// Verifies PIN for Back-Office access (Owner, Manager, Accountant, or any
+  /// custom profile granted [PosPermission.accessBackOffice]).
+  StaffMember? verifyBackOfficePin(String pin) {
+    final idx = staff.indexWhere(
+      (s) =>
+          s.isActive &&
+          s.pinCode == pin.trim() &&
+          (s.role == PosRole.owner ||
+              staffCan(s, PosPermission.accessBackOffice)),
+    );
+    return idx == -1 ? null : staff[idx];
+  }
+
   bool canCurrent(PosPermission perm) =>
       _currentStaff != null && staffCan(_currentStaff!, perm);
 
@@ -1165,6 +1178,7 @@ class PosStore extends ChangeNotifier {
       id: id,
       ticketNumber: 'FT-$_ticketCounter',
       staffName: _currentStaff?.name ?? 'Caisse',
+      cashierName: _currentStaff?.name ?? 'Caisse',
       items: const [],
       createdAt: DateTime.now(),
       serviceMode: _serviceMode,
@@ -1206,6 +1220,7 @@ class PosStore extends ChangeNotifier {
       tableId: table.id,
       tableCode: table.code,
       staffName: staffLabel,
+      serverName: staffLabel,
       items: const [],
       arbounDepositMru: effectiveArboun,
       createdAt: DateTime.now(),
@@ -1328,6 +1343,7 @@ class PosStore extends ChangeNotifier {
     String? note,
     List<SelectedModifier> selectedModifiers = const [],
     double? customPriceMru,
+    bool? isTakeaway,
   }) {
     final live = menuItems.cast<MenuItem?>().firstWhere(
           (m) => m?.id == item.id,
@@ -1339,6 +1355,8 @@ class PosStore extends ChangeNotifier {
         : live;
 
     final order = activeOrder ?? startCounterOrder();
+    final effectiveTakeaway =
+        isTakeaway ?? (_serviceMode == ServiceMode.takeaway);
     final items = List<OrderItem>.from(order.items);
     final modKey = _modifiersKey(selectedModifiers);
     final existingIdx = (customPriceMru != null || live.manualPrice)
@@ -1348,6 +1366,7 @@ class PosStore extends ChangeNotifier {
                 l.item.id == live.id &&
                 !l.sentToKitchen &&
                 !l.isComp &&
+                l.isTakeaway == effectiveTakeaway &&
                 (l.kitchenNote ?? '') == (note ?? '') &&
                 _modifiersKey(l.selectedModifiers) == modKey,
           );
@@ -1362,6 +1381,7 @@ class PosStore extends ChangeNotifier {
           item: effectiveItem,
           quantity: 1,
           kitchenNote: note,
+          isTakeaway: effectiveTakeaway,
           selectedModifiers: List<SelectedModifier>.unmodifiable(selectedModifiers),
         ),
       );
@@ -1370,6 +1390,20 @@ class PosStore extends ChangeNotifier {
         _withRecomputedDelivery(order.copyWith(items: items));
     notifyListeners();
     return true;
+  }
+
+  /// Toggles an individual order line between Sur place and À emporter,
+  /// enabling mixed orders (e.g. dining at table + dessert to take away).
+  void toggleLineTakeaway(String lineId) {
+    final order = activeOrder;
+    if (order == null) return;
+    final items = List<OrderItem>.from(order.items);
+    final idx = items.indexWhere((l) => l.lineId == lineId);
+    if (idx == -1) return;
+    items[idx] = items[idx].copyWith(isTakeaway: !items[idx].isTakeaway);
+    _openOrdersById[order.id] =
+        _withRecomputedDelivery(order.copyWith(items: items));
+    notifyListeners();
   }
 
   void updateLineQuantity(String lineId, int delta) {
@@ -2381,6 +2415,7 @@ class PosStore extends ChangeNotifier {
       payments: payments,
       status: 'paid',
       paidAt: DateTime.now(),
+      cashierName: _currentStaff?.name ?? order.cashierName ?? order.staffName,
     );
 
     _openOrdersById.remove(order.id);

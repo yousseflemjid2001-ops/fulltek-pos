@@ -4,6 +4,7 @@ import '../services/fullscreen_helper.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
+import 'back_office_view.dart';
 import 'closing_z_view.dart';
 import 'floor_plan_view.dart';
 import 'karni_view.dart';
@@ -149,41 +150,33 @@ class _PosShellScreenState extends State<PosShellScreen> {
                 ),
                 const SizedBox(width: 12),
               ],
-              if (wide) ...[
-                // 3 Service Modes (Sur place | Emporter | Livraison)
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: p.surfaceAlt,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: p.border),
+              if (store.canCurrent(PosPermission.accessBackOffice) ||
+                  staff?.role == PosRole.owner) ...[
+                const SizedBox(width: 6),
+                FilledButton.tonalIcon(
+                  key: const Key('shell_back_office_btn'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFF7C3AED).withValues(alpha: 0.16),
+                    foregroundColor: const Color(0xFF7C3AED),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    visualDensity: VisualDensity.compact,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: ServiceMode.values.map((m) {
-                      final active = store.serviceMode == m;
-                      return InkWell(
-                        key: Key('service_mode_${m.name}'),
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: () => store.setServiceMode(m),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: active ? p.primary : Colors.transparent,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '${m.emoji} ${m.label(store.lang)}',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: active ? p.onPrimary : p.textMuted,
-                            ),
-                          ),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => BackOfficeScreen(
+                          store: store,
+                          operatorStaff: staff,
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.dashboard_customize_rounded, size: 16),
+                  label: const Text(
+                    'Back-Office',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ),
               ],

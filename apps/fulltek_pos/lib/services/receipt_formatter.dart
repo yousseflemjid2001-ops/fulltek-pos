@@ -115,11 +115,33 @@ class ReceiptFormatter {
     final dateStr =
         '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} '
         '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    buf.writeln(_padRow('Date: $dateStr', 'Staff: ${order.staffName}'));
+    final hasTableServer = (order.serverName != null &&
+            order.serverName!.trim().isNotEmpty) ||
+        order.tableCode != null;
+    final effectiveServer =
+        (order.serverName != null && order.serverName!.trim().isNotEmpty)
+            ? order.serverName!.trim()
+            : order.staffName;
+    final effectiveCashier =
+        (order.cashierName != null && order.cashierName!.trim().isNotEmpty)
+            ? order.cashierName!.trim()
+            : order.staffName;
+    if (hasTableServer) {
+      buf.writeln(_padRow('Date: $dateStr', 'Serveur: $effectiveServer'));
+      if (effectiveCashier != effectiveServer) {
+        buf.writeln('Caissier: $effectiveCashier');
+      }
+    } else {
+      buf.writeln(_padRow('Date: $dateStr', 'Caissier: $effectiveCashier'));
+    }
     buf.writeln(_line());
 
     for (final line in order.items) {
-      final qtyName = '${line.quantity}x ${line.item.nameFr}';
+      final takeawayTag =
+          (line.isTakeaway && order.serviceMode != ServiceMode.takeaway)
+              ? ' [EMPORTER]'
+              : '';
+      final qtyName = '${line.quantity}x ${line.item.nameFr}$takeawayTag';
       final priceStr = line.isComp ? 'OFFERT' : formatMru(line.lineTotal);
       buf.writeln(_padRow(qtyName, priceStr));
       buf.writeln('   ${line.item.nameAr}');

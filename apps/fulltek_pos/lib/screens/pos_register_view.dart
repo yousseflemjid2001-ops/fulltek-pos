@@ -722,6 +722,48 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             ],
           ),
           const SizedBox(height: 8),
+          // 3 Service Modes (Sur place | Emporter | Livraison) right in the order panel
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: p.surfaceAlt,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: p.border),
+            ),
+            child: Row(
+              children: ServiceMode.values.map((m) {
+                final active = store.serviceMode == m;
+                return Expanded(
+                  child: InkWell(
+                    key: Key('service_mode_${m.name}'),
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => store.setServiceMode(m),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 6),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: active ? p.primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '${m.emoji} ${m.label(store.lang)}',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: active ? p.onPrimary : p.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
           Divider(height: 1, color: p.border),
 
           // Cart Lines with square qty badge
@@ -778,15 +820,56 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                     Text('+ ${m.label(store.lang)}',
                                         style: TextStyle(
                                             fontSize: 10.5, color: p.accent)),
-                                  Text(
-                                    line.isComp
-                                        ? 'OFFERT'
-                                        : '${line.lineTotal.toStringAsFixed(0)} ${i18n.t('mru')}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: line.isComp ? p.success : p.primary,
-                                    ),
+                                  const SizedBox(height: 2),
+                                  Wrap(
+                                    spacing: 6,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      Text(
+                                        line.isComp
+                                            ? 'OFFERT'
+                                            : '${line.lineTotal.toStringAsFixed(0)} ${i18n.t('mru')}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: line.isComp
+                                              ? p.success
+                                              : p.primary,
+                                        ),
+                                      ),
+                                      InkWell(
+                                        key: Key('line_mode_${line.lineId}'),
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: () => store
+                                            .toggleLineTakeaway(line.lineId),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: line.isTakeaway
+                                                ? p.warning
+                                                    .withValues(alpha: 0.16)
+                                                : p.primary
+                                                    .withValues(alpha: 0.12),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            line.isTakeaway
+                                                ? '🥡 Emporter'
+                                                : '🍽 Sur place',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: line.isTakeaway
+                                                  ? p.warning
+                                                  : p.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   if (line.kitchenNote != null &&
                                       line.kitchenNote!.isNotEmpty)

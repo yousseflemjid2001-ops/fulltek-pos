@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fulltek_pos/models/pos_models.dart';
 import 'package:fulltek_pos/services/http_bridge.dart';
+import 'package:fulltek_pos/services/receipt_formatter.dart';
 import 'package:fulltek_pos/state/pos_store.dart';
 
 void main() {
@@ -96,5 +98,57 @@ void main() {
     expect(err, isNotNull);
     expect(err, contains('Session expirée'));
     expect(store.menuItems.length, beforeCount);
+  });
+
+  test('Mixed Sur place + Emporter lines & Receipt Serveur vs Caissier formatting', () {
+    final store = PosStore(enablePersistence: false);
+    final waiter = store.staff.firstWhere((s) => s.role == PosRole.waiter);
+    final cashier = store.staff.firstWhere((s) => s.role == PosRole.cashier);
+    final owner = store.staff.firstWhere((s) => s.role == PosRole.owner);
+
+    // Waiter opens table and takes a mixed order
+    expect(store.loginWithPin(waiter.pinCode), isTrue);
+    final waiterName = store.currentStaff!.name;
+    final tbl = store.tables.first;
+    store.openOrSelectTable(tbl.id);
+    final dish1 = store.menuItems.firstWhere((m) => m.available);
+    final dish2 = store.menuItems.lastWhere((m) => m.available);
+    store.addItemToActiveOrder(dish1);
+    store.addItemToActiveOrder(dish2);
+    final secondLineId = store.activeOrder!.items.last.lineId;
+    store.toggleLineTakeaway(secondLineId);
+    expect(store.activeOrder!.items.first.isTakeaway, isFalse);
+    expect(store.activeOrder!.items.last.isTakeaway, isTrue);
+
+    // Cashier takes payment for that table
+    expect(store.loginWithPin(cashier.pinCode), isTrue);
+    final cashierName = store.currentStaff!.name;
+    store.openOrSelectTable(tbl.id);
+    final total = store.activeOrder!.netTotal;
+    final paid = store.completeCheckout([
+      PaymentEntry(method: PaymentMethod.cash, amountMru: total),
+    ]);
+    expect(paid, isNotNull);
+    final receipt = ReceiptFormatter.formatOrderReceipt80mm(order: paid!);
+    expect(receipt, contains('Serveur: $waiterName'));
+    expect(receipt, contains('Caissier: $cashierName'));
+    expect(receipt, contains('[EMPORTER]'));
+
+    // Takeaway counter order (no table server) prints Caissier directly
+    store.setServiceMode(ServiceMode.takeaway);
+    store.startCounterOrder();
+    store.addItemToActiveOrder(dish1);
+    final t2 = store.activeOrder!.netTotal;
+    final paidTakeaway = store.completeCheckout([
+      PaymentEntry(method: PaymentMethod.cash, amountMru: t2),
+    ]);
+    final receiptTakeaway =
+        ReceiptFormatter.formatOrderReceipt80mm(order: paidTakeaway!);
+    expect(receiptTakeaway, contains('Caissier: $cashierName'));
+    expect(receiptTakeaway, isNot(contains('Serveur:')));
+
+    // Back-Office PIN check: owner passes, standard cashier without grant fails
+    expect(store.verifyBackOfficePin(owner.pinCode), isNotNull);
+    expect(store.verifyBackOfficePin(cashier.pinCode), isNull);
   });
 }

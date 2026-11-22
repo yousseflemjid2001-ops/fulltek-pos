@@ -3,6 +3,7 @@ import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
+import 'back_office_view.dart';
 import 'team_profiles_view.dart';
 
 class PinLoginScreen extends StatefulWidget {
@@ -117,6 +118,80 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
               title: Text('Paramétrage · ${store.tenantName}'),
             ),
             body: TeamProfilesView(store: store),
+          ),
+        ),
+      );
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _openBackOffice() async {
+    final store = widget.store;
+    final pinCtrl = TextEditingController();
+    String? err;
+    StaffMember? authorizedStaff;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Accès Back-Office (Propriétaire / Autorisé)'),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Entrez votre code PIN autorisé (Propriétaire, Gérant ou Commercial) pour ouvrir le Back-Office.',
+                  style: TextStyle(fontSize: 12.5),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('back_office_pin_input'),
+                  controller: pinCtrl,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: 'Code PIN Back-Office',
+                    prefixIcon: const Icon(Icons.dashboard_customize_rounded),
+                    errorText: err,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('back_office_pin_confirm'),
+              onPressed: () {
+                final verified = store.verifyBackOfficePin(pinCtrl.text.trim());
+                if (verified == null) {
+                  setD(() => err =
+                      'Code PIN invalide ou accès Back-Office non autorisé.');
+                  return;
+                }
+                authorizedStaff = verified;
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Ouvrir Back-Office'),
+            ),
+          ],
+        ),
+      ),
+    );
+    pinCtrl.dispose();
+
+    if (authorizedStaff != null && mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BackOfficeScreen(
+            store: store,
+            operatorStaff: authorizedStaff,
           ),
         ),
       );
@@ -355,6 +430,17 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                 onPressed: _openMasterSettings,
                 icon: const Icon(Icons.settings_outlined, size: 16),
                 label: const Text('Paramétrage'),
+              ),
+              FilledButton.tonalIcon(
+                key: const Key('login_back_office_btn'),
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      const Color(0xFF7C3AED).withValues(alpha: 0.14),
+                  foregroundColor: const Color(0xFF7C3AED),
+                ),
+                onPressed: _openBackOffice,
+                icon: const Icon(Icons.dashboard_customize_rounded, size: 16),
+                label: const Text('Back-Office'),
               ),
             ],
           ),

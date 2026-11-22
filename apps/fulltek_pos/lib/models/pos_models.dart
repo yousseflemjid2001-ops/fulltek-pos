@@ -37,6 +37,7 @@ enum PosPermission {
   manageMenuStock,
   manageProfilesUsers,
   syncCloud,
+  accessBackOffice,
 }
 
 extension PosPermissionMeta on PosPermission {
@@ -57,6 +58,7 @@ extension PosPermissionMeta on PosPermission {
         PosPermission.manageMenuStock => 'Gestion Menu & Stock',
         PosPermission.manageProfilesUsers => 'Profils, Utilisateurs & Badges',
         PosPermission.syncCloud => 'Synchronisation Cloud',
+        PosPermission.accessBackOffice => 'Accès Back-Office (Gestion & Contrôle)',
       };
 }
 
@@ -140,6 +142,7 @@ class RbacMatrix {
       PosPermission.manageMenuStock,
       PosPermission.manageProfilesUsers,
       PosPermission.syncCloud,
+      PosPermission.accessBackOffice,
     },
     PosRole.adminSite: {
       PosPermission.openTable,
@@ -158,6 +161,7 @@ class RbacMatrix {
       PosPermission.manageMenuStock,
       PosPermission.manageProfilesUsers,
       PosPermission.syncCloud,
+      PosPermission.accessBackOffice,
     },
     PosRole.manager: {
       PosPermission.openTable,
@@ -857,6 +861,7 @@ class OrderItem {
   final String? kitchenNote;
   final bool sentToKitchen;
   final bool isComp;
+  final bool isTakeaway;
   final List<SelectedModifier> selectedModifiers;
 
   const OrderItem({
@@ -866,6 +871,7 @@ class OrderItem {
     this.kitchenNote,
     this.sentToKitchen = false,
     this.isComp = false,
+    this.isTakeaway = false,
     this.selectedModifiers = const [],
   });
 
@@ -881,6 +887,7 @@ class OrderItem {
     String? kitchenNote,
     bool? sentToKitchen,
     bool? isComp,
+    bool? isTakeaway,
     List<SelectedModifier>? selectedModifiers,
   }) {
     return OrderItem(
@@ -890,6 +897,7 @@ class OrderItem {
       kitchenNote: kitchenNote ?? this.kitchenNote,
       sentToKitchen: sentToKitchen ?? this.sentToKitchen,
       isComp: isComp ?? this.isComp,
+      isTakeaway: isTakeaway ?? this.isTakeaway,
       selectedModifiers: selectedModifiers ?? this.selectedModifiers,
     );
   }
@@ -906,6 +914,7 @@ class OrderItem {
       'unit_price': unitPriceWithModifiers,
       'line_total': lineTotal,
       'is_comp': isComp,
+      'is_takeaway': isTakeaway,
       'kitchen_station': item.kitchenStation,
       if (kitchenNote != null && kitchenNote!.isNotEmpty)
         'kitchen_note': kitchenNote,
@@ -964,6 +973,8 @@ class PosOrder {
   final String? tableId;
   final String? tableCode;
   final String staffName;
+  final String? serverName;
+  final String? cashierName;
   final List<OrderItem> items;
   final double discountPercent;
   final double arbounDepositMru;
@@ -986,6 +997,8 @@ class PosOrder {
     this.tableId,
     this.tableCode,
     required this.staffName,
+    this.serverName,
+    this.cashierName,
     required this.items,
     this.discountPercent = 0,
     this.arbounDepositMru = 0,
@@ -1032,6 +1045,8 @@ class PosOrder {
     String? tableId,
     bool clearTable = false,
     String? tableCode,
+    String? serverName,
+    String? cashierName,
     List<OrderItem>? items,
     double? discountPercent,
     double? arbounDepositMru,
@@ -1054,6 +1069,8 @@ class PosOrder {
       tableId: clearTable ? null : (tableId ?? this.tableId),
       tableCode: clearTable ? null : (tableCode ?? this.tableCode),
       staffName: staffName,
+      serverName: serverName ?? this.serverName,
+      cashierName: cashierName ?? this.cashierName,
       items: items ?? this.items,
       discountPercent: discountPercent ?? this.discountPercent,
       arbounDepositMru: arbounDepositMru ?? this.arbounDepositMru,
