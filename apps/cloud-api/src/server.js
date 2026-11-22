@@ -2362,7 +2362,17 @@ function createApp(options = {}) {
           if (sup) supplierName = sup.name;
         }
         if (!supplierName) return sendJson(res, 400, { error: 'Fournisseur requis' });
-        const totalTtc = Number(b.totalTtcMru || 0);
+        const rawItems = Array.isArray(b.items) ? b.items : [];
+        const freightMru = Math.max(0, Number(b.freightMru || 0));
+        let computedItemsTotal = 0;
+        for (const it of rawItems) {
+          const q = Number(it.qty || 0);
+          const u = Number(it.unitCostMru || 0);
+          if (q > 0 && u >= 0) computedItemsTotal += q * u;
+        }
+        const totalTtc = Number(b.totalTtcMru || 0) > 0
+          ? Number(b.totalTtcMru)
+          : (computedItemsTotal + freightMru);
         if (!Number.isFinite(totalTtc) || totalTtc <= 0) return sendJson(res, 400, { error: 'Montant invalide' });
         const includeTva = b.includeTva !== false;
         const tvaMru = includeTva ? Math.round((totalTtc * 16) / 116) : 0;
@@ -2371,7 +2381,7 @@ function createApp(options = {}) {
         const status = paidMru >= totalTtc ? 'PAID' : (paidMru > 0 ? 'PARTIAL' : 'UNPAID');
         const docNumber = String(b.docNumber || '').trim() || `ACH-${Date.now().toString().slice(-6)}`;
         const docDate = String(b.docDate || '').trim() || new Date().toISOString().slice(0, 10);
-        const itemsJson = JSON.stringify(Array.isArray(b.items) ? b.items : []);
+        const itemsJson = JSON.stringify(rawItems);
         const ins = database.prepare(`
           INSERT INTO resto_purchases (
             tenant_id, doc_number, supplier_id, supplier_name, doc_date, status,
@@ -2381,6 +2391,28 @@ function createApp(options = {}) {
           currentTenant.id, docNumber, supplierId, supplierName, docDate, status,
           subtotalHt, tvaMru, totalTtc, paidMru, String(b.payMethod || 'Cash'), itemsJson, String(b.notes || '').trim(),
         );
+        // Auto-restock linked ingredients with weighted PMP (including proportional freight)
+        for (const it of rawItems) {
+          const ingKey = String(it.ingredientId ?? '').trim();
+          const qty = Number(it.qty || 0);
+          const unitCost = Number(it.unitCostMru || 0);
+          if (!ingKey || qty <= 0 || unitCost < 0) continue;
+          const ing = /^\d+$/.test(ingKey)
+            ? database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(ingKey), ingKey)
+            : database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, ingKey);
+          if (!ing) continue;
+          const shareRatio = computedItemsTotal > 0 ? ((qty * unitCost) / computedItemsTotal) : 0;
+          const lineFreight = freightMru * shareRatio;
+          const effectiveUnitCost = unitCost + (lineFreight / qty);
+          const oldStock = Math.max(0, Number(ing.current_stock || 0));
+          const oldPmp = Math.max(0, Number(ing.pmp_cost_mru || 0));
+          const newStock = oldStock + qty;
+          const newPmp = newStock > 0
+            ? Math.round(((oldStock * oldPmp + qty * effectiveUnitCost) / newStock) * 100) / 100
+            : effectiveUnitCost;
+          database.prepare('UPDATE ingredients SET current_stock = ?, pmp_cost_mru = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?')
+            .run(newStock, newPmp, ing.id, currentTenant.id);
+        }
         const remaining = totalTtc - paidMru;
         if (supplierId && remaining > 0) {
           database.prepare('UPDATE resto_suppliers SET balance_due_mru = balance_due_mru + ? WHERE id = ? AND tenant_id = ?')
@@ -2502,6 +2534,97 @@ function createApp(options = {}) {
           .run(nextPaid, nextStatus, String(b.payMethod || cur.pay_method || 'Bankily'), iid, currentTenant.id);
         const updated = database.prepare('SELECT * FROM resto_b2b_invoices WHERE id = ?').get(iid);
         return sendJson(res, 200, { ok: true, invoice: { ...updated, items: parseJson(updated.items_json, []) } });
+      }
+
+      if (req.method === 'POST' && (m = p.match(/^\/api\/pos\/backoffice\/invoices\/(\d+)\/convert$/))) {
+        const iid = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM resto_b2b_invoices WHERE id = ? AND tenant_id = ?').get(iid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Devis introuvable' });
+        const nextNum = cur.doc_number.startsWith('DEV-')
+          ? cur.doc_number.replace(/^DEV-/, 'FAC-')
+          : `FAC-${Date.now().toString().slice(-6)}`;
+        const nextStatus = Number(cur.paid_mru) >= Number(cur.total_ttc_mru) ? 'PAID' : (Number(cur.paid_mru) > 0 ? 'PARTIAL' : 'UNPAID');
+        database.prepare("UPDATE resto_b2b_invoices SET doc_type = 'FACTURE', doc_number = ?, status = ? WHERE id = ? AND tenant_id = ?")
+          .run(nextNum, nextStatus, iid, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM resto_b2b_invoices WHERE id = ?').get(iid);
+        return sendJson(res, 200, { ok: true, invoice: { ...updated, items: parseJson(updated.items_json, []) } });
+      }
+
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/backoffice\/invoices\/(\d+)$/))) {
+        const iid = Number(m[1]);
+        const cur = database.prepare('SELECT id FROM resto_b2b_invoices WHERE id = ? AND tenant_id = ?').get(iid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Document introuvable' });
+        database.prepare('DELETE FROM resto_b2b_invoices WHERE id = ? AND tenant_id = ?').run(iid, currentTenant.id);
+        return sendJson(res, 200, { ok: true, id: iid });
+      }
+
+      if (req.method === 'POST' && p === '/api/pos/backoffice/recipes') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const prodKey = String(b.productId ?? '').trim();
+        const ingKey = String(b.ingredientId ?? '').trim();
+        const qty = Number(b.qtyPerUnit || 0);
+        if (!prodKey || !ingKey || !Number.isFinite(qty) || qty <= 0) {
+          return sendJson(res, 400, { error: 'Plat, ingrédient et quantité valide requis' });
+        }
+        const prod = /^\d+$/.test(prodKey)
+          ? database.prepare('SELECT * FROM products WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(prodKey), prodKey)
+          : database.prepare('SELECT * FROM products WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, prodKey);
+        const ing = /^\d+$/.test(ingKey)
+          ? database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(ingKey), ingKey)
+          : database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, ingKey);
+        if (!prod || !ing) {
+          return sendJson(res, 404, { error: 'Plat ou ingrédient introuvable en base' });
+        }
+        const channel = String(b.conditionChannel || 'ALL').trim() || 'ALL';
+        const modKey = String(b.modifierKey || '').trim();
+        database.prepare(`
+          INSERT INTO recipes_bom (tenant_id, product_id, ingredient_id, qty_per_unit, unit, condition_channel, modifier_key)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(product_id, ingredient_id, condition_channel, modifier_key)
+          DO UPDATE SET qty_per_unit = excluded.qty_per_unit
+        `).run(currentTenant.id, prod.id, ing.id, qty, ing.unit || 'kg', channel, modKey);
+        return sendJson(res, 201, { ok: true });
+      }
+
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/backoffice\/recipes\/([^/]+)$/))) {
+        const rawId = decodeURIComponent(m[1]).trim();
+        if (/^\d+$/.test(rawId)) {
+          database.prepare('DELETE FROM recipes_bom WHERE id = ? AND tenant_id = ?').run(Number(rawId), currentTenant.id);
+        }
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && p === '/api/pos/backoffice/inventory-adjust') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const ingKey = String(b.ingredientId ?? '').trim();
+        const ing = /^\d+$/.test(ingKey)
+          ? database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(ingKey), ingKey)
+          : database.prepare('SELECT * FROM ingredients WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, ingKey);
+        if (!ing) return sendJson(res, 404, { error: 'Ingrédient introuvable' });
+        const oldStock = Number(ing.current_stock || 0);
+        const newStock = b.newStock != null
+          ? Math.max(0, Number(b.newStock))
+          : Math.max(0, oldStock - Math.max(0, Number(b.wasteQty || 0)));
+        database.prepare('UPDATE ingredients SET current_stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?')
+          .run(newStock, ing.id, currentTenant.id);
+        const lossQty = oldStock > newStock ? (oldStock - newStock) : 0;
+        const lossCostMru = Math.round(lossQty * Number(ing.pmp_cost_mru || 0));
+        if (b.recordAsExpense === true && lossCostMru > 0) {
+          const reason = String(b.reason || 'Perte / Écart inventaire').trim();
+          database.prepare(`
+            INSERT INTO resto_expenses (tenant_id, category, label, amount_mru, tva_mru, pay_method, expense_date, ref, notes)
+            VALUES (?, 'Pertes & Casse Stock', ?, ?, 0, 'Stock', ?, 'INV', ?)
+          `).run(
+            currentTenant.id,
+            `${reason} · ${ing.name_fr} (-${lossQty.toStringAsFixed(2)} ${ing.unit})`,
+            lossCostMru,
+            new Date().toISOString().slice(0, 10),
+            reason,
+          );
+        }
+        return sendJson(res, 200, { ok: true, ingredientId: ing.id, oldStock, newStock, lossCostMru });
       }
 
       // 2i. Centralized Tenant JWT Auth Guard & Router for ALL /api/commercial/* routes

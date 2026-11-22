@@ -2233,12 +2233,17 @@ class PosStore extends ChangeNotifier {
     required String supplierName,
     required double totalTtcMru,
     double paidMru = 0,
+    double freightMru = 0,
     bool includeTva = true,
     String payMethod = 'Cash',
     String notes = '',
+    List<RestoPurchaseLine> items = const [],
   }) async {
     if (supplierName.trim().isEmpty) return 'Fournisseur requis.';
-    if (totalTtcMru <= 0) return 'Montant invalide.';
+    final computedLines =
+        items.fold<double>(0, (s, l) => s + l.lineTotalMru) + freightMru;
+    final effectiveTotal = totalTtcMru > 0 ? totalTtcMru : computedLines;
+    if (effectiveTotal <= 0) return 'Montant invalide.';
     if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final res = await _httpRequest(
@@ -2251,21 +2256,24 @@ class PosStore extends ChangeNotifier {
           body: jsonEncode({
             'supplierId': supplierId,
             'supplierName': supplierName.trim(),
-            'totalTtcMru': totalTtcMru,
+            'totalTtcMru': effectiveTotal,
             'paidMru': paidMru,
+            'freightMru': freightMru,
             'includeTva': includeTva,
             'payMethod': payMethod,
             'notes': notes.trim(),
+            'items': items.map((e) => e.toJson()).toList(),
           }),
         );
         if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchCloudCatalog();
         await fetchBackOfficeData();
         return null;
       } catch (_) {
         return 'Serveur injoignable.';
       }
     }
-    final tva = includeTva ? (totalTtcMru * 16 / 116).roundToDouble() : 0.0;
+    final tva = includeTva ? (effectiveTotal * 16 / 116).roundToDouble() : 0.0;
     restoPurchases.insert(
       0,
       RestoPurchase(
@@ -2274,12 +2282,13 @@ class PosStore extends ChangeNotifier {
         supplierId: supplierId,
         supplierName: supplierName.trim(),
         docDate: DateTime.now().toIso8601String().substring(0, 10),
-        status: paidMru >= totalTtcMru ? 'PAID' : (paidMru > 0 ? 'PARTIAL' : 'UNPAID'),
-        subtotalHtMru: totalTtcMru - tva,
+        status: paidMru >= effectiveTotal ? 'PAID' : (paidMru > 0 ? 'PARTIAL' : 'UNPAID'),
+        subtotalHtMru: effectiveTotal - tva,
         tvaMru: tva,
-        totalTtcMru: totalTtcMru,
+        totalTtcMru: effectiveTotal,
         paidMru: paidMru,
         payMethod: payMethod,
+        items: items,
         notes: notes.trim(),
       ),
     );
@@ -2397,9 +2406,12 @@ class PosStore extends ChangeNotifier {
     bool includeTva = true,
     String payMethod = 'Bankily',
     String notes = '',
+    List<RestoInvoiceLine> items = const [],
   }) async {
     if (clientName.trim().isEmpty) return 'Nom du client requis.';
-    if (totalTtcMru <= 0) return 'Montant invalide.';
+    final computedLines = items.fold<double>(0, (s, l) => s + l.lineTotalMru);
+    final effectiveTotal = totalTtcMru > 0 ? totalTtcMru : computedLines;
+    if (effectiveTotal <= 0) return 'Montant invalide.';
     if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
         final res = await _httpRequest(
@@ -2414,11 +2426,12 @@ class PosStore extends ChangeNotifier {
             'clientName': clientName.trim(),
             'clientPhone': clientPhone.trim(),
             'clientNif': clientNif.trim(),
-            'totalTtcMru': totalTtcMru,
+            'totalTtcMru': effectiveTotal,
             'paidMru': paidMru,
             'includeTva': includeTva,
             'payMethod': payMethod,
             'notes': notes.trim(),
+            'items': items.map((e) => e.toJson()).toList(),
           }),
         );
         if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
@@ -2428,7 +2441,7 @@ class PosStore extends ChangeNotifier {
         return 'Serveur injoignable.';
       }
     }
-    final tva = includeTva ? (totalTtcMru * 16 / 116).roundToDouble() : 0.0;
+    final tva = includeTva ? (effectiveTotal * 16 / 116).roundToDouble() : 0.0;
     restoInvoices.insert(
       0,
       RestoB2bInvoice(
@@ -2439,16 +2452,159 @@ class PosStore extends ChangeNotifier {
         clientPhone: clientPhone.trim(),
         clientNif: clientNif.trim(),
         docDate: DateTime.now().toIso8601String().substring(0, 10),
-        status: docType == 'DEVIS' ? 'DRAFT' : (paidMru >= totalTtcMru ? 'PAID' : 'UNPAID'),
-        subtotalHtMru: totalTtcMru - tva,
+        status: docType == 'DEVIS' ? 'DRAFT' : (paidMru >= effectiveTotal ? 'PAID' : 'UNPAID'),
+        subtotalHtMru: effectiveTotal - tva,
         tvaMru: tva,
-        totalTtcMru: totalTtcMru,
+        totalTtcMru: effectiveTotal,
         paidMru: paidMru,
         payMethod: payMethod,
+        items: items,
         notes: notes.trim(),
       ),
     );
     notifyListeners();
+    return null;
+  }
+
+  Future<String?> convertRestoDevisToInvoice(int invoiceId) async {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/invoices/$invoiceId/convert',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    return null;
+  }
+
+  Future<String?> deleteRestoB2bInvoice(int invoiceId) async {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/backoffice/invoices/$invoiceId',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    restoInvoices.removeWhere((i) => i.id == invoiceId);
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> saveRecipeBomLine({
+    required String productId,
+    required String ingredientId,
+    required double qtyPerUnit,
+    String conditionChannel = 'ALL',
+  }) async {
+    if (qtyPerUnit <= 0) return 'Quantité invalide.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/recipes',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'productId': productId,
+            'ingredientId': ingredientId,
+            'qtyPerUnit': qtyPerUnit,
+            'conditionChannel': conditionChannel,
+          }),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchCloudCatalog();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    recipesBom.add(
+      RecipeBomLine(
+        id: 'bom-${DateTime.now().millisecondsSinceEpoch % 100000}',
+        productId: productId,
+        ingredientId: ingredientId,
+        qtyPerUnit: qtyPerUnit,
+        conditionChannel: conditionChannel,
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> deleteRecipeBomLine(String id) async {
+    recipesBom.removeWhere((r) => r.id == id);
+    notifyListeners();
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/backoffice/recipes/${Uri.encodeComponent(id)}',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        await fetchCloudCatalog();
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<String?> adjustIngredientInventory({
+    required String ingredientId,
+    double? newStock,
+    double? wasteQty,
+    String reason = '',
+    bool recordAsExpense = true,
+  }) async {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/inventory-adjust',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'ingredientId': ingredientId,
+            if (newStock != null) 'newStock': newStock,
+            if (wasteQty != null) 'wasteQty': wasteQty,
+            'reason': reason.trim(),
+            'recordAsExpense': recordAsExpense,
+          }),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchCloudCatalog();
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    final idx = ingredients.indexWhere((i) => i.id == ingredientId);
+    if (idx != -1) {
+      final cur = ingredients[idx];
+      final target = newStock ??
+          ((cur.currentStock - (wasteQty ?? 0)) > 0
+              ? (cur.currentStock - (wasteQty ?? 0))
+              : 0.0);
+      ingredients[idx] = cur.copyWith(currentStock: target);
+      notifyListeners();
+    }
     return null;
   }
 
