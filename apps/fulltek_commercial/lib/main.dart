@@ -154,25 +154,24 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
-                        children: [
-                          Text(
-                            'Full·Tek',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'COMMERCIAL',
-                            style: TextStyle(
-                                color: CommercialColors.brandViolet,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.1),
-                          ),
-                        ],
+                      const Text(
+                        'Full·Tek',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800),
+                      ),
+                      const Text(
+                        'COMMERCIAL',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: CommercialColors.brandViolet,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2),
                       ),
                       Text(
                         t.name,
