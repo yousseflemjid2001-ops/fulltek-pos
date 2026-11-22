@@ -759,3 +759,156 @@ class MonthlyObjective {
         status: '${j['status'] ?? 'NON_DEFINI'}',
       );
 }
+
+class CompanySettings {
+  final String companyName;
+  final String nif;
+  final String rc;
+  final String address;
+  final String city;
+  final String phone;
+  final String email;
+  final String bankRib;
+  final String bankilyNumber;
+  final String masriviNumber;
+  final String invoiceFooter;
+
+  const CompanySettings({
+    this.companyName = 'Full·Tek Négoce SARL',
+    this.nif = 'NIF 0123456789',
+    this.rc = 'RC NKC-2026-B104',
+    this.address = 'Tevragh Zeina, Avenue Gamal Abdel Nasser',
+    this.city = 'Nouakchott',
+    this.phone = '+222 45 25 11 00',
+    this.email = 'contact@full-tek.com',
+    this.bankRib = 'BMCI 00012 00100 04589210011 42',
+    this.bankilyNumber = '42 74 42 42',
+    this.masriviNumber = '42 74 42 42',
+    this.invoiceFooter =
+        'Règlement à réception ou selon échéance. Tout retard entraîne des pénalités.',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'companyName': companyName,
+        'nif': nif,
+        'rc': rc,
+        'address': address,
+        'city': city,
+        'phone': phone,
+        'email': email,
+        'bankRib': bankRib,
+        'bankilyNumber': bankilyNumber,
+        'masriviNumber': masriviNumber,
+        'invoiceFooter': invoiceFooter,
+      };
+
+  factory CompanySettings.fromJson(Map<String, dynamic> j) => CompanySettings(
+        companyName: '${j['companyName'] ?? 'Full·Tek Négoce SARL'}',
+        nif: '${j['nif'] ?? ''}',
+        rc: '${j['rc'] ?? ''}',
+        address: '${j['address'] ?? ''}',
+        city: '${j['city'] ?? 'Nouakchott'}',
+        phone: '${j['phone'] ?? ''}',
+        email: '${j['email'] ?? ''}',
+        bankRib: '${j['bankRib'] ?? ''}',
+        bankilyNumber: '${j['bankilyNumber'] ?? ''}',
+        masriviNumber: '${j['masriviNumber'] ?? ''}',
+        invoiceFooter: '${j['invoiceFooter'] ?? ''}',
+      );
+}
+
+class OperatingExpense {
+  final int id;
+  final String date;
+  final String category;
+  final String label;
+  final double amountMru;
+  final String payMethod;
+  final String beneficiary;
+  final String ref;
+
+  const OperatingExpense({
+    required this.id,
+    required this.date,
+    required this.category,
+    required this.label,
+    required this.amountMru,
+    required this.payMethod,
+    this.beneficiary = '',
+    this.ref = '',
+  });
+}
+
+class WarehouseLocation {
+  final int id;
+  final String code;
+  final String name;
+  final String city;
+  final bool isDefault;
+
+  const WarehouseLocation({
+    required this.id,
+    required this.code,
+    required this.name,
+    this.city = 'Nouakchott',
+    this.isDefault = false,
+  });
+}
+
+class StockTransferRecord {
+  final int id;
+  final String date;
+  final String fromWarehouse;
+  final String toWarehouse;
+  final String sku;
+  final String articleName;
+  final double qty;
+  final String note;
+
+  const StockTransferRecord({
+    required this.id,
+    required this.date,
+    required this.fromWarehouse,
+    required this.toWarehouse,
+    required this.sku,
+    required this.articleName,
+    required this.qty,
+    this.note = '',
+  });
+}
+
+class InventorySessionRecord {
+  final int id;
+  final String date;
+  final String warehouseName;
+  final int articlesCounted;
+  final double netVarianceQty;
+  final double netVarianceValueMru;
+
+  const InventorySessionRecord({
+    required this.id,
+    required this.date,
+    required this.warehouseName,
+    required this.articlesCounted,
+    required this.netVarianceQty,
+    required this.netVarianceValueMru,
+  });
+}
+
+class ParkedPosOrder {
+  final String id;
+  final String label;
+  final String priceTier;
+  final int? clientId;
+  final List<Map<String, dynamic>> lines;
+  final String createdAt;
+
+  const ParkedPosOrder({
+    required this.id,
+    required this.label,
+    required this.priceTier,
+    this.clientId,
+    required this.lines,
+    required this.createdAt,
+  });
+}

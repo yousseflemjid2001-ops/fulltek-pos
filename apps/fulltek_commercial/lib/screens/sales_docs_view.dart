@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/commercial_models.dart';
 import '../state/commercial_store.dart';
 import '../theme/commercial_theme.dart';
@@ -982,6 +983,36 @@ class _SalesDocsViewState extends State<SalesDocsView> {
                                           Icons.visibility_outlined,
                                           size: 18),
                                       onPressed: () => _openDocDetailDialog(d),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Dupliquer en brouillon',
+                                      icon: const Icon(Icons.copy_all_outlined,
+                                          size: 18),
+                                      onPressed: () async {
+                                        await widget.store.duplicateSalesDoc(d);
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    '${d.docNumber} dupliqué en brouillon.')));
+                                      },
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Copier message WhatsApp',
+                                      icon: const Icon(Icons.chat_outlined,
+                                          size: 18,
+                                          color: CommercialColors.successGreen),
+                                      onPressed: () {
+                                        final s = widget.store.companySettings;
+                                        final msg =
+                                            'Bonjour ${d.partyName}, voici votre ${d.docType} ${d.docNumber} (${s.companyName}) d\'un montant de ${fmtMru(d.totalTtcMru)} TTC (Reste : ${fmtMru(d.remainingMru)}). Bankily : ${s.bankilyNumber}.';
+                                        Clipboard.setData(
+                                            ClipboardData(text: msg));
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Message WhatsApp copié !')));
+                                      },
                                     ),
                                     if (d.status == 'BROUILLON')
                                       TextButton(

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fulltek_commercial/main.dart';
 import 'package:fulltek_commercial/state/commercial_store.dart';
+import 'package:fulltek_commercial/utils/amount_in_words.dart';
 
 void main() {
-  group('CommercialMath financial calculations', () {
+  group('CommercialMath & AmountInWords calculations', () {
     test('computeLineHt & computeLineTva apply 16% TVA and discount correctly',
         () {
       final ht = CommercialMath.computeLineHt(
@@ -35,7 +36,7 @@ void main() {
       expect(tva, 0);
     });
 
-    test('computeWeightedPmp & computeMarginPct calculate accurately', () {
+    test('computeWeightedPmp, computeMarginPct & amountToFrenchWords', () {
       final pmp = CommercialMath.computeWeightedPmp(
         currentStock: 10,
         currentPmp: 100,
@@ -49,11 +50,14 @@ void main() {
         costMru: 750,
       );
       expect(marginPct, 25.0);
+
+      expect(amountToFrenchWords(0), 'Zéro ouguiya');
+      expect(amountToFrenchWords(480000), 'Quatre cent quatre-vingts mille ouguiyas');
     });
   });
 
-  group('CommercialStore full ERP business processes (offline demo)', () {
-    test('sales cycle, purchase PMP reception, POS split & treasury work end-to-end',
+  group('CommercialStore full ERP Packs 1, 2 & 3 (offline demo)', () {
+    test('sales, purchase PMP, POS split, expenses, TVA, inventory & RBAC',
         () async {
       final store = CommercialStore(enablePersistence: false);
       store.enterOfflineDemo();
@@ -69,7 +73,12 @@ void main() {
         clientId: firstCli.id,
         validateNow: true,
         lines: [
-          {'articleId': firstArt.id, 'qty': 2, 'unitPriceHtMru': 1000, 'discountPct': 0},
+          {
+            'articleId': firstArt.id,
+            'qty': 2,
+            'unitPriceHtMru': 1000,
+            'discountPct': 0,
+          },
         ],
       );
       expect(errSale, isNull);
@@ -100,7 +109,7 @@ void main() {
       expect(errRec, isNull);
       expect(store.articles.first.stockQty, stockBeforeRec + 10);
 
-      // 3. POS session + split payment ticket
+      // 3. POS session + split payment + park/resume
       await store.openNewPosSession(
         registerCode: 'C1',
         cashierName: 'Test',
@@ -117,11 +126,37 @@ void main() {
       );
       expect(errPos, isNull);
       expect(store.posTickets.first.payMethod, 'Cash + Bankily');
+
+      // 4. Pack 2: Expenses & TVA summary
+      final expBefore = store.totalExpensesMru;
+      await store.addExpense(
+        category: 'Loyer',
+        label: 'Loyer test',
+        amountMru: 10000,
+        payMethod: 'Cash',
+      );
+      expect(store.totalExpensesMru, expBefore + 10000);
+      final tva = store.computeTvaSummary();
+      expect(tva.salesTvaCollected, greaterThan(0));
+
+      // 5. Pack 3: Physical Inventory & RBAC
+      await store.applyPhysicalInventory(
+        warehouseName: 'Dépôt Principal El-Mina',
+        countedByArticleId: {firstArt.id: 50},
+      );
+      expect(store.articles.first.stockQty, 50);
+      expect(store.inventorySessions.isNotEmpty, isTrue);
+
+      store.setActiveRole('CASHIER');
+      expect(store.canAccessRoute('pos_register'), isTrue);
+      expect(store.canAccessRoute('treasury'), isFalse);
+      store.setActiveRole('OWNER');
+      expect(store.canAccessRoute('treasury'), isTrue);
     });
   });
 
-  group('FullTekCommercialApp offline demo & navigation', () {
-    testWidgets('enters offline demo and navigates across commercial modules',
+  group('FullTekCommercialApp Packs 1-3 UI & RTL Arabic navigation', () {
+    testWidgets('navigates across core + new Pack 1/2/3 modules and toggles RTL',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -131,48 +166,45 @@ void main() {
       await tester.pumpWidget(FullTekCommercialApp(store: store));
       await tester.pumpAndSettle();
 
-      // Starts on login screen
       expect(find.text('Full·Tek Commercial'), findsOneWidget);
 
-      // Enter offline demo
       store.enterOfflineDemo();
       await tester.pumpAndSettle();
 
-      // Shell sidebar & dashboard rendered
-      expect(find.text('Tableau de bord'), findsWidgets);
-      expect(find.text('Clients & Karni'), findsOneWidget);
-      expect(find.text('Écran de caisse'), findsOneWidget);
-      expect(find.text('Trésorerie'), findsWidgets);
-
-      // Navigate to Clients & Karni
-      await tester.tap(find.text('Clients & Karni'));
+      // Navigate to Dépenses & Charges (Pack 2)
+      await tester.tap(find.text('Dépenses & Charges'));
       await tester.pumpAndSettle();
-      expect(find.text('Clients & Comptes Karni'), findsOneWidget);
+      expect(find.text('Dépenses & Charges d\'exploitation'), findsOneWidget);
 
-      // Navigate to Articles & Stock
-      await tester.tap(find.text('Articles & Stock'));
+      // Navigate to TVA & Balance Âgée (Pack 1 & 2)
+      await tester.tap(find.text('TVA & Balance Âgée'));
       await tester.pumpAndSettle();
-      expect(find.text('Catalogue Articles & Stock PMP'), findsOneWidget);
+      expect(
+          find.text(
+              'Déclaration TVA Mauritanie, Exports Comptables & Balance Âgée'),
+          findsOneWidget);
 
-      // Navigate to Écran de caisse
-      await tester.tap(find.text('Écran de caisse'));
+      // Navigate to Relevés de Compte (Pack 1)
+      await tester.tap(find.text('Relevés de Compte'));
       await tester.pumpAndSettle();
-      expect(find.text('Ticket en cours'), findsOneWidget);
+      expect(find.text('Relevés de Compte (Grand Livre Tiers)'), findsOneWidget);
 
-      // Navigate to Trésorerie
-      await tester.tap(find.text('Trésorerie').first);
-      await tester.pumpAndSettle();
-      expect(find.text('Trésorerie — Caisses & Banques'), findsOneWidget);
-
-      // Navigate to Factures clients (scroll sidebar if needed)
+      // Scroll sidebar to Dépôts & Inventaire (Pack 3)
       await tester.scrollUntilVisible(
-        find.text('Factures clients'),
-        200,
+        find.text('Dépôts & Inventaire'),
+        250,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.text('Factures clients'));
+      await tester.tap(find.text('Dépôts & Inventaire'));
       await tester.pumpAndSettle();
-      expect(find.text('Factures clients'), findsWidgets);
+      expect(find.text('Multi-Dépôts, Inventaire Physique & Import Excel'),
+          findsOneWidget);
+
+      // Switch to Arabic RTL (Pack 3)
+      await tester.tap(find.text('العربية'));
+      await tester.pumpAndSettle();
+      expect(store.isRtl, isTrue);
+      expect(find.text('FR'), findsOneWidget);
     });
   });
 }

@@ -484,16 +484,77 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                   style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700)),
-                              if (_cart.isNotEmpty)
-                                TextButton(
-                                  onPressed: () =>
-                                      setState(() => _cart.clear()),
-                                  child: const Text('Vider',
-                                      style: TextStyle(
-                                          color: CommercialColors.dangerRed)),
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_cart.isNotEmpty)
+                                    TextButton(
+                                      onPressed: () {
+                                        store.parkPosOrder(
+                                          label:
+                                              'Attente #${store.parkedOrders.length + 1} (${_cart.length} art.)',
+                                          priceTier: _priceTier,
+                                          clientId: _selectedClientId,
+                                          lines: _cart
+                                              .map((l) => {
+                                                    'articleId': l.article.id,
+                                                    'qty': l.qty,
+                                                  })
+                                              .toList(),
+                                        );
+                                        setState(() => _cart.clear());
+                                      },
+                                      child: const Text('En attente'),
+                                    ),
+                                  if (_cart.isNotEmpty)
+                                    TextButton(
+                                      onPressed: () =>
+                                          setState(() => _cart.clear()),
+                                      child: const Text('Vider',
+                                          style: TextStyle(
+                                              color: CommercialColors.dangerRed)),
+                                    ),
+                                ],
+                              ),
                             ],
                           ),
+                          if (store.parkedOrders.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: store.parkedOrders.map((p) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: ActionChip(
+                                      avatar: const Icon(Icons.pause_circle,
+                                          size: 16),
+                                      label: Text('${p.label} (${p.createdAt})'),
+                                      onPressed: () {
+                                        setState(() {
+                                          _cart.clear();
+                                          _priceTier = p.priceTier;
+                                          _selectedClientId = p.clientId;
+                                          for (final l in p.lines) {
+                                            final match = store.articles.where(
+                                                (a) => a.id == l['articleId']);
+                                            if (match.isNotEmpty) {
+                                              _cart.add(_PosCartLine(
+                                                article: match.first,
+                                                qty: (l['qty'] as num)
+                                                    .toDouble(),
+                                              ));
+                                            }
+                                          }
+                                        });
+                                        store.removeParkedOrder(p.id);
+                                      },
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           DropdownButtonFormField<int?>(
                             initialValue: _selectedClientId,
@@ -854,12 +915,24 @@ class PosTicketsView extends StatelessWidget {
                                           : CommercialColors.successGreen,
                                       fontWeight: FontWeight.w600))),
                               DataCell(
-                                TextButton(
-                                  onPressed: t.status == 'VOID'
-                                      ? null
-                                      : () => store.voidPosTicket(
-                                          t.id, 'Annulation caisse'),
-                                  child: const Text('Annuler (Void)'),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Imprimer Ticket 80mm',
+                                      icon: const Icon(Icons.receipt_long,
+                                          size: 18),
+                                      onPressed: () =>
+                                          store.printPosTicket80mm(t),
+                                    ),
+                                    TextButton(
+                                      onPressed: t.status == 'VOID'
+                                          ? null
+                                          : () => store.voidPosTicket(
+                                              t.id, 'Annulation caisse'),
+                                      child: const Text('Annuler (Void)'),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

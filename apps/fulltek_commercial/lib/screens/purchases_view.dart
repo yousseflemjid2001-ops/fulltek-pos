@@ -479,6 +479,9 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
     }
 
     int supplierId = suppliers.first.id;
+    String currency = 'MRU';
+    final rateCtrl = TextEditingController(text: '1');
+    final freightCtrl = TextEditingController(text: '0');
     final dueCtrl = TextEditingController(
       text: DateTime.now()
           .add(Duration(days: suppliers.first.paymentTermsDays))
@@ -499,21 +502,35 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
+          final fxRate = (double.tryParse(rateCtrl.text) ?? 1).clamp(0.01, 10000);
+          final freightMru =
+              (double.tryParse(freightCtrl.text) ?? 0).clamp(0.0, 999999999);
+          double rawGoodsMru = 0;
+          for (final l in lines) {
+            rawGoodsMru += l.qty * l.unitCostHt * fxRate;
+          }
+          double landedUnitMru(_DraftPurchaseLine l) {
+            final baseMru = l.unitCostHt * fxRate;
+            if (freightMru <= 0 || rawGoodsMru <= 0 || l.qty <= 0) return baseMru;
+            final lineShare = (l.qty * baseMru) / rawGoodsMru;
+            return baseMru + (freightMru * lineShare) / l.qty;
+          }
+
           double totalHt = 0;
           double totalTva = 0;
           for (final l in lines) {
             final art = articles.firstWhere((a) => a.id == l.articleId);
             final lHt = CommercialMath.computeLineHt(
-                qty: l.qty, unitPriceHt: l.unitCostHt);
+                qty: l.qty, unitPriceHt: landedUnitMru(l));
             totalHt += lHt;
             totalTva += CommercialMath.computeLineTva(
                 lineHt: lHt, isExempt: art.isExempt, tvaRate: art.tvaRate);
           }
 
           return AlertDialog(
-            title: Text('Nouveau · $_title (Multi-lignes & PMP)'),
+            title: Text('Nouveau · $_title (Multi-Devises, Frais d\'approche & PMP)'),
             content: SizedBox(
-              width: 780,
+              width: 820,
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -547,12 +564,74 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                             },
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 96,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: currency,
+                            decoration:
+                                const InputDecoration(labelText: 'Devise'),
+                            items: const ['MRU', 'EUR', 'USD', 'MAD', 'XOF']
+                                .map((c) => DropdownMenuItem(
+                                    value: c, child: Text(c)))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setS(() {
+                                currency = v;
+                                rateCtrl.text = switch (v) {
+                                  'EUR' => '43',
+                                  'USD' => '40',
+                                  'MAD' => '4',
+                                  'XOF' => '0.065',
+                                  _ => '1',
+                                };
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 92,
+                          child: TextField(
+                            controller: rateCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration:
+                                const InputDecoration(labelText: 'Taux MRU'),
+                            onChanged: (_) => setS(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 150,
+                          child: TextField(
+                            controller: freightCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                                labelText: 'Douane/Fret (MRU)'),
+                            onChanged: (_) => setS(() {}),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 220,
                           child: TextField(
                             controller: dueCtrl,
                             decoration: const InputDecoration(
                                 labelText: 'Échéance (YYYY-MM-DD)'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Les frais d\'approche (Douane, Fret, Transit) sont ventilés au prorata dans le coût unitaire et le PMP.',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: CommercialColors.textMuted),
                           ),
                         ),
                       ],
@@ -582,11 +661,12 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                       final line = lines[i];
                       final art =
                           articles.firstWhere((a) => a.id == line.articleId);
+                      final landed = landedUnitMru(line);
                       final newPmp = CommercialMath.computeWeightedPmp(
                         currentStock: art.stockQty,
                         currentPmp: art.pmpCostMru,
                         incomingQty: line.qty,
-                        incomingCostHt: line.unitCostHt,
+                        incomingCostHt: landed,
                       );
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -716,7 +796,7 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                         .map((l) => {
                               'articleId': l.articleId,
                               'qty': l.qty,
-                              'unitCostHt': l.unitCostHt,
+                              'unitCostHt': landedUnitMru(l),
                             })
                         .toList(),
                   );

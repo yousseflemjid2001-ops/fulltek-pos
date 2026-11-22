@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'i18n/commercial_i18n.dart';
 import 'screens/clients_articles_view.dart';
 import 'screens/dashboard_view.dart';
+import 'screens/finance_pro_view.dart';
 import 'screens/login_screen.dart';
 import 'screens/pos_view.dart';
 import 'screens/purchases_view.dart';
 import 'screens/sales_docs_view.dart';
+import 'screens/stock_pro_settings_view.dart';
 import 'screens/treasury_analytics_view.dart';
 import 'state/commercial_store.dart';
 import 'theme/commercial_theme.dart';
@@ -40,6 +43,11 @@ class _FullTekCommercialAppState extends State<FullTekCommercialApp> {
           title: 'Full·Tek Gestion Commerciale',
           debugShowCheckedModeBanner: false,
           theme: buildCommercialTheme(),
+          builder: (context, child) => Directionality(
+            textDirection:
+                _store.isRtl ? TextDirection.rtl : TextDirection.ltr,
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: _store.loggedIn
               ? CommercialShellScreen(store: _store)
               : CommercialLoginScreen(store: _store),
@@ -51,9 +59,9 @@ class _FullTekCommercialAppState extends State<FullTekCommercialApp> {
 
 class _NavItem {
   final String id;
-  final String label;
+  final String i18nKey;
   final IconData icon;
-  const _NavItem(this.id, this.label, this.icon);
+  const _NavItem(this.id, this.i18nKey, this.icon);
 }
 
 class CommercialShellScreen extends StatefulWidget {
@@ -69,50 +77,67 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
 
   static const _sections = <String, List<_NavItem>>{
     '': [
-      _NavItem('dashboard', 'Tableau de bord', Icons.dashboard_outlined),
+      _NavItem('dashboard', 'dashboard', Icons.dashboard_outlined),
     ],
-    'ANALYSES & FINANCE': [
-      _NavItem('analytics_sales', 'Ventes & Marges', Icons.trending_up),
-      _NavItem('analytics_purchases', 'Achats & Stock', Icons.inventory),
-      _NavItem('treasury', 'Trésorerie', Icons.account_balance_outlined),
-      _NavItem('cheques', 'Chèques & Traites', Icons.receipt_long_outlined),
-      _NavItem('objectives', 'Objectifs', Icons.flag_outlined),
+    'sec_analytics': [
+      _NavItem('analytics_sales', 'analytics_sales', Icons.trending_up),
+      _NavItem('analytics_purchases', 'analytics_purchases', Icons.inventory),
+      _NavItem('treasury', 'treasury', Icons.account_balance_outlined),
+      _NavItem('cheques', 'cheques', Icons.receipt_long_outlined),
+      _NavItem('expenses', 'expenses', Icons.money_off_csred_outlined),
+      _NavItem('tva_report', 'tva_report', Icons.account_balance_wallet_outlined),
+      _NavItem('statements', 'statements', Icons.summarize_outlined),
+      _NavItem('objectives', 'objectives', Icons.flag_outlined),
     ],
-    'POINT DE VENTE': [
-      _NavItem('pos_register', 'Écran de caisse', Icons.point_of_sale),
-      _NavItem('pos_sessions', 'Sessions & Rapports Z', Icons.history),
-      _NavItem('pos_tickets', 'Tickets', Icons.confirmation_number_outlined),
+    'sec_pos': [
+      _NavItem('pos_register', 'pos_register', Icons.point_of_sale),
+      _NavItem('pos_sessions', 'pos_sessions', Icons.history),
+      _NavItem('pos_tickets', 'pos_tickets', Icons.confirmation_number_outlined),
     ],
-    'VENTES': [
-      _NavItem('clients', 'Clients & Karni', Icons.people_outline),
-      _NavItem('articles', 'Articles & Stock', Icons.inventory_2_outlined),
-      _NavItem('sales_devis', 'Devis', Icons.description_outlined),
-      _NavItem('sales_commandes', 'Commandes clients', Icons.shopping_cart_outlined),
-      _NavItem('sales_bl', 'Bons de livraison', Icons.local_shipping_outlined),
-      _NavItem('sales_factures', 'Factures clients', Icons.receipt_outlined),
-      _NavItem('sales_avoirs', 'Avoirs clients', Icons.assignment_return_outlined),
+    'sec_sales': [
+      _NavItem('clients', 'clients', Icons.people_outline),
+      _NavItem('articles', 'articles', Icons.inventory_2_outlined),
+      _NavItem('sales_devis', 'sales_devis', Icons.description_outlined),
+      _NavItem('sales_commandes', 'sales_commandes', Icons.shopping_cart_outlined),
+      _NavItem('sales_bl', 'sales_bl', Icons.local_shipping_outlined),
+      _NavItem('sales_factures', 'sales_factures', Icons.receipt_outlined),
+      _NavItem('sales_avoirs', 'sales_avoirs', Icons.assignment_return_outlined),
     ],
-    'ACHATS': [
-      _NavItem('suppliers', 'Fournisseurs', Icons.storefront_outlined),
-      _NavItem('pur_bc', 'Commandes fourn.', Icons.shopping_bag_outlined),
-      _NavItem('pur_rec', 'Réceptions (PMP)', Icons.move_to_inbox_outlined),
-      _NavItem('pur_fac', 'Factures fourn.', Icons.request_quote_outlined),
-      _NavItem('pur_av', 'Avoirs fourn.', Icons.undo_outlined),
+    'sec_purchases': [
+      _NavItem('suppliers', 'suppliers', Icons.storefront_outlined),
+      _NavItem('pur_bc', 'pur_bc', Icons.shopping_bag_outlined),
+      _NavItem('pur_rec', 'pur_rec', Icons.move_to_inbox_outlined),
+      _NavItem('pur_fac', 'pur_fac', Icons.request_quote_outlined),
+      _NavItem('pur_av', 'pur_av', Icons.undo_outlined),
+      _NavItem('warehouses', 'warehouses', Icons.warehouse_outlined),
+    ],
+    'sec_system': [
+      _NavItem('settings', 'settings', Icons.settings_outlined),
     ],
   };
 
   void _navigate(String routeId) {
+    if (!widget.store.canAccessRoute(routeId)) return;
     setState(() => _routeId = routeId);
+  }
+
+  String _effectiveRoute() {
+    if (widget.store.canAccessRoute(_routeId)) return _routeId;
+    if (widget.store.activeRole == 'CASHIER') return 'pos_register';
+    return 'dashboard';
   }
 
   Widget _buildBody() {
     final s = widget.store;
-    return switch (_routeId) {
+    return switch (_effectiveRoute()) {
       'dashboard' => DashboardView(store: s, onNavigate: _navigate),
       'analytics_sales' => AnalyticsView(store: s, mode: 'sales'),
       'analytics_purchases' => AnalyticsView(store: s, mode: 'purchases'),
       'treasury' => TreasuryView(store: s),
       'cheques' => ChequesView(store: s),
+      'expenses' => ExpensesView(store: s),
+      'tva_report' => TvaAndAgingView(store: s),
+      'statements' => PartyStatementView(store: s),
       'objectives' => ObjectivesView(store: s),
       'pos_register' => PosRegisterView(store: s),
       'pos_sessions' => PosSessionsView(store: s),
@@ -129,12 +154,18 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
       'pur_rec' => PurchaseDocsView(store: s, docType: 'RECEPTION'),
       'pur_fac' => PurchaseDocsView(store: s, docType: 'FACTURE_ACHAT'),
       'pur_av' => PurchaseDocsView(store: s, docType: 'AVOIR_ACHAT'),
+      'warehouses' => WarehousesInventoryView(store: s),
+      'settings' => CompanySettingsView(store: s),
       _ => DashboardView(store: s, onNavigate: _navigate),
     };
   }
 
   Widget _buildSidebar({bool inDrawer = false}) {
-    final t = widget.store.tenant;
+    final s = widget.store;
+    final t = s.tenant;
+    final lang = s.lang;
+    final currentRoute = _effectiveRoute();
+
     return Container(
       width: 256,
       color: CommercialColors.sidebarBg,
@@ -174,7 +205,7 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
                             letterSpacing: 1.2),
                       ),
                       Text(
-                        t.name,
+                        s.companySettings.companyName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -191,66 +222,69 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
               children: [
                 for (final entry in _sections.entries) ...[
-                  if (entry.key.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
-                      child: Text(
-                        entry.key,
-                        style: const TextStyle(
-                          color: CommercialColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.7,
+                  if (entry.value.any((it) => s.canAccessRoute(it.id))) ...[
+                    if (entry.key.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
+                        child: Text(
+                          CommercialI18n.t(lang, entry.key),
+                          style: const TextStyle(
+                            color: CommercialColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.7,
+                          ),
                         ),
                       ),
-                    ),
-                  for (final item in entry.value)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () {
-                          _navigate(item.id);
-                          if (inDrawer) Navigator.pop(context);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 9),
-                          decoration: BoxDecoration(
-                            color: _routeId == item.id
-                                ? CommercialColors.sidebarActive
-                                : Colors.transparent,
+                    for (final item in entry.value)
+                      if (s.canAccessRoute(item.id))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: InkWell(
                             borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                item.icon,
-                                size: 18,
-                                color: _routeId == item.id
-                                    ? Colors.white
-                                    : const Color(0xFF94A3B8),
+                            onTap: () {
+                              _navigate(item.id);
+                              if (inDrawer) Navigator.pop(context);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: currentRoute == item.id
+                                    ? CommercialColors.sidebarActive
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: _routeId == item.id
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: _routeId == item.id
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    item.icon,
+                                    size: 18,
+                                    color: currentRoute == item.id
                                         ? Colors.white
-                                        : const Color(0xFFCBD5E1),
+                                        : const Color(0xFF94A3B8),
                                   ),
-                                ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      CommercialI18n.t(lang, item.i18nKey),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: currentRoute == item.id
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
+                                        color: currentRoute == item.id
+                                            ? Colors.white
+                                            : const Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                  ],
                 ],
               ],
             ),
@@ -284,7 +318,7 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
                             fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        t.plan,
+                        '${s.activeRole} · ${t.plan}',
                         style: const TextStyle(
                             color: Color(0xFF94A3B8), fontSize: 11),
                       ),
@@ -292,7 +326,7 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Déconnexion',
+                  tooltip: CommercialI18n.t(lang, 'logout'),
                   icon: const Icon(Icons.logout,
                       size: 18, color: Color(0xFF94A3B8)),
                   onPressed: widget.store.logout,
@@ -308,7 +342,9 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width >= 960;
-    final t = widget.store.tenant;
+    final s = widget.store;
+    final cs = s.companySettings;
+    final lang = s.lang;
 
     return Scaffold(
       drawer: isWide ? null : Drawer(child: _buildSidebar(inDrawer: true)),
@@ -336,59 +372,73 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
                             onPressed: () => Scaffold.of(ctx).openDrawer(),
                           ),
                         ),
-                      Text(
-                        t.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                cs.companyName,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 15),
+                              ),
+                              if (cs.nif.isNotEmpty) ...[
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${cs.nif}${cs.rc.isNotEmpty ? ' • ${cs.rc}' : ''}',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: CommercialColors.textMuted),
+                                  ),
+                                ),
+                              ],
+                              if (s.isOfflineDemo) ...[
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: CommercialColors.warningAmber
+                                        .withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    CommercialI18n.t(lang, 'demo_mode'),
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: CommercialColors.warningAmber),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
-                      if (t.nif.isNotEmpty) ...[
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${t.nif}${t.rc.isNotEmpty ? ' • ${t.rc}' : ''}',
-                            style: const TextStyle(
-                                fontSize: 11,
-                                color: CommercialColors.textMuted),
-                          ),
-                        ),
-                      ],
-                      if (widget.store.isOfflineDemo) ...[
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: CommercialColors.warningAmber
-                                .withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Mode Démo',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: CommercialColors.warningAmber),
-                          ),
-                        ),
-                      ],
-                      const Spacer(),
+                      const SizedBox(width: 10),
+                      OutlinedButton(
+                        onPressed: () =>
+                            s.setLanguage(s.lang == 'fr' ? 'ar' : 'fr'),
+                        child: Text(s.lang == 'fr' ? 'العربية' : 'FR'),
+                      ),
+                      const SizedBox(width: 8),
                       OutlinedButton.icon(
-                        onPressed: widget.store.exportDashboardCsv,
+                        onPressed: s.exportDashboardCsv,
                         icon: const Icon(Icons.download_outlined, size: 16),
-                        label: const Text('Excel / CSV'),
+                        label: Text(CommercialI18n.t(lang, 'export_csv')),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
-                        tooltip: 'Actualiser',
-                        onPressed: widget.store.isBusy
-                            ? null
-                            : () => widget.store.refreshAll(),
+                        tooltip: CommercialI18n.t(lang, 'refresh'),
+                        onPressed: s.isBusy ? null : () => s.refreshAll(),
                         icon: const Icon(Icons.refresh),
                       ),
                     ],

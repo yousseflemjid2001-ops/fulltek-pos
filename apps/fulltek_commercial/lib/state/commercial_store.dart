@@ -4,6 +4,7 @@ import '../models/commercial_models.dart';
 import '../services/export_helper.dart';
 import '../services/http_bridge.dart';
 import '../services/local_storage.dart';
+import '../utils/amount_in_words.dart';
 
 typedef HttpBridgeFn = Future<HttpBridgeResponse> Function(
   String method,
@@ -84,6 +85,70 @@ class CommercialStore extends ChangeNotifier {
   String activePreset = 'this_year';
   String? customFrom;
   String? customTo;
+  String lang = 'fr';
+  String activeRole = 'OWNER';
+
+  bool get isRtl => lang == 'ar';
+
+  void setLanguage(String next) {
+    if (lang == next) return;
+    lang = next;
+    notifyListeners();
+  }
+
+  void setActiveRole(String role) {
+    activeRole = role.toUpperCase();
+    notifyListeners();
+  }
+
+  bool canAccessRoute(String routeId) {
+    if (activeRole == 'OWNER' || activeRole == 'MANAGER') return true;
+    if (activeRole == 'CASHIER') {
+      return const {'pos_register', 'pos_sessions', 'pos_tickets'}
+          .contains(routeId);
+    }
+    if (activeRole == 'COMMERCIAL') {
+      return const {
+        'dashboard',
+        'analytics_sales',
+        'clients',
+        'articles',
+        'sales_devis',
+        'sales_commandes',
+        'sales_bl',
+        'sales_factures',
+        'sales_avoirs',
+        'pos_register',
+        'pos_tickets',
+        'statements',
+      }.contains(routeId);
+    }
+    if (activeRole == 'ACCOUNTANT') {
+      return const {
+        'dashboard',
+        'analytics_sales',
+        'analytics_purchases',
+        'treasury',
+        'cheques',
+        'expenses',
+        'tva_report',
+        'statements',
+        'objectives',
+        'sales_factures',
+        'sales_avoirs',
+        'pur_fac',
+        'pur_av',
+      }.contains(routeId);
+    }
+    return true;
+  }
+
+  CompanySettings companySettings = const CompanySettings();
+  List<OperatingExpense> expenses = [];
+  List<WarehouseLocation> warehouses = [];
+  List<StockTransferRecord> stockTransfers = [];
+  List<InventorySessionRecord> inventorySessions = [];
+  List<ParkedPosOrder> parkedOrders = [];
 
   CommercialTenantInfo tenant = const CommercialTenantInfo();
   DashboardData dashboard = const DashboardData();
@@ -2092,7 +2157,525 @@ class CommercialStore extends ChangeNotifier {
     downloadCsvFile('fulltek_commercial_dashboard.csv', buf.toString());
   }
 
+  void exportSalesJournalCsv() {
+    final buf = StringBuffer(
+        'Numéro;Type;Date;Échéance;Client;NIF;Total HT;TVA;Total TTC;Payé;Reste;Statut\n');
+    for (final d in salesDocs) {
+      buf.writeln(
+          '${d.docNumber};${d.docType};${d.issueDate};${d.dueDate};${d.partyName};${d.partyNif};${d.totalHtMru.toStringAsFixed(2)};${d.totalTvaMru.toStringAsFixed(2)};${d.totalTtcMru.toStringAsFixed(2)};${d.paidMru.toStringAsFixed(2)};${d.remainingMru.toStringAsFixed(2)};${d.status}');
+    }
+    downloadCsvFile('journal_ventes_fulltek.csv', buf.toString());
+  }
+
+  void exportPurchasesJournalCsv() {
+    final buf = StringBuffer(
+        'Numéro;Type;Date;Fournisseur;Total HT;TVA;Total TTC;Payé;Reste;Statut\n');
+    for (final d in purchaseDocs) {
+      buf.writeln(
+          '${d.docNumber};${d.docType};${d.issueDate};${d.partyName};${d.totalHtMru.toStringAsFixed(2)};${d.totalTvaMru.toStringAsFixed(2)};${d.totalTtcMru.toStringAsFixed(2)};${d.paidMru.toStringAsFixed(2)};${d.remainingMru.toStringAsFixed(2)};${d.status}');
+    }
+    downloadCsvFile('journal_achats_fulltek.csv', buf.toString());
+  }
+
+  void exportTreasuryJournalCsv() {
+    final buf =
+        StringBuffer('Date;Compte;Sens;Mode;Montant (MRU);Solde Après;Libellé\n');
+    for (final m in treasuryMovements) {
+      buf.writeln(
+          '${m.movementDate};${m.accountName};${m.direction};${m.payMethod};${m.amountMru.toStringAsFixed(2)};${m.balanceAfterMru.toStringAsFixed(2)};${m.label}');
+    }
+    downloadCsvFile('journal_tresorerie_fulltek.csv', buf.toString());
+  }
+
+  void exportArticlesCsv() {
+    final buf = StringBuffer(
+        'SKU;Designation;Famille;Unite;PrixDetailHT;PrixGrosHT;CoutPMP;Stock;StockMin;ExonereTVA\n');
+    for (final a in articles) {
+      buf.writeln(
+          '${a.sku};${a.name};${a.category};${a.unit};${a.priceRetailHt.toStringAsFixed(0)};${a.priceWholeHt.toStringAsFixed(0)};${a.pmpCostMru.toStringAsFixed(0)};${a.stockQty.toStringAsFixed(1)};${a.minStock.toStringAsFixed(1)};${a.isExempt ? 1 : 0}');
+    }
+    downloadCsvFile('catalogue_articles_fulltek.csv', buf.toString());
+  }
+
+  Future<({int imported, int errors})> importArticlesCsv(String csvText) async {
+    final lines = csvText
+        .split(RegExp(r'\r?\n'))
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (lines.length <= 1) return (imported: 0, errors: 0);
+    int imported = 0;
+    int errors = 0;
+    for (var i = 1; i < lines.length; i++) {
+      final sep = lines[i].contains(';') ? ';' : ',';
+      final cols = lines[i].split(sep).map((c) => c.trim()).toList();
+      if (cols.length < 5) {
+        errors++;
+        continue;
+      }
+      final err = await createArticle(
+        sku: cols[0],
+        name: cols[1],
+        category: cols.length > 2 && cols[2].isNotEmpty ? cols[2] : 'Général',
+        unit: cols.length > 3 && cols[3].isNotEmpty ? cols[3] : 'unité',
+        priceRetailHt: double.tryParse(cols[4]) ?? 0,
+        priceWholeHt: cols.length > 5 ? (double.tryParse(cols[5]) ?? 0) : 0,
+        priceCostMru: cols.length > 6 ? (double.tryParse(cols[6]) ?? 0) : 0,
+        stockQty: cols.length > 7 ? (double.tryParse(cols[7]) ?? 0) : 0,
+        minStock: cols.length > 8 ? (double.tryParse(cols[8]) ?? 0) : 5,
+        isExempt: cols.length > 9 && (cols[9] == '1' || cols[9].toLowerCase() == 'true'),
+      );
+      if (err == null) {
+        imported++;
+      } else {
+        errors++;
+      }
+    }
+    return (imported: imported, errors: errors);
+  }
+
+  void saveCompanySettings(CompanySettings next) {
+    companySettings = next;
+    if (_enablePersistence) {
+      localStorageWrite(
+          'fulltek_commercial_company_v1', jsonEncode(next.toJson()));
+    }
+    notifyListeners();
+  }
+
+  Future<String?> updateSalesDocDraft(
+    int id, {
+    required int clientId,
+    required List<Map<String, dynamic>> lines,
+    double globalDiscountPct = 0,
+    String? dueDate,
+  }) async {
+    if (lines.isEmpty) return 'Ajoutez au moins une ligne article.';
+    if (isOfflineDemo) {
+      final idx = salesDocs.indexWhere((d) => d.id == id);
+      if (idx < 0) return 'Document introuvable.';
+      final old = salesDocs[idx];
+      final cli = clients.firstWhere((c) => c.id == clientId);
+      double totalHt = 0;
+      double totalTva = 0;
+      double totalCost = 0;
+      final builtLines = <DocLineModel>[];
+      for (final l in lines) {
+        final art = articles.firstWhere((a) => a.id == l['articleId']);
+        final qty = (l['qty'] as num).toDouble();
+        final pu = (l['unitPriceHtMru'] as num?)?.toDouble() ?? art.priceRetailHt;
+        final disc = (l['discountPct'] as num?)?.toDouble() ?? 0;
+        final lHt = CommercialMath.computeLineHt(
+                qty: qty, unitPriceHt: pu, discountPct: disc) *
+            (1 - globalDiscountPct / 100);
+        final lTva = CommercialMath.computeLineTva(
+            lineHt: lHt, isExempt: art.isExempt, tvaRate: art.tvaRate);
+        totalHt += lHt;
+        totalTva += lTva;
+        totalCost += qty * art.pmpCostMru;
+        builtLines.add(DocLineModel(
+          articleId: art.id,
+          sku: art.sku,
+          designation: art.name,
+          qty: qty,
+          unitPriceHtMru: pu,
+          discountPct: disc,
+          tvaRate: art.tvaRate,
+          isExempt: art.isExempt,
+          lineHtMru: lHt,
+          lineTvaMru: lTva,
+          lineTtcMru: lHt + lTva,
+        ));
+      }
+      salesDocs[idx] = CommercialDoc(
+        id: old.id,
+        docType: old.docType,
+        docNumber: old.docNumber,
+        status: old.status,
+        partyId: cli.id,
+        partyName: cli.name,
+        partyNif: cli.nif,
+        issueDate: old.issueDate,
+        dueDate: dueDate ?? old.dueDate,
+        globalDiscountPct: globalDiscountPct,
+        totalHtMru: totalHt,
+        totalTvaMru: totalTva,
+        totalTtcMru: totalHt + totalTva,
+        grossMarginMru: totalHt - totalCost,
+        paidMru: old.paidMru,
+        remainingMru: (totalHt + totalTva - old.paidMru).clamp(0.0, double.infinity),
+        stockApplied: old.stockApplied,
+        lines: builtLines,
+      );
+      notifyListeners();
+      return null;
+    }
+    final res = await _http(
+      'PATCH',
+      '$apiBaseUrl/api/commercial/sales-docs/$id',
+      headers: _authHeaders,
+      body: jsonEncode({
+        'clientId': clientId,
+        'globalDiscountPct': globalDiscountPct,
+        if (dueDate != null && dueDate.isNotEmpty) 'dueDate': dueDate,
+        'lines': lines,
+      }),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      await loadSalesDocs();
+      notifyListeners();
+      return null;
+    }
+    return _extractErr(res);
+  }
+
+  Future<String?> duplicateSalesDoc(CommercialDoc src) async {
+    final full = await getSalesDocDetail(src.id) ?? src;
+    final payloadLines = full.lines.isNotEmpty
+        ? full.lines
+            .map((l) => {
+                  'articleId': l.articleId,
+                  'qty': l.qty,
+                  'unitPriceHtMru': l.unitPriceHtMru,
+                  'discountPct': l.discountPct,
+                })
+            .toList()
+        : (articles.isNotEmpty
+            ? [
+                {
+                  'articleId': articles.first.id,
+                  'qty': 1,
+                  'unitPriceHtMru': full.totalHtMru,
+                  'discountPct': 0,
+                }
+              ]
+            : <Map<String, dynamic>>[]);
+    return createSalesDoc(
+      docType: full.docType,
+      clientId: full.partyId > 0 ? full.partyId : clients.first.id,
+      globalDiscountPct: full.globalDiscountPct,
+      validateNow: false,
+      lines: payloadLines,
+    );
+  }
+
+  // Pack 2: Operating Expenses & Net Result
+  double get totalExpensesMru =>
+      expenses.fold<double>(0, (s, e) => s + e.amountMru);
+
+  double get netResultMru => dashboard.kpis.grossMarginMru - totalExpensesMru;
+
+  Future<String?> addExpense({
+    required String category,
+    required String label,
+    required double amountMru,
+    required String payMethod,
+    String beneficiary = '',
+    String ref = '',
+  }) async {
+    if (label.trim().isEmpty || amountMru <= 0) {
+      return 'Libellé et montant requis.';
+    }
+    expenses.insert(
+      0,
+      OperatingExpense(
+        id: expenses.length + 100,
+        date: DateTime.now().toIso8601String().substring(0, 10),
+        category: category,
+        label: label.trim(),
+        amountMru: amountMru,
+        payMethod: payMethod,
+        beneficiary: beneficiary.trim(),
+        ref: ref.trim(),
+      ),
+    );
+    if (treasuryAccounts.isNotEmpty) {
+      if (isOfflineDemo) {
+        _recordOfflineTreasury(
+          direction: 'OUT',
+          amountMru: amountMru,
+          payMethod: payMethod,
+          label: 'Charge [$category] · ${label.trim()}',
+        );
+      } else {
+        await addTreasuryMovement(
+          accountId: treasuryAccounts.first.id,
+          direction: 'OUT',
+          amountMru: amountMru,
+          payMethod: payMethod,
+          label: 'Charge [$category] · ${label.trim()}',
+        );
+      }
+    }
+    notifyListeners();
+    return null;
+  }
+
+  void deleteExpense(int id) {
+    expenses.removeWhere((e) => e.id == id);
+    notifyListeners();
+  }
+
+  // Pack 2: Rapport TVA Mauritanie (16% / Exonéré)
+  ({
+    double salesHtTaxable,
+    double salesHtExempt,
+    double salesTvaCollected,
+    double purchasesHtTaxable,
+    double purchasesTvaDeductible,
+    double netTvaToPay,
+  }) computeTvaSummary() {
+    double sTax = 0, sEx = 0, sTva = 0;
+    for (final d in salesDocs) {
+      if (d.docType != 'FACTURE' && d.docType != 'AVOIR') continue;
+      final sign = d.docType == 'AVOIR' ? -1.0 : 1.0;
+      if (d.totalTvaMru > 0) {
+        sTax += sign * d.totalHtMru;
+        sTva += sign * d.totalTvaMru;
+      } else {
+        sEx += sign * d.totalHtMru;
+      }
+    }
+    double pTax = 0, pTva = 0;
+    for (final d in purchaseDocs) {
+      if (d.docType != 'FACTURE_ACHAT' && d.docType != 'AVOIR_ACHAT') continue;
+      final sign = d.docType == 'AVOIR_ACHAT' ? -1.0 : 1.0;
+      if (d.totalTvaMru > 0) {
+        pTax += sign * d.totalHtMru;
+        pTva += sign * d.totalTvaMru;
+      }
+    }
+    return (
+      salesHtTaxable: sTax,
+      salesHtExempt: sEx,
+      salesTvaCollected: sTva,
+      purchasesHtTaxable: pTax,
+      purchasesTvaDeductible: pTva,
+      netTvaToPay: sTva - pTva,
+    );
+  }
+
+  // Pack 1: Balance Âgée (Impayés)
+  ({
+    double bucket0To30,
+    double bucket31To60,
+    double bucketOver60,
+    List<CommercialDoc> overdueInvoices,
+  }) computeAgedReceivables() {
+    final now = DateTime.now();
+    double b1 = 0, b2 = 0, b3 = 0;
+    final overdue = <CommercialDoc>[];
+    for (final d in salesDocs) {
+      if (d.docType != 'FACTURE' || d.remainingMru <= 0.5) continue;
+      final due = DateTime.tryParse(d.dueDate.isNotEmpty ? d.dueDate : d.issueDate) ?? now;
+      final days = now.difference(due).inDays;
+      overdue.add(d);
+      if (days <= 30) {
+        b1 += d.remainingMru;
+      } else if (days <= 60) {
+        b2 += d.remainingMru;
+      } else {
+        b3 += d.remainingMru;
+      }
+    }
+    return (
+      bucket0To30: b1,
+      bucket31To60: b2,
+      bucketOver60: b3,
+      overdueInvoices: overdue,
+    );
+  }
+
+  // Pack 3: Multi-Dépôts & Inventaire Physique
+  void createWarehouse({
+    required String code,
+    required String name,
+    String city = 'Nouakchott',
+  }) {
+    if (code.trim().isEmpty || name.trim().isEmpty) return;
+    warehouses.add(WarehouseLocation(
+      id: warehouses.length + 10,
+      code: code.trim().toUpperCase(),
+      name: name.trim(),
+      city: city.trim(),
+    ));
+    notifyListeners();
+  }
+
+  String? transferStock({
+    required String fromWarehouse,
+    required String toWarehouse,
+    required int articleId,
+    required double qty,
+    String note = '',
+  }) {
+    if (fromWarehouse == toWarehouse) return 'Choisissez 2 dépôts différents.';
+    if (qty <= 0) return 'Quantité invalide.';
+    final art = articles.firstWhere((a) => a.id == articleId);
+    stockTransfers.insert(
+      0,
+      StockTransferRecord(
+        id: stockTransfers.length + 1,
+        date: DateTime.now().toIso8601String().substring(0, 10),
+        fromWarehouse: fromWarehouse,
+        toWarehouse: toWarehouse,
+        sku: art.sku,
+        articleName: art.name,
+        qty: qty,
+        note: note.trim(),
+      ),
+    );
+    stockMovements.insert(
+      0,
+      StockMovement(
+        id: stockMovements.length + 100,
+        articleId: art.id,
+        articleName: art.name,
+        sku: art.sku,
+        movementType: 'TRANSFERT',
+        qtyDelta: 0,
+        unitCostMru: art.pmpCostMru,
+        pmpAfterMru: art.pmpCostMru,
+        stockAfter: art.stockQty,
+        reason: 'Transfert $qty ${art.unit} ($fromWarehouse → $toWarehouse)',
+        createdAt: DateTime.now().toIso8601String().substring(0, 16),
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> applyPhysicalInventory({
+    required String warehouseName,
+    required Map<int, double> countedByArticleId,
+  }) async {
+    double netQty = 0;
+    double netVal = 0;
+    int counted = 0;
+    for (final entry in countedByArticleId.entries) {
+      final idx = articles.indexWhere((a) => a.id == entry.key);
+      if (idx < 0) continue;
+      final a = articles[idx];
+      final delta = entry.value - a.stockQty;
+      counted++;
+      if (delta.abs() > 0.001) {
+        netQty += delta;
+        netVal += delta * a.pmpCostMru;
+        await adjustArticleStock(
+            a.id, delta, 'Inventaire physique ($warehouseName)');
+      }
+    }
+    inventorySessions.insert(
+      0,
+      InventorySessionRecord(
+        id: inventorySessions.length + 1,
+        date: DateTime.now().toIso8601String().substring(0, 10),
+        warehouseName: warehouseName,
+        articlesCounted: counted,
+        netVarianceQty: netQty,
+        netVarianceValueMru: netVal,
+      ),
+    );
+    notifyListeners();
+  }
+
+  // Pack 3: POS Park / Resume
+  void parkPosOrder({
+    required String label,
+    required String priceTier,
+    int? clientId,
+    required List<Map<String, dynamic>> lines,
+  }) {
+    parkedOrders.insert(
+      0,
+      ParkedPosOrder(
+        id: 'PK-${DateTime.now().millisecondsSinceEpoch}',
+        label: label,
+        priceTier: priceTier,
+        clientId: clientId,
+        lines: lines,
+        createdAt: DateTime.now().toIso8601String().substring(11, 16),
+      ),
+    );
+    notifyListeners();
+  }
+
+  void removeParkedOrder(String id) {
+    parkedOrders.removeWhere((p) => p.id == id);
+    notifyListeners();
+  }
+
+  void printPosTicket80mm(CommercialPosTicket t) {
+    final s = companySettings;
+    final html = '''
+<div style="max-width:300px;margin:0 auto;font-family:monospace;font-size:12px;">
+  <div style="text-align:center;font-weight:bold;font-size:15px;">${s.companyName}</div>
+  <div style="text-align:center;">${s.address} · ${s.city}</div>
+  <div style="text-align:center;">Tél: ${s.phone} · ${s.nif}</div>
+  <hr/>
+  <div>Ticket : <strong>${t.ticketNumber}</strong></div>
+  <div>Date : ${t.createdAt}</div>
+  <div>Client : ${t.customerName.isEmpty ? 'Comptoir' : t.customerName}</div>
+  <div>Paiement : ${t.payMethod}</div>
+  <hr/>
+  <div style="display:flex;justify-content:space-between;"><span>Total HT</span><span>${fmtMru(t.totalHtMru)}</span></div>
+  <div style="display:flex;justify-content:space-between;"><span>TVA</span><span>${fmtMru(t.totalTvaMru)}</span></div>
+  <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;"><span>NET TTC</span><span>${fmtMru(t.totalTtcMru)}</span></div>
+  <hr/>
+  <div style="text-align:center;font-size:11px;">Merci de votre visite · Full·Tek POS</div>
+</div>
+''';
+    openA4PrintWindow('Ticket ${t.ticketNumber}', html);
+  }
+
+  void printPartyStatement({
+    required bool isClient,
+    required int partyId,
+    required String partyName,
+    String partyNif = '',
+  }) {
+    final s = companySettings;
+    final docs = (isClient ? salesDocs : purchaseDocs)
+        .where((d) => d.partyId == partyId)
+        .toList();
+    double totalInvoiced = 0;
+    double totalPaid = 0;
+    final rows = docs.map((d) {
+      totalInvoiced += d.totalTtcMru;
+      totalPaid += d.paidMru;
+      return '<tr><td>${d.issueDate}</td><td>${d.docNumber}</td><td>${d.docType}</td><td class="num">${fmtMru(d.totalTtcMru)}</td><td class="num">${fmtMru(d.paidMru)}</td><td class="num"><strong>${fmtMru(d.remainingMru)}</strong></td></tr>';
+    }).join();
+    final balance = totalInvoiced - totalPaid;
+    final html = '''
+<div class="hdr">
+  <div>
+    <div class="brand">${s.companyName}</div>
+    <div>${s.address} · ${s.city}</div>
+    <div>Tél: ${s.phone} · ${s.nif} ${s.rc}</div>
+  </div>
+  <div class="meta">
+    <div style="font-size:15px;font-weight:900;">RELEVÉ DE COMPTE ${isClient ? 'CLIENT' : 'FOURNISSEUR'}</div>
+    <div>Tiers : <strong>$partyName</strong></div>
+    ${partyNif.isNotEmpty ? '<div>NIF : $partyNif</div>' : ''}
+    <div>Édité le : ${DateTime.now().toIso8601String().substring(0, 10)}</div>
+  </div>
+</div>
+<table>
+  <thead><tr><th>Date</th><th>Numéro</th><th>Type</th><th class="num">Débit TTC</th><th class="num">Crédit / Payé</th><th class="num">Solde</th></tr></thead>
+  <tbody>$rows</tbody>
+</table>
+<table class="totals">
+  <tr><td>Total Facturé TTC</td><td class="num">${fmtMru(totalInvoiced)}</td></tr>
+  <tr><td>Total Réglé</td><td class="num">${fmtMru(totalPaid)}</td></tr>
+  <tr class="grand"><td>SOLDE NET À RÉGLER</td><td class="num">${fmtMru(balance)}</td></tr>
+</table>
+<p style="margin-top:16px;font-style:italic;">Arrêté le présent relevé à la somme de : <strong>${amountToFrenchWords(balance)}</strong>.</p>
+''';
+    openA4PrintWindow('Relevé $partyName', html);
+  }
+
   void printDocumentA4(CommercialDoc doc) {
+    final s = companySettings;
     final rows = doc.lines.isNotEmpty
         ? doc.lines
             .map((l) =>
@@ -2102,13 +2685,13 @@ class CommercialStore extends ChangeNotifier {
     final html = '''
 <div class="hdr">
   <div>
-    <div class="brand">${tenant.name}</div>
-    <div>${tenant.address} · ${tenant.city}</div>
-    <div>Tél: ${tenant.phone} · ${tenant.nif} ${tenant.rc}</div>
+    <div class="brand">${s.companyName}</div>
+    <div>${s.address} · ${s.city}</div>
+    <div>Tél: ${s.phone} · ${s.nif} ${s.rc}</div>
   </div>
   <div class="meta">
     <div style="font-size:15px;font-weight:900;">${doc.docType} ${doc.docNumber}</div>
-    <div>Date: ${doc.issueDate}</div>
+    <div>Date: ${doc.issueDate}${doc.dueDate.isNotEmpty ? ' · Échéance: ${doc.dueDate}' : ''}</div>
     <div>Client / Tiers: <strong>${doc.partyName}</strong></div>
     ${doc.partyNif.isNotEmpty ? '<div>NIF: ${doc.partyNif}</div>' : ''}
   </div>
@@ -2124,6 +2707,11 @@ class CommercialStore extends ChangeNotifier {
   <tr><td>Payé</td><td class="num">${fmtMru(doc.paidMru)}</td></tr>
   <tr><td>Reste à payer</td><td class="num">${fmtMru(doc.remainingMru)}</td></tr>
 </table>
+<p style="margin-top:16px;font-size:12px;">Arrêtée la présente pièce à la somme de : <strong>${amountToFrenchWords(doc.totalTtcMru)}</strong>.</p>
+<div style="margin-top:20px;padding-top:10px;border-top:1px solid #E2E8F0;font-size:11px;color:#475569;">
+  <div><strong>RIB :</strong> ${s.bankRib} · <strong>Bankily :</strong> ${s.bankilyNumber} · <strong>Masrivi :</strong> ${s.masriviNumber}</div>
+  <div style="margin-top:4px;">${s.invoiceFooter}</div>
+</div>
 ''';
     openA4PrintWindow('${doc.docType} ${doc.docNumber}', html);
   }
@@ -2318,6 +2906,59 @@ class CommercialStore extends ChangeNotifier {
           accountType: 'BANQUE',
           bankName: 'BMCI',
           currentBalanceMru: 139114),
+    ];
+    warehouses = [
+      const WarehouseLocation(
+          id: 1,
+          code: 'DEP-NKC',
+          name: 'Dépôt Principal El-Mina',
+          city: 'Nouakchott',
+          isDefault: true),
+      const WarehouseLocation(
+          id: 2,
+          code: 'MAG-TZ',
+          name: 'Showroom Tevragh Zeina',
+          city: 'Nouakchott'),
+    ];
+    expenses = [
+      const OperatingExpense(
+        id: 1,
+        date: '2026-11-05',
+        category: 'Loyer',
+        label: 'Loyer Dépôt El-Mina Novembre',
+        amountMru: 25000,
+        payMethod: 'Virement',
+        beneficiary: 'SCI Al-Baraka',
+      ),
+      const OperatingExpense(
+        id: 2,
+        date: '2026-11-12',
+        category: 'Électricité / Eau',
+        label: 'Facture Somelec Showroom',
+        amountMru: 8400,
+        payMethod: 'Bankily',
+        beneficiary: 'SOMELEC',
+      ),
+    ];
+    salesDocs = [
+      const CommercialDoc(
+        id: 1,
+        docType: 'FACTURE',
+        docNumber: 'FAC-2026-0142',
+        status: 'PARTIELLE',
+        partyId: 1,
+        partyName: 'Chinguetti Distribution SARL',
+        partyNif: 'NIF 44901234',
+        issueDate: '2026-10-15',
+        dueDate: '2026-11-14',
+        totalHtMru: 140000,
+        totalTvaMru: 22400,
+        totalTtcMru: 162400,
+        grossMarginMru: 35000,
+        paidMru: 80000,
+        remainingMru: 82400,
+        stockApplied: true,
+      ),
     ];
     dashboard = const DashboardData(
       fromDate: '2026-01-01',
