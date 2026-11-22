@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../state/commercial_store.dart';
 import '../theme/commercial_theme.dart';
+import '../widgets/fulltek_logo.dart';
 
 class CommercialLoginScreen extends StatefulWidget {
   final CommercialStore store;
@@ -55,21 +56,11 @@ class _CommercialLoginScreenState extends State<CommercialLoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: CommercialColors.brandOrange,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.trending_up_rounded,
-                              color: Colors.white, size: 24),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
+                        FullTekCommercialMark(size: 46, darkBg: true),
+                        SizedBox(width: 12),
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -82,10 +73,11 @@ class _CommercialLoginScreenState extends State<CommercialLoginScreen> {
                                 ),
                               ),
                               Text(
-                                'La gestion commerciale en un clic · MRU',
+                                'COMMERCIAL · Gestion en un clic · MRU',
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: CommercialColors.textMuted,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: CommercialColors.brandViolet,
                                 ),
                               ),
                             ],

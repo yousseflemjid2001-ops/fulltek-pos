@@ -8,6 +8,7 @@ import 'screens/sales_docs_view.dart';
 import 'screens/treasury_analytics_view.dart';
 import 'state/commercial_store.dart';
 import 'theme/commercial_theme.dart';
+import 'widgets/fulltek_logo.dart';
 
 void main() {
   runApp(const FullTekCommercialApp());
@@ -147,27 +148,31 @@ class _CommercialShellScreenState extends State<CommercialShellScreen> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: CommercialColors.primaryBlue,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.business_center,
-                      color: Colors.white, size: 20),
-                ),
+                const FullTekCommercialMark(size: 38, darkBg: true),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Full·Tek',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700),
+                      const Row(
+                        children: [
+                          Text(
+                            'Full·Tek',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'COMMERCIAL',
+                            style: TextStyle(
+                                color: CommercialColors.brandViolet,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1),
+                          ),
+                        ],
                       ),
                       Text(
                         t.name,
