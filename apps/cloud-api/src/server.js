@@ -1138,23 +1138,42 @@ function createApp(options = {}) {
       if (req.method === 'POST' && p === '/api/auth/login') {
         const parsed = await readJsonBody(req, standardLimit);
         const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-        const row = database
-          .prepare('SELECT * FROM tenants WHERE username = ?')
-          .get(String(b.username || ''));
-        if (!row || !verifyPassword(b.password, row.password_hash)) {
-          return sendJson(res, 401, { error: 'Identifiant ou mot de passe incorrect' });
+        const loginId = String(b.username || '').trim();
+        let row = database
+          .prepare('SELECT * FROM tenants WHERE LOWER(username) = LOWER(?)')
+          .get(loginId);
+        let userRow = null;
+
+        if (row && verifyPassword(b.password, row.password_hash)) {
+          userRow = database
+            .prepare('SELECT id, full_name, username, role, email, phone FROM users WHERE tenant_id = ? AND LOWER(username) = LOWER(?) LIMIT 1')
+            .get(row.id, row.username);
+        } else {
+          // Also support individual user accounts created via /api/admin/tenants/:id/users
+          const foundUser = database
+            .prepare('SELECT id, tenant_id, full_name, username, pass_hash, role, email, phone FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1')
+            .get(loginId);
+          if (!foundUser || !verifyPassword(b.password, foundUser.pass_hash)) {
+            return sendJson(res, 401, { error: 'Identifiant ou mot de passe incorrect' });
+          }
+          row = database
+            .prepare('SELECT * FROM tenants WHERE id = ?')
+            .get(foundUser.tenant_id);
+          if (!row) {
+            return sendJson(res, 401, { error: 'Boutique introuvable pour ce compte' });
+          }
+          userRow = foundUser;
         }
+
         if (row.status === 'locked') {
           return sendJson(res, 403, { error: 'Tenant account is locked' });
         }
-        const userRow = database
-          .prepare('SELECT id, full_name, username, role, email, phone FROM users WHERE tenant_id = ? AND LOWER(username) = LOWER(?) LIMIT 1')
-          .get(row.id, row.username);
         const token = signJwt(
           {
             tenantId: row.id,
             tenantCode: row.tenant_code,
             module: row.module,
+            userId: userRow?.id ?? null,
             role: userRow?.role || 'OWNER',
           },
           DEFAULT_EXPIRES_IN_SEC,
