@@ -425,32 +425,37 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
   String _searchQuery = '';
   int _selectedMonth = 5;
 
-  final List<TenantStore> _stores = initialStores();
-  final List<SubscriptionPayment> _payments = initialPayments();
-  final List<AuditEntry> _audits = initialAudit();
+  final List<TenantStore> _stores = [];
+  final List<SubscriptionPayment> _payments = [];
+  final List<AuditEntry> _audits = [];
   bool _apiConnected = false;
 
-  int _selectedOfflineStoreId = 1;
+  int _selectedOfflineStoreId = 0;
   int _selectedOfflineDays = 30;
   OfflineLicenseResponse? _generatedLicense;
   bool _generatingLicense = false;
   String? _licenseError;
 
-  int _selectedCatalogStoreId = 1;
+  int _selectedCatalogStoreId = 0;
   bool _importingStoreCatalog = false;
   CatalogImportResult? _storesTabImportResult;
   String? _storesTabImportFilename;
   String? _storesTabImportError;
   List<CatalogImportRowError> _storesTabRowErrors = const [];
 
-  static const List<Map<String, dynamic>> _months = [
-    {'m': 'Juin', 'v': 265000},
-    {'m': 'Juil', 'v': 310000},
-    {'m': 'Août', 'v': 348000},
-    {'m': 'Sept', 'v': 392000},
-    {'m': 'Oct', 'v': 438000},
-    {'m': 'Nov', 'v': 482500},
-  ];
+  List<Map<String, dynamic>> get _months {
+    final activeMrr = _stores
+        .where((s) => s.status != StoreStatus.locked && s.status != StoreStatus.expired)
+        .fold<int>(0, (sum, s) => sum + s.mrr);
+    return [
+      {'m': 'Juin', 'v': 0},
+      {'m': 'Juil', 'v': 0},
+      {'m': 'Août', 'v': 0},
+      {'m': 'Sept', 'v': 0},
+      {'m': 'Oct', 'v': 0},
+      {'m': 'Nov', 'v': activeMrr},
+    ];
+  }
 
   @override
   void initState() {
@@ -1539,7 +1544,8 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: List.generate(_months.length, (i) {
                     final m = _months[i];
-                    final ratio = (m['v'] as int) / 482500.0;
+                    final maxVal = _months.fold<int>(1, (mx, e) => math.max(mx, e['v'] as int));
+                    final ratio = (m['v'] as int) / maxVal;
                     final isSel = i == _selectedMonth;
                     return Expanded(
                       child: GestureDetector(

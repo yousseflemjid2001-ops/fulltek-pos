@@ -40,11 +40,6 @@ class _AccountLoginScreenState extends State<AccountLoginScreen> {
     });
   }
 
-  void _fillDemo() {
-    _userCtrl.text = 'darelkram41';
-    _passCtrl.text = 'FullTek@2026';
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
@@ -149,14 +144,6 @@ class _AccountLoginScreenState extends State<AccountLoginScreen> {
                                   )
                                 : const Icon(Icons.login_rounded),
                             label: Text(i18n.t('account_login')),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            key: const Key('account_demo_btn'),
-                            onPressed: _fillDemo,
-                            icon: const Icon(Icons.auto_fix_high_rounded,
-                                size: 18),
-                            label: Text(i18n.t('account_demo')),
                           ),
                         ],
                       ),

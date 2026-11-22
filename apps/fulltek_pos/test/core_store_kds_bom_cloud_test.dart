@@ -512,7 +512,7 @@ void main() {
       expect(synced, 1);
       expect(store.pendingSyncCount, 0);
 
-      // Offline fallback when server fails
+      // Production mode: server unreachable must NOT allow hardcoded demo backdoor
       final offlineStore = PosStore(
         httpRequest: (method, url, {headers, body}) async {
           throw Exception('Network unreachable');
@@ -520,12 +520,9 @@ void main() {
       );
       final offErr =
           await offlineStore.loginAccount('darelkram41', 'FullTek@2026');
-      expect(offErr, isNull);
-      expect(offlineStore.accountOffline, isTrue);
+      expect(offErr, isNotNull);
+      expect(offlineStore.accountLoggedIn, isFalse);
       expect(offlineStore.cloudConnected, isFalse);
-      expect(offlineStore.catalogSource, 'offline_demo');
-      expect(offlineStore.enabledThemeCodes, contains('04'));
-      expect(offlineStore.menuItems.length, 18);
     });
   });
 }

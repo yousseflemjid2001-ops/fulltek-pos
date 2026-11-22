@@ -2,6 +2,7 @@ const http = require('node:http');
 const {
   createDb,
   getDb,
+  resetDatabaseForProduction,
   DEFAULT_DB_PATH,
   DEFAULT_DELIVERY_ZONES,
   hashPassword,
@@ -57,7 +58,7 @@ function parseJson(raw, fallback = []) {
   }
 }
 
-function serializeTenant(r) {
+function serializeTenant(r, { includeSecrets = false, includeOwnerPin = false } = {}) {
   const parsedZones = parseJson(r.delivery_zones_json, []);
   const deliveryZones =
     parsedZones.length > 0 ? parsedZones : (r.module === 'resto' ? DEFAULT_DELIVERY_ZONES : []);
@@ -94,8 +95,8 @@ function serializeTenant(r) {
     hardware: parseJson(r.hardware),
     notes: r.notes,
     username: r.username,
-    accountPassword: r.account_password,
-    ownerPin: r.owner_pin,
+    ...(includeSecrets ? { accountPassword: r.account_password } : {}),
+    ...(includeSecrets || includeOwnerPin ? { ownerPin: r.owner_pin } : {}),
     initialPayMethod: r.initial_pay_method,
     initialPayRef: r.initial_pay_ref,
     initialOfflineCode: r.initial_offline_code,
@@ -1181,7 +1182,9 @@ function createApp(options = {}) {
         );
         return sendJson(res, 200, {
           token,
-          tenant: serializeTenant(row),
+          tenant: serializeTenant(row, {
+            includeOwnerPin: (userRow?.role || 'OWNER').toUpperCase() === 'OWNER',
+          }),
           user: {
             id: userRow?.id ?? null,
             username: userRow?.username || row.username,
@@ -2388,7 +2391,10 @@ function createApp(options = {}) {
 
       // 7. Super-Admin Dashboard
       if (req.method === 'GET' && p === '/api/admin/dashboard') {
-        const tenants = database.prepare('SELECT * FROM tenants ORDER BY id DESC').all().map(serializeTenant);
+        const tenants = database
+          .prepare('SELECT * FROM tenants ORDER BY id DESC')
+          .all()
+          .map((r) => serializeTenant(r, { includeSecrets: true }));
         const payments = database.prepare(`
           SELECT p.pay_code AS id, p.tenant_id AS storeId, t.name AS storeName,
                  p.method, p.ref, p.amount, p.time_label AS time
@@ -2476,7 +2482,7 @@ function createApp(options = {}) {
         );
 
         const created = database.prepare('SELECT * FROM tenants WHERE id = ?').get(id);
-        return sendJson(res, 201, serializeTenant(created));
+        return sendJson(res, 201, serializeTenant(created, { includeSecrets: true }));
       }
 
       // 9. Update Tenant
@@ -2531,7 +2537,7 @@ function createApp(options = {}) {
         database.prepare('INSERT INTO audit_logs (tenant_id, actor, title, subtitle, time_label) VALUES (?, ?, ?, ?, ?)')
           .run(id, currentAdmin.fullName || currentAdmin.username, `Modification · ${b.name ?? cur.name}`, 'M. Taha · Fiche client mise à jour', nowHM());
         const updated = database.prepare('SELECT * FROM tenants WHERE id = ?').get(id);
-        return sendJson(res, 200, serializeTenant(updated));
+        return sendJson(res, 200, serializeTenant(updated, { includeSecrets: true }));
       }
 
       // 9b. List Tenant User Accounts
@@ -2634,7 +2640,7 @@ function createApp(options = {}) {
           .run(cur.days_left + days, id);
         database.prepare('INSERT INTO audit_logs (tenant_id, actor, title, subtitle, time_label) VALUES (?, ?, ?, ?, ?)')
           .run(id, currentAdmin.fullName || currentAdmin.username, `Licence +${days}j · ${cur.name}`, 'M. Taha · Prolongation Cloud', nowHM());
-        return sendJson(res, 200, serializeTenant(database.prepare('SELECT * FROM tenants WHERE id = ?').get(id)));
+        return sendJson(res, 200, serializeTenant(database.prepare('SELECT * FROM tenants WHERE id = ?').get(id), { includeSecrets: true }));
       }
 
       // 11. Toggle Tenant Lock
@@ -2647,7 +2653,26 @@ function createApp(options = {}) {
         database.prepare('UPDATE tenants SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextStatus, id);
         database.prepare('INSERT INTO audit_logs (tenant_id, actor, title, subtitle, time_label) VALUES (?, ?, ?, ?, ?)')
           .run(id, currentAdmin.fullName || currentAdmin.username, `${nextStatus === 'locked' ? 'Suspension' : 'Réactivation'} · ${cur.name}`, 'M. Taha · Verrouillage distant', nowHM());
-        return sendJson(res, 200, serializeTenant(database.prepare('SELECT * FROM tenants WHERE id = ?').get(id)));
+        return sendJson(res, 200, serializeTenant(database.prepare('SELECT * FROM tenants WHERE id = ?').get(id), { includeSecrets: true }));
+      }
+
+      // 11b. POST /api/admin/system/reset-production — Wipe all demo/operational data for a clean virgin production DB
+      if (req.method === 'POST' && p === '/api/admin/system/reset-production') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        if (b.confirm !== 'RESET_PRODUCTION_EMPTY') {
+          return sendJson(res, 400, { error: 'Confirmation token RESET_PRODUCTION_EMPTY is required' });
+        }
+        const summary = resetDatabaseForProduction(database);
+        if (pgBackup) {
+          await pgBackup.pushNow(database, dbPath).catch(() => {});
+        }
+        return sendJson(res, 200, {
+          ok: true,
+          clearedTables: summary.clearedTables,
+          tenants: 0,
+          message: 'Base de données réinitialisée à zéro pour la production.',
+        });
       }
 
       // 12. Issue Ed25519 Signed Offline License Code

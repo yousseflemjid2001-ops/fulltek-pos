@@ -1919,6 +1919,49 @@ function seedRichRestoDemoForFT1041(database, tenantId, brId) {
   }
 }
 
+const SYSTEM_TABLES_TO_KEEP = new Set([
+  'super_admins',
+  'roles',
+  'permissions',
+  'role_permissions',
+  'signing_keys',
+]);
+
+function resetDatabaseForProduction(database) {
+  const tables = database
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+    .all()
+    .map((r) => r.name)
+    .filter((name) => !SYSTEM_TABLES_TO_KEEP.has(name));
+
+  database.exec('PRAGMA foreign_keys = OFF;');
+  try {
+    database.exec('BEGIN IMMEDIATE;');
+    for (const table of tables) {
+      database.exec(`DELETE FROM "${table.replace(/"/g, '""')}";`);
+    }
+    const hasSeq = database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'")
+      .get();
+    if (hasSeq) {
+      for (const table of tables) {
+        database.prepare('DELETE FROM sqlite_sequence WHERE name = ?').run(table);
+      }
+    }
+    database.exec('COMMIT;');
+  } catch (err) {
+    try {
+      database.exec('ROLLBACK;');
+    } catch (_) {}
+    throw err;
+  } finally {
+    database.exec('PRAGMA foreign_keys = ON;');
+  }
+
+  seedCoreSecurityAndRbac(database);
+  return { clearedTables: tables.length, tables };
+}
+
 function createDb(dbPath = DB_PATH, options = {}) {
   const targetPath = dbPath || DEFAULT_DB_PATH;
   if (targetPath !== ':memory:' && !String(targetPath).startsWith('file:')) {
@@ -1933,7 +1976,10 @@ function createDb(dbPath = DB_PATH, options = {}) {
   initSchema(database);
   runMigrations(database);
   seedCoreSecurityAndRbac(database);
-  if (options.seedDemo !== false) {
+  const shouldSeedDemo =
+    options.seedDemo === true ||
+    (options.seedDemo === undefined && process.env.SEED_DEMO === '1');
+  if (shouldSeedDemo) {
     seedDemoDataIfEmpty(database);
   }
   return database;
@@ -1950,6 +1996,7 @@ function getDb() {
 module.exports = {
   createDb,
   getDb,
+  resetDatabaseForProduction,
   get db() {
     return getDb();
   },

@@ -33,18 +33,23 @@ class PosStore extends ChangeNotifier {
   bool isLoadingCatalog = false;
   DateTime? lastCatalogSyncAt;
 
-  late OfflineLicenseInfo license;
-  late List<PosProfile> profiles;
-  late List<StaffMember> staff;
-  late List<MenuCategory> categories;
-  late List<MenuItem> menuItems;
-  late List<DiningZone> zones;
-  late List<DiningTable> tables;
-  late List<VipReservation> reservations;
-  late List<KarniCustomer> karniCustomers;
-  late List<DeliveryZone> deliveryZones;
-  late List<Ingredient> ingredients;
-  late List<RecipeBomLine> recipesBom;
+  OfflineLicenseInfo license = OfflineLicenseInfo(
+    tenantName: 'Full·Tek Resto',
+    code12: '',
+    expiresAt: DateTime.now().add(const Duration(days: 30)),
+    ed25519Verified: false,
+  );
+  List<PosProfile> profiles = [];
+  List<StaffMember> staff = [];
+  List<MenuCategory> categories = [];
+  List<MenuItem> menuItems = [];
+  List<DiningZone> zones = [];
+  List<DiningTable> tables = [];
+  List<VipReservation> reservations = [];
+  List<KarniCustomer> karniCustomers = [];
+  List<DeliveryZone> deliveryZones = [];
+  List<Ingredient> ingredients = [];
+  List<RecipeBomLine> recipesBom = [];
 
   double freeDeliveryAboveMru = DeliveryZone.freeDeliveryAboveMru;
   ServiceMode _serviceMode = ServiceMode.dineIn;
@@ -75,9 +80,14 @@ class PosStore extends ChangeNotifier {
   PosStore({HttpBridgeFn? httpRequest, bool? enablePersistence})
       : _httpRequest = httpRequest ?? httpBridgeRequest,
         _enablePersistence = enablePersistence ?? kIsWeb {
-    _seedMauritanianRestaurantData();
     if (_enablePersistence) {
+      // Production mode: never seed fake demo restaurant data; start clean
+      // and load strictly from Cloud API (PostgreSQL/SQLite).
+      _resetTenantOperationalState();
       _restoreFromStorage();
+    } else {
+      // Unit-test mode: keep deterministic seed fixture when persistence is disabled.
+      _seedMauritanianRestaurantData();
     }
   }
 
@@ -258,6 +268,15 @@ class PosStore extends ChangeNotifier {
             );
           }
         }
+      }
+
+      // Immediately refresh live catalog/staff/categories/zones/tables/stock
+      // from Cloud API after restoring a logged-in session on page reload (F5).
+      if (accountLoggedIn &&
+          !accountOffline &&
+          cloudJwtToken != null &&
+          cloudJwtToken!.isNotEmpty) {
+        Future.microtask(() => fetchCloudCatalog());
       }
     } catch (_) {}
   }
@@ -467,20 +486,7 @@ class PosStore extends ChangeNotifier {
       notifyListeners();
       return null;
     } catch (_) {
-      // Offline-First fallback: cached demo account
-      if (u == 'darelkram41' && password == 'FullTek@2026') {
-        tenantName = 'Dar El-Karam Resto';
-        tenantCode = 'FT-1041';
-        enabledThemeCodes = const ['01', '04', '06', '07', '11'];
-        _applyOwnerPin('7410');
-        accountOffline = true;
-        cloudConnected = false;
-        catalogSource = 'offline_demo';
-        accountLoggedIn = true;
-        notifyListeners();
-        return null;
-      }
-      return 'Serveur injoignable — connexion hors-ligne impossible pour ce compte.';
+      return 'Serveur injoignable — vérifiez votre connexion internet.';
     }
   }
 
@@ -510,7 +516,9 @@ class PosStore extends ChangeNotifier {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         cloudConnected = false;
         catalogSource = 'offline_demo';
-        if (menuItems.isEmpty) _seedMauritanianRestaurantData();
+        if (!_enablePersistence && tenantCode == 'FT-1041' && menuItems.isEmpty) {
+          _seedMauritanianRestaurantData();
+        }
         return false;
       }
 
@@ -652,7 +660,9 @@ class PosStore extends ChangeNotifier {
     } catch (_) {
       cloudConnected = false;
       catalogSource = 'offline_demo';
-      if (menuItems.isEmpty) _seedMauritanianRestaurantData();
+      if (!_enablePersistence && tenantCode == 'FT-1041' && menuItems.isEmpty) {
+        _seedMauritanianRestaurantData();
+      }
       return false;
     } finally {
       isLoadingCatalog = false;
@@ -666,7 +676,9 @@ class PosStore extends ChangeNotifier {
     cloudConnected = false;
     catalogSource = 'offline_demo';
     _resetTenantOperationalState();
-    _seedMauritanianRestaurantData();
+    if (!_enablePersistence) {
+      _seedMauritanianRestaurantData();
+    }
     if (_enablePersistence) {
       try {
         localStorageWrite(_storageKey, '');
@@ -682,6 +694,13 @@ class PosStore extends ChangeNotifier {
     if (_activeOrderId == null) {
       startCounterOrder();
     }
+    if (cloudJwtToken != null &&
+        cloudJwtToken!.isNotEmpty &&
+        !accountOffline &&
+        catalogSource != 'cloud_api' &&
+        !isLoadingCatalog) {
+      Future.microtask(() => fetchCloudCatalog());
+    }
     notifyListeners();
     return true;
   }
@@ -696,6 +715,13 @@ class PosStore extends ChangeNotifier {
     _currentStaff = staff[idx];
     if (_activeOrderId == null) {
       startCounterOrder();
+    }
+    if (cloudJwtToken != null &&
+        cloudJwtToken!.isNotEmpty &&
+        !accountOffline &&
+        catalogSource != 'cloud_api' &&
+        !isLoadingCatalog) {
+      Future.microtask(() => fetchCloudCatalog());
     }
     notifyListeners();
     return true;
@@ -1673,6 +1699,7 @@ class PosStore extends ChangeNotifier {
       if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
         try {
           final key = old.sku.isNotEmpty ? old.sku : old.id;
+          final cat = categories.where((c) => c.id == categoryId).firstOrNull;
           await _httpRequest(
             'PATCH',
             '$apiBaseUrl/api/pos/products/${Uri.encodeComponent(key)}',
@@ -1684,6 +1711,8 @@ class PosStore extends ChangeNotifier {
               'nameFr': trimmedFr,
               'nameAr': ar,
               'nameEn': en,
+              'categoryId': int.tryParse(categoryId),
+              if (cat != null) 'categoryName': cat.nameFr,
               'priceMru': priceMru.round(),
               'kitchenStation': kitchenStation,
               'icon': iconEmoji,
@@ -1750,7 +1779,9 @@ class PosStore extends ChangeNotifier {
             finalItem = MenuItem(
               id: '${p['id']}',
               sku: '${p['sku'] ?? newSku}',
-              categoryId: finalItem.categoryId,
+              categoryId: p['category_id'] != null
+                  ? '${p['category_id']}'
+                  : finalItem.categoryId,
               nameFr: finalItem.nameFr,
               nameAr: finalItem.nameAr,
               nameEn: finalItem.nameEn,
@@ -1763,6 +1794,16 @@ class PosStore extends ChangeNotifier {
               available: finalItem.available,
             );
           }
+        } else if (res.statusCode == 401) {
+          return 'Session expirée — veuillez vous reconnecter pour enregistrer cet article.';
+        } else if (res.statusCode >= 400) {
+          try {
+            final err = jsonDecode(res.body);
+            if (err is Map && err['error'] != null) {
+              return 'Erreur serveur : ${err['error']}';
+            }
+          } catch (_) {}
+          return 'Erreur serveur (HTTP ${res.statusCode}) lors de l\'enregistrement.';
         }
       } catch (_) {}
     }

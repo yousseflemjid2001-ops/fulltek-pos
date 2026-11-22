@@ -265,7 +265,7 @@ class CommercialStore extends ChangeNotifier {
       await refreshAll();
       return null;
     } catch (_) {
-      return 'Serveur inaccessible — utilisez le mode Démo locale pour tester.';
+      return 'Serveur inaccessible — vérifiez votre connexion internet.';
     }
   }
 

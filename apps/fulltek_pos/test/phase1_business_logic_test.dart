@@ -120,6 +120,26 @@ void main() {
     test('Local persistence saves and restores SyncQueue, Karni, and session across reloads', () {
       localStorageRemove('fulltek_pos_state_v1');
       final store1 = PosStore(enablePersistence: true);
+      store1.staff = [
+        const StaffMember(
+          id: 'STF-1',
+          name: 'Patron Test',
+          role: PosRole.owner,
+          pinCode: '7410',
+        ),
+      ];
+      store1.menuItems = [
+        const MenuItem(
+          id: 'M-1',
+          sku: 'SKU-1',
+          categoryId: 'CAT-1',
+          nameFr: 'Plat Test',
+          nameAr: 'طبق',
+          nameEn: 'Test Dish',
+          priceMru: 500,
+          kitchenStation: 'KITCHEN',
+        ),
+      ];
       store1.loginWithPin('7410');
       store1.accountLoggedIn = true;
       store1.tenantName = 'Resto Persistant';
