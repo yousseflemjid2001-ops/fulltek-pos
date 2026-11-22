@@ -52,6 +52,74 @@ void main() {
     });
   });
 
+  group('CommercialStore full ERP business processes (offline demo)', () {
+    test('sales cycle, purchase PMP reception, POS split & treasury work end-to-end',
+        () async {
+      final store = CommercialStore(enablePersistence: false);
+      store.enterOfflineDemo();
+
+      final initialMovements = store.treasuryMovements.length;
+      final firstArt = store.articles.first;
+      final initialStock = firstArt.stockQty;
+      final firstCli = store.clients.first;
+
+      // 1. Multi-line Sales Invoice + Payment
+      final errSale = await store.createSalesDoc(
+        docType: 'FACTURE',
+        clientId: firstCli.id,
+        validateNow: true,
+        lines: [
+          {'articleId': firstArt.id, 'qty': 2, 'unitPriceHtMru': 1000, 'discountPct': 0},
+        ],
+      );
+      expect(errSale, isNull);
+      expect(store.articles.first.stockQty, initialStock - 2);
+      final createdDoc = store.salesDocs.first;
+      expect(createdDoc.lines.length, 1);
+
+      final errPay = await store.paySalesDoc(
+        createdDoc.id,
+        payMethod: 'Bankily',
+        amountMru: createdDoc.totalTtcMru,
+      );
+      expect(errPay, isNull);
+      expect(store.salesDocs.first.status, 'PAYEE');
+      expect(store.treasuryMovements.length, greaterThan(initialMovements));
+
+      // 2. Purchase Reception recalculates stock & PMP
+      final firstSup = store.suppliers.first;
+      final stockBeforeRec = store.articles.first.stockQty;
+      final errRec = await store.createPurchaseDoc(
+        docType: 'RECEPTION',
+        supplierId: firstSup.id,
+        validateNow: true,
+        lines: [
+          {'articleId': firstArt.id, 'qty': 10, 'unitCostHt': 500},
+        ],
+      );
+      expect(errRec, isNull);
+      expect(store.articles.first.stockQty, stockBeforeRec + 10);
+
+      // 3. POS session + split payment ticket
+      await store.openNewPosSession(
+        registerCode: 'C1',
+        cashierName: 'Test',
+        openingFloatMru: 5000,
+      );
+      final errPos = await store.submitPosTicket(
+        lines: [
+          {'articleId': firstArt.id, 'qty': 1},
+        ],
+        payments: [
+          {'payMethod': 'Cash', 'amountMru': 500},
+          {'payMethod': 'Bankily', 'amountMru': 500},
+        ],
+      );
+      expect(errPos, isNull);
+      expect(store.posTickets.first.payMethod, 'Cash + Bankily');
+    });
+  });
+
   group('FullTekCommercialApp offline demo & navigation', () {
     testWidgets('enters offline demo and navigates across commercial modules',
         (WidgetTester tester) async {
@@ -95,6 +163,16 @@ void main() {
       await tester.tap(find.text('Trésorerie').first);
       await tester.pumpAndSettle();
       expect(find.text('Trésorerie — Caisses & Banques'), findsOneWidget);
+
+      // Navigate to Factures clients (scroll sidebar if needed)
+      await tester.scrollUntilVisible(
+        find.text('Factures clients'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Factures clients'));
+      await tester.pumpAndSettle();
+      expect(find.text('Factures clients'), findsWidgets);
     });
   });
 }

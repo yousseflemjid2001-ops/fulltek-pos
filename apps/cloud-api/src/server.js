@@ -2429,6 +2429,94 @@ function createApp(options = {}) {
         return sendJson(res, 200, serializeTenant(updated));
       }
 
+      // 9b. List Tenant User Accounts
+      if (req.method === 'GET' && (m = p.match(/^\/api\/admin\/tenants\/(\d+)\/users$/))) {
+        const tenantId = Number(m[1]);
+        const cur = database.prepare('SELECT id FROM tenants WHERE id = ?').get(tenantId);
+        if (!cur) return sendJson(res, 404, { error: 'Tenant not found' });
+        const rows = database
+          .prepare('SELECT id, tenant_id, full_name, username, pin_code, role, created_at FROM users WHERE tenant_id = ? ORDER BY id ASC')
+          .all(tenantId);
+        return sendJson(res, 200, {
+          users: rows.map((u) => ({
+            id: u.id,
+            tenantId: u.tenant_id,
+            fullName: u.full_name || '',
+            username: u.username,
+            pinCode: u.pin_code || '',
+            role: u.role || 'CASHIER',
+            createdAt: u.created_at || '',
+          })),
+        });
+      }
+
+      // 9c. Create Tenant User Account
+      if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/tenants\/(\d+)\/users$/))) {
+        const tenantId = Number(m[1]);
+        const cur = database.prepare('SELECT id, name FROM tenants WHERE id = ?').get(tenantId);
+        if (!cur) return sendJson(res, 404, { error: 'Tenant not found' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const username = String(b.username || '').trim().toLowerCase();
+        const password = String(b.password || '').trim();
+        const fullName = String(b.fullName || username).trim();
+        const role = String(b.role || 'CASHIER').trim().toUpperCase();
+        const pinCode = String(b.pinCode || '1234').trim();
+        if (!username || !password) {
+          return sendJson(res, 400, { error: 'username and password are required' });
+        }
+        if (password.length < 4) {
+          return sendJson(res, 400, { error: 'Le mot de passe doit contenir au moins 4 caractères' });
+        }
+        const exists = database.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(username);
+        if (exists) {
+          return sendJson(res, 409, { error: `L'identifiant "${username}" est déjà utilisé` });
+        }
+        const pwHash = hashPassword(password);
+        const info = database
+          .prepare('INSERT INTO users (tenant_id, full_name, username, pass_hash, pin_code, role) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(tenantId, fullName, username, pwHash, pinCode, role);
+        database
+          .prepare('INSERT INTO audit_logs (tenant_id, actor, title, subtitle, time_label) VALUES (?, ?, ?, ?, ?)')
+          .run(
+            tenantId,
+            currentAdmin.fullName || currentAdmin.username,
+            `Nouveau compte · ${username}`,
+            `${fullName} (${role}) · ${cur.name}`,
+            nowHM(),
+          );
+        const created = database
+          .prepare('SELECT id, tenant_id, full_name, username, pin_code, role, created_at FROM users WHERE id = ?')
+          .get(Number(info.lastInsertRowid));
+        return sendJson(res, 201, {
+          user: {
+            id: created.id,
+            tenantId: created.tenant_id,
+            fullName: created.full_name || '',
+            username: created.username,
+            pinCode: created.pin_code || '',
+            role: created.role || 'CASHIER',
+            createdAt: created.created_at || '',
+          },
+        });
+      }
+
+      // 9d. Delete Tenant User Account
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/admin\/tenants\/(\d+)\/users\/(\d+)$/))) {
+        const tenantId = Number(m[1]);
+        const userId = Number(m[2]);
+        const target = database
+          .prepare('SELECT id, username, role FROM users WHERE id = ? AND tenant_id = ?')
+          .get(userId, tenantId);
+        if (!target) return sendJson(res, 404, { error: 'User not found' });
+        const countRow = database.prepare('SELECT COUNT(*) AS cnt FROM users WHERE tenant_id = ?').get(tenantId);
+        if (Number(countRow.cnt) <= 1) {
+          return sendJson(res, 400, { error: 'Impossible de supprimer le dernier compte de la boutique' });
+        }
+        database.prepare('DELETE FROM users WHERE id = ? AND tenant_id = ?').run(userId, tenantId);
+        return sendJson(res, 200, { deleted: true, id: userId });
+      }
+
       // 10. Extend Tenant License
       if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/tenants\/(\d+)\/extend$/))) {
         const id = Number(m[1]);

@@ -92,6 +92,237 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
 
   bool _showPassword = false;
 
+  List<TenantUserAccount> _users = [];
+  bool _loadingUsers = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    final storeId = widget.store.id;
+    if (storeId <= 0 || !ApiService.isAuthenticated) {
+      setState(() {
+        _users = [
+          TenantUserAccount(
+            id: 1,
+            tenantId: storeId,
+            fullName: widget.store.manager.isNotEmpty
+                ? widget.store.manager
+                : widget.store.name,
+            username: widget.store.username,
+            role: 'OWNER',
+            pinCode: widget.store.ownerPin,
+          ),
+        ];
+      });
+      return;
+    }
+    setState(() => _loadingUsers = true);
+    final res = await ApiService.fetchTenantUsers(storeId);
+    if (!mounted) return;
+    setState(() {
+      _loadingUsers = false;
+      if (res.ok && res.data != null) {
+        _users = res.data!;
+      }
+    });
+  }
+
+  Future<void> _openCreateAccountDialog() async {
+    final fullNameCtrl = TextEditingController();
+    final usernameCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    final pinCtrl = TextEditingController(text: '1234');
+    String role = widget.store.module == StoreModule.commercial
+        ? 'COMMERCIAL'
+        : 'CASHIER';
+    String? errorMsg;
+    bool saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: FTColors.night2,
+          title: const Text('Créer un compte utilisateur',
+              style: TextStyle(fontWeight: FontWeight.w900)),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (errorMsg != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: FTColors.danger.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: FTColors.danger.withValues(alpha: 0.5)),
+                      ),
+                      child: Text(errorMsg!,
+                          style: const TextStyle(
+                              color: FTColors.danger, fontSize: 12.5)),
+                    ),
+                  TextField(
+                    controller: fullNameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nom complet *',
+                      hintText: 'Ex: Mohamed Ould Salem',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: usernameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Identifiant de connexion (username) *',
+                      hintText: 'Ex: mohamed.caisse',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: passCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Mot de passe * (min. 4 caractères)',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: role,
+                    dropdownColor: FTColors.night2,
+                    decoration: const InputDecoration(labelText: 'Rôle / Accès'),
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'OWNER', child: Text('Propriétaire (Accès total)')),
+                      DropdownMenuItem(
+                          value: 'MANAGER', child: Text('Gérant / Directeur')),
+                      DropdownMenuItem(
+                          value: 'COMMERCIAL',
+                          child: Text('Commercial (Devis, Factures, Clients)')),
+                      DropdownMenuItem(
+                          value: 'ACCOUNTANT',
+                          child: Text('Comptable (Trésorerie, Chèques)')),
+                      DropdownMenuItem(
+                          value: 'CASHIER', child: Text('Caissier (POS)')),
+                    ],
+                    onChanged: (v) => setS(() => role = v ?? role),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: pinCtrl,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Code PIN rapide (4 chiffres)',
+                      counterText: '',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final u = usernameCtrl.text.trim();
+                      final p = passCtrl.text.trim();
+                      final fn = fullNameCtrl.text.trim().isEmpty
+                          ? u
+                          : fullNameCtrl.text.trim();
+                      if (u.isEmpty || p.length < 4) {
+                        setS(() => errorMsg =
+                            'Identifiant et mot de passe (min. 4 caractères) requis.');
+                        return;
+                      }
+                      setS(() {
+                        saving = true;
+                        errorMsg = null;
+                      });
+                      final storeId = widget.store.id;
+                      if (storeId > 0 && ApiService.isAuthenticated) {
+                        final res = await ApiService.createTenantUser(
+                          tenantId: storeId,
+                          fullName: fn,
+                          username: u,
+                          password: p,
+                          role: role,
+                          pinCode: pinCtrl.text.trim(),
+                        );
+                        if (!ctx.mounted) return;
+                        if (!res.ok || res.data == null) {
+                          setS(() {
+                            saving = false;
+                            errorMsg = res.error ??
+                                'Impossible de créer ce compte.';
+                          });
+                          return;
+                        }
+                        if (!mounted) return;
+                        setState(() => _users.add(res.data!));
+                      } else {
+                        if (!mounted) return;
+                        setState(() {
+                          _users.add(TenantUserAccount(
+                            id: _users.length + 10,
+                            tenantId: storeId,
+                            fullName: fn,
+                            username: u,
+                            role: role,
+                            pinCode: pinCtrl.text.trim(),
+                          ));
+                        });
+                      }
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      Clipboard.setData(ClipboardData(
+                          text: 'Identifiant: $u | Mot de passe: $p'));
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(SnackBar(
+                            content: Text(
+                                'Compte "$u" créé ! Identifiants copiés.')));
+                    },
+              icon: saving
+                  ? const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.person_add_alt_1, size: 17),
+              label: const Text('Créer le compte'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount(TenantUserAccount u) async {
+    final storeId = widget.store.id;
+    if (storeId > 0 && ApiService.isAuthenticated) {
+      final res = await ApiService.deleteTenantUser(storeId, u.id);
+      if (!mounted) return;
+      if (!res.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.error ?? 'Suppression impossible')),
+        );
+        return;
+      }
+    }
+    setState(() => _users.removeWhere((x) => x.id == u.id));
+  }
+
   void _openEditDialog() {
     final s = widget.store;
     final nameCtrl = TextEditingController(text: s.name);
@@ -760,6 +991,125 @@ class _StoreDetailScreenState extends State<StoreDetailScreen> {
                         ? '${s.initialPayMethod}${s.initialPayRef.isNotEmpty ? ' · ${s.initialPayRef}' : ''}'
                         : ''),
                 _kv('Notes', s.notes),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Comptes Utilisateurs & Accès Connexion
+          GlassCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Comptes Utilisateurs & Accès',
+                              style: TextStyle(
+                                  fontSize: 14.5, fontWeight: FontWeight.w900)),
+                          SizedBox(height: 2),
+                          Text(
+                            'Créez des accès individuels (Gérant, Commercial, Caissier, Comptable)',
+                            style:
+                                TextStyle(fontSize: 11.5, color: FTColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton.icon(
+                      key: const Key('btn_create_tenant_account'),
+                      onPressed: _openCreateAccountDialog,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: FTColors.ochre,
+                        foregroundColor: const Color(0xFF101916),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.person_add_alt_1, size: 16),
+                      label: const Text('Créer un compte',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_loadingUsers)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else if (_users.isEmpty)
+                  const Text('Aucun compte enregistré.',
+                      style: TextStyle(fontSize: 12.5, color: FTColors.muted))
+                else
+                  ..._users.map((u) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: FTColors.night.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 15,
+                              backgroundColor:
+                                  FTColors.ochre.withValues(alpha: 0.16),
+                              child: const Icon(Icons.person_outline,
+                                  size: 16, color: FTColors.ochre),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    u.fullName.isEmpty ? u.username : u.fullName,
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800),
+                                  ),
+                                  Text(
+                                    '@${u.username}${u.pinCode.isNotEmpty ? ' · PIN ${u.pinCode}' : ''}',
+                                    style: const TextStyle(
+                                        fontSize: 11.5, color: FTColors.muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: FTColors.commercial.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                u.role,
+                                style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: FTColors.commercial),
+                              ),
+                            ),
+                            if (_users.length > 1)
+                              IconButton(
+                                tooltip: 'Supprimer ce compte',
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 17, color: FTColors.danger),
+                                onPressed: () => _deleteAccount(u),
+                              ),
+                          ],
+                        ),
+                      )),
               ],
             ),
           ),

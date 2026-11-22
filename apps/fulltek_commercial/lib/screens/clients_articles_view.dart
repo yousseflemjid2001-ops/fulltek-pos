@@ -39,9 +39,9 @@ class _ClientsViewState extends State<ClientsView> {
         children: [
           _HeaderBar(
             title: 'Clients & Comptes Karni',
-            subtitle: 'Répertoire B2B / Particuliers, NIF / RC et encours Karni',
+            subtitle: 'Répertoire B2B / Particuliers, NIF / RC, délais et encours Karni',
             actionLabel: 'Nouveau client',
-            onAction: () => _openCreateClientDialog(context),
+            onAction: () => _openClientDialog(context),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -57,12 +57,12 @@ class _ClientsViewState extends State<ClientsView> {
               _MiniStatCard(
                 label: 'Clients B2B (NIF)',
                 value: '$b2bCount',
-                color: CommercialColors.brandOrange,
+                color: CommercialColors.brandViolet,
                 icon: Icons.business_outlined,
               ),
               _MiniStatCard(
                 label: 'Encours Karni total',
-                value: '${totalKarni.toStringAsFixed(0)} MRU',
+                value: fmtMru(totalKarni),
                 color: totalKarni > 0
                     ? CommercialColors.warningAmber
                     : CommercialColors.successGreen,
@@ -116,7 +116,7 @@ class _ClientsViewState extends State<ClientsView> {
                           DataColumn(label: Text('Type')),
                           DataColumn(label: Text('NIF / RC')),
                           DataColumn(label: Text('Téléphone & Ville')),
-                          DataColumn(label: Text('Plafond Karni'), numeric: true),
+                          DataColumn(label: Text('Délai'), numeric: true),
                           DataColumn(label: Text('Solde Karni'), numeric: true),
                           DataColumn(label: Text('Actions')),
                         ],
@@ -142,10 +142,9 @@ class _ClientsViewState extends State<ClientsView> {
                               )),
                               DataCell(Text(
                                   '${c.phone.isEmpty ? '—' : c.phone} • ${c.city}')),
+                              DataCell(Text('${c.paymentTermsDays} j')),
                               DataCell(Text(
-                                  '${c.creditLimitMru.toStringAsFixed(0)} MRU')),
-                              DataCell(Text(
-                                '${c.karniDebtMru.toStringAsFixed(0)} MRU',
+                                fmtMru(c.karniDebtMru),
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: c.karniDebtMru > 0
@@ -154,13 +153,35 @@ class _ClientsViewState extends State<ClientsView> {
                                 ),
                               )),
                               DataCell(
-                                OutlinedButton.icon(
-                                  onPressed: c.karniDebtMru > 0
-                                      ? () => _openKarniPayDialog(context, c)
-                                      : null,
-                                  icon: const Icon(Icons.payments_outlined,
-                                      size: 16),
-                                  label: const Text('Encaisser Karni'),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (c.karniDebtMru > 0)
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _openKarniPayDialog(context, c),
+                                        icon: const Icon(
+                                            Icons.payments_outlined,
+                                            size: 16),
+                                        label: const Text('Encaisser'),
+                                      ),
+                                    IconButton(
+                                      tooltip: 'Modifier fiche client',
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 18),
+                                      onPressed: () => _openClientDialog(
+                                          context,
+                                          editing: c),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Supprimer',
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18,
+                                          color: CommercialColors.dangerRed),
+                                      onPressed: () =>
+                                          widget.store.deleteClient(c.id),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -177,35 +198,49 @@ class _ClientsViewState extends State<ClientsView> {
     );
   }
 
-  Future<void> _openCreateClientDialog(BuildContext context) async {
-    final nameCtrl = TextEditingController();
-    final nifCtrl = TextEditingController();
-    final rcCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final cityCtrl = TextEditingController(text: 'Nouakchott');
-    final limitCtrl = TextEditingController(text: '0');
-    bool isB2b = false;
+  Future<void> _openClientDialog(BuildContext context,
+      {CommercialClient? editing}) async {
+    final nameCtrl = TextEditingController(text: editing?.name ?? '');
+    final nifCtrl = TextEditingController(text: editing?.nif ?? '');
+    final rcCtrl = TextEditingController(text: editing?.rc ?? '');
+    final phoneCtrl = TextEditingController(text: editing?.phone ?? '');
+    final addressCtrl = TextEditingController(text: editing?.address ?? '');
+    final cityCtrl =
+        TextEditingController(text: editing?.city ?? 'Nouakchott');
+    final termsCtrl = TextEditingController(
+        text: '${editing?.paymentTermsDays ?? 30}');
+    final limitCtrl = TextEditingController(
+        text: (editing?.creditLimitMru ?? 0).toStringAsFixed(0));
+    bool isB2b = editing?.isB2b ?? true;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Nouveau client'),
+          title: Text(editing == null
+              ? 'Nouvelle fiche client'
+              : 'Modifier client · ${editing.code}'),
           content: SizedBox(
-            width: 440,
+            width: 560,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text('Identité & Fiscalité',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: nameCtrl,
                     decoration: const InputDecoration(
-                        labelText: 'Raison sociale / Nom *'),
+                        labelText: 'Raison sociale / Nom complet *'),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Client professionnel (B2B)'),
+                    dense: true,
+                    title: const Text('Client professionnel / B2B (Assujetti NIF)'),
                     value: isB2b,
                     onChanged: (v) => setS(() => isB2b = v),
                   ),
@@ -215,27 +250,33 @@ class _ClientsViewState extends State<ClientsView> {
                         Expanded(
                           child: TextField(
                             controller: nifCtrl,
-                            decoration: const InputDecoration(labelText: 'NIF'),
+                            decoration: const InputDecoration(
+                                labelText: 'NIF (Numéro d\'Identification Fiscale)'),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: TextField(
                             controller: rcCtrl,
-                            decoration: const InputDecoration(labelText: 'RC'),
+                            decoration: const InputDecoration(
+                                labelText: 'RC (Registre de Commerce)'),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                   ],
+                  const Text('Coordonnées',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: phoneCtrl,
-                          decoration:
-                              const InputDecoration(labelText: 'Téléphone'),
+                          decoration: const InputDecoration(
+                              labelText: 'Téléphone / WhatsApp'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -249,10 +290,35 @@ class _ClientsViewState extends State<ClientsView> {
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: limitCtrl,
-                    keyboardType: TextInputType.number,
+                    controller: addressCtrl,
                     decoration: const InputDecoration(
-                        labelText: 'Plafond crédit Karni (MRU)'),
+                        labelText: 'Adresse / Quartier (ex: Tevragh Zeina)'),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Conditions commerciales & Karni',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: termsCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'Délai de paiement (jours)'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: limitCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'Plafond crédit Karni (MRU)'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -264,15 +330,32 @@ class _ClientsViewState extends State<ClientsView> {
                 child: const Text('Annuler')),
             ElevatedButton(
               onPressed: () async {
-                final err = await widget.store.createClient(
-                  name: nameCtrl.text,
-                  isB2b: isB2b,
-                  nif: nifCtrl.text,
-                  rc: rcCtrl.text,
-                  phone: phoneCtrl.text,
-                  city: cityCtrl.text,
-                  creditLimitMru: double.tryParse(limitCtrl.text) ?? 0,
-                );
+                final String? err;
+                if (editing == null) {
+                  err = await widget.store.createClient(
+                    name: nameCtrl.text,
+                    isB2b: isB2b,
+                    nif: nifCtrl.text,
+                    rc: rcCtrl.text,
+                    phone: phoneCtrl.text,
+                    address: addressCtrl.text,
+                    city: cityCtrl.text,
+                    creditLimitMru: double.tryParse(limitCtrl.text) ?? 0,
+                  );
+                } else {
+                  err = await widget.store.updateClient(
+                    editing.id,
+                    name: nameCtrl.text,
+                    isB2b: isB2b,
+                    nif: nifCtrl.text,
+                    rc: rcCtrl.text,
+                    phone: phoneCtrl.text,
+                    address: addressCtrl.text,
+                    city: cityCtrl.text,
+                    paymentTermsDays: int.tryParse(termsCtrl.text) ?? 30,
+                    creditLimitMru: double.tryParse(limitCtrl.text) ?? 0,
+                  );
+                }
                 if (!ctx.mounted) return;
                 if (err != null) {
                   ScaffoldMessenger.of(ctx)
@@ -281,7 +364,7 @@ class _ClientsViewState extends State<ClientsView> {
                   Navigator.pop(ctx);
                 }
               },
-              child: const Text('Enregistrer'),
+              child: Text(editing == null ? 'Créer le client' : 'Enregistrer'),
             ),
           ],
         ),
@@ -368,6 +451,7 @@ class ArticlesView extends StatefulWidget {
 class _ArticlesViewState extends State<ArticlesView> {
   String _query = '';
   bool _lowStockOnly = false;
+  bool _showMovements = false;
 
   @override
   Widget build(BuildContext context) {
@@ -378,6 +462,7 @@ class _ArticlesViewState extends State<ArticlesView> {
       final q = _query.toLowerCase();
       return a.name.toLowerCase().contains(q) ||
           a.sku.toLowerCase().contains(q) ||
+          a.barcode.toLowerCase().contains(q) ||
           a.category.toLowerCase().contains(q);
     }).toList();
 
@@ -393,9 +478,9 @@ class _ArticlesViewState extends State<ArticlesView> {
           _HeaderBar(
             title: 'Catalogue Articles & Stock PMP',
             subtitle:
-                'Tarifs Détail / Gros, TVA 16% ou Exonéré, suivi du stock et PMP',
+                'Tarifs Détail / Gros, TVA 16% ou Exonéré, suivi du stock, PMP & journal mouvements',
             actionLabel: 'Nouvel article',
-            onAction: () => _openCreateArticleDialog(context),
+            onAction: () => _openArticleDialog(context),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -410,7 +495,7 @@ class _ArticlesViewState extends State<ArticlesView> {
               ),
               _MiniStatCard(
                 label: 'Valeur stock (PMP)',
-                value: '${totalStockVal.toStringAsFixed(0)} MRU',
+                value: fmtMru(totalStockVal),
                 color: CommercialColors.successGreen,
                 icon: Icons.warehouse_outlined,
               ),
@@ -425,268 +510,439 @@ class _ArticlesViewState extends State<ArticlesView> {
             ],
           ),
           const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            hintText: 'Rechercher par SKU, désignation ou famille...',
-                            prefixIcon: Icon(Icons.search, size: 18),
-                          ),
-                          onChanged: (v) => setState(() => _query = v),
+          Row(
+            children: [
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Catalogue Articles')),
+                  ButtonSegment(
+                      value: true, label: Text('Journal Mouvements Stock')),
+                ],
+                selected: {_showMovements},
+                onSelectionChanged: (s) =>
+                    setState(() => _showMovements = s.first),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_showMovements)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: store.stockMovements.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Center(
+                          child: Text('Aucun mouvement de stock enregistré.',
+                              style:
+                                  TextStyle(color: CommercialColors.textMuted)),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      FilterChip(
-                        label: const Text('Stock bas uniquement'),
-                        selected: _lowStockOnly,
-                        onSelected: (v) => setState(() => _lowStockOnly = v),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  if (filtered.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Text(
-                        'Aucun article trouvé.',
-                        style: TextStyle(color: CommercialColors.textMuted),
-                      ),
-                    )
-                  else
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        headingRowColor: WidgetStateProperty.all(
-                            const Color(0xFFF8FAFC)),
-                        columns: const [
-                          DataColumn(label: Text('SKU')),
-                          DataColumn(label: Text('Désignation')),
-                          DataColumn(label: Text('Famille')),
-                          DataColumn(label: Text('TVA')),
-                          DataColumn(label: Text('Détail HT'), numeric: true),
-                          DataColumn(label: Text('Gros HT'), numeric: true),
-                          DataColumn(label: Text('PMP'), numeric: true),
-                          DataColumn(label: Text('Stock'), numeric: true),
-                          DataColumn(label: Text('Valeur PMP'), numeric: true),
-                          DataColumn(label: Text('Actions')),
-                        ],
-                        rows: filtered.map((a) {
-                          return DataRow(
-                            cells: [
-                              DataCell(Text(a.sku,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))),
-                              DataCell(Text(a.name,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))),
-                              DataCell(Text(a.category)),
-                              DataCell(_Badge(
-                                text: a.isExempt ? 'Exonéré' : '16%',
-                                color: a.isExempt
-                                    ? CommercialColors.textMuted
-                                    : CommercialColors.primaryBlue,
-                              )),
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(
+                              const Color(0xFFF8FAFC)),
+                          columns: const [
+                            DataColumn(label: Text('Date')),
+                            DataColumn(label: Text('SKU / Article')),
+                            DataColumn(label: Text('Type')),
+                            DataColumn(label: Text('Variation'), numeric: true),
+                            DataColumn(label: Text('Stock après'), numeric: true),
+                            DataColumn(label: Text('PMP après'), numeric: true),
+                            DataColumn(label: Text('Motif / Source')),
+                          ],
+                          rows: store.stockMovements.map((m) {
+                            return DataRow(cells: [
+                              DataCell(Text(m.createdAt)),
+                              DataCell(Text('${m.sku} · ${m.articleName}')),
+                              DataCell(Text(m.movementType)),
                               DataCell(Text(
-                                  '${a.priceRetailHt.toStringAsFixed(0)} MRU')),
-                              DataCell(Text(
-                                  '${a.priceWholeHt.toStringAsFixed(0)} MRU')),
-                              DataCell(Text(
-                                  '${a.pmpCostMru.toStringAsFixed(0)} MRU')),
-                              DataCell(Text(
-                                '${a.stockQty.toStringAsFixed(1)} ${a.unit}',
+                                '${m.qtyDelta > 0 ? '+' : ''}${m.qtyDelta.toStringAsFixed(1)}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  color: a.isLowStock
-                                      ? CommercialColors.dangerRed
-                                      : CommercialColors.textPrimary,
+                                  color: m.qtyDelta >= 0
+                                      ? CommercialColors.successGreen
+                                      : CommercialColors.dangerRed,
                                 ),
                               )),
-                              DataCell(Text(
-                                  '${a.stockValuePmpMru.toStringAsFixed(0)} MRU')),
-                              DataCell(
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _openAdjustStockDialog(context, a),
-                                  icon: const Icon(Icons.tune, size: 16),
-                                  label: const Text('Ajuster'),
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
+                              DataCell(Text(m.stockAfter.toStringAsFixed(1))),
+                              DataCell(Text(fmtMru(m.pmpAfterMru))),
+                              DataCell(Text(m.reason.isNotEmpty
+                                  ? m.reason
+                                  : m.sourceNumber)),
+                            ]);
+                          }).toList(),
+                        ),
                       ),
+              ),
+            )
+          else
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              hintText:
+                                  'Rechercher par SKU, code-barres, désignation ou famille...',
+                              prefixIcon: Icon(Icons.search, size: 18),
+                            ),
+                            onChanged: (v) => setState(() => _query = v),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilterChip(
+                          label: const Text('Stock bas uniquement'),
+                          selected: _lowStockOnly,
+                          onSelected: (v) => setState(() => _lowStockOnly = v),
+                        ),
+                      ],
                     ),
-                ],
+                    const SizedBox(height: 14),
+                    if (filtered.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Text(
+                          'Aucun article trouvé.',
+                          style: TextStyle(color: CommercialColors.textMuted),
+                        ),
+                      )
+                    else
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(
+                              const Color(0xFFF8FAFC)),
+                          columns: const [
+                            DataColumn(label: Text('SKU')),
+                            DataColumn(label: Text('Désignation')),
+                            DataColumn(label: Text('Famille')),
+                            DataColumn(label: Text('TVA')),
+                            DataColumn(label: Text('Détail HT'), numeric: true),
+                            DataColumn(label: Text('Gros HT'), numeric: true),
+                            DataColumn(label: Text('PMP'), numeric: true),
+                            DataColumn(label: Text('Stock'), numeric: true),
+                            DataColumn(label: Text('Actions')),
+                          ],
+                          rows: filtered.map((a) {
+                            return DataRow(
+                              cells: [
+                                DataCell(Text(a.sku,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600))),
+                                DataCell(Text(a.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600))),
+                                DataCell(Text(a.category)),
+                                DataCell(_Badge(
+                                  text: a.isExempt ? 'Exonéré' : '16%',
+                                  color: a.isExempt
+                                      ? CommercialColors.textMuted
+                                      : CommercialColors.primaryBlue,
+                                )),
+                                DataCell(Text(fmtMru(a.priceRetailHt))),
+                                DataCell(Text(fmtMru(a.priceWholeHt))),
+                                DataCell(Text(fmtMru(a.pmpCostMru))),
+                                DataCell(Text(
+                                  '${a.stockQty.toStringAsFixed(1)} ${a.unit}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: a.isLowStock
+                                        ? CommercialColors.dangerRed
+                                        : CommercialColors.textPrimary,
+                                  ),
+                                )),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _openAdjustStockDialog(context, a),
+                                        icon: const Icon(Icons.tune, size: 16),
+                                        label: const Text('Stock'),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Modifier article',
+                                        icon: const Icon(Icons.edit_outlined,
+                                            size: 18),
+                                        onPressed: () => _openArticleDialog(
+                                            context,
+                                            editing: a),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Supprimer',
+                                        icon: const Icon(Icons.delete_outline,
+                                            size: 18,
+                                            color: CommercialColors.dangerRed),
+                                        onPressed: () =>
+                                            widget.store.deleteArticle(a.id),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  Future<void> _openCreateArticleDialog(BuildContext context) async {
-    final skuCtrl = TextEditingController();
-    final nameCtrl = TextEditingController();
-    final catCtrl = TextEditingController(text: 'Général');
-    final unitCtrl = TextEditingController(text: 'unité');
-    final retailCtrl = TextEditingController();
-    final wholeCtrl = TextEditingController();
-    final costCtrl = TextEditingController();
-    final stockCtrl = TextEditingController(text: '0');
-    final minCtrl = TextEditingController(text: '5');
-    bool isExempt = false;
+  Future<void> _openArticleDialog(BuildContext context,
+      {CommercialArticle? editing}) async {
+    final skuCtrl = TextEditingController(text: editing?.sku ?? '');
+    final barcodeCtrl = TextEditingController(text: editing?.barcode ?? '');
+    final nameCtrl = TextEditingController(text: editing?.name ?? '');
+    final catCtrl = TextEditingController(text: editing?.category ?? 'Général');
+    final unitCtrl = TextEditingController(text: editing?.unit ?? 'unité');
+    final retailCtrl = TextEditingController(
+        text: editing != null ? editing.priceRetailHt.toStringAsFixed(0) : '');
+    final wholeCtrl = TextEditingController(
+        text: editing != null ? editing.priceWholeHt.toStringAsFixed(0) : '');
+    final costCtrl = TextEditingController(
+        text: editing != null ? editing.pmpCostMru.toStringAsFixed(0) : '');
+    final stockCtrl = TextEditingController(
+        text: editing != null ? editing.stockQty.toStringAsFixed(0) : '0');
+    final minCtrl = TextEditingController(
+        text: editing != null ? editing.minStock.toStringAsFixed(0) : '5');
+    bool isExempt = editing?.isExempt ?? false;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text('Nouvel article'),
-          content: SizedBox(
-            width: 480,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: skuCtrl,
-                          decoration: const InputDecoration(labelText: 'SKU *'),
+        builder: (ctx, setS) {
+          final rHt = double.tryParse(retailCtrl.text) ?? 0;
+          final cPmp = double.tryParse(costCtrl.text) ?? 0;
+          final rTtc = isExempt ? rHt : rHt * 1.16;
+          final marginPct =
+              CommercialMath.computeMarginPct(caHt: rHt, costMru: cPmp);
+
+          return AlertDialog(
+            title: Text(editing == null
+                ? 'Nouvelle fiche article'
+                : 'Modifier article · ${editing.sku}'),
+            content: SizedBox(
+              width: 580,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Identification',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: skuCtrl,
+                            decoration:
+                                const InputDecoration(labelText: 'Réf. SKU *'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: nameCtrl,
-                          decoration: const InputDecoration(
-                              labelText: 'Désignation *'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: barcodeCtrl,
+                            decoration: const InputDecoration(
+                                labelText: 'Code-barres EAN-13'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: catCtrl,
-                          decoration:
-                              const InputDecoration(labelText: 'Famille'),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'Désignation complète *'),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: catCtrl,
+                            decoration:
+                                const InputDecoration(labelText: 'Famille'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: unitCtrl,
-                          decoration: const InputDecoration(labelText: 'Unité'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: unitCtrl,
+                            decoration: const InputDecoration(
+                                labelText: 'Unité (pièce, sac, kg, carton)'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: retailCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: 'Prix Détail HT *'),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    const Text('Tarification & TVA Mauritanie',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: retailCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                                labelText: 'Prix Détail HT *'),
+                            onChanged: (_) => setS(() {}),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: wholeCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration:
-                              const InputDecoration(labelText: 'Prix Gros HT'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: wholeCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                                labelText: 'Prix Gros HT'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: costCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration:
-                              const InputDecoration(labelText: 'Coût PMP'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: costCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                                labelText: 'Coût d\'achat / PMP'),
+                            onChanged: (_) => setS(() {}),
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: CommercialColors.border),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: stockCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration:
-                              const InputDecoration(labelText: 'Stock initial'),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Prix public TTC : ${fmtMru(rTtc)}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(
+                            'Marge brute Détail : ${marginPct.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: marginPct > 0
+                                  ? CommercialColors.successGreen
+                                  : CommercialColors.dangerRed,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Article exonéré de TVA (0%)'),
+                      subtitle:
+                          const Text('Sinon TVA standard Mauritanie 16%'),
+                      value: isExempt,
+                      onChanged: (v) => setS(() => isExempt = v),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text('Gestion de stock',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (editing == null) ...[
+                          Expanded(
+                            child: TextField(
+                              controller: stockCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  labelText: 'Stock initial'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: TextField(
+                            controller: minCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                                labelText: 'Seuil d\'alerte stock bas'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: minCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration:
-                              const InputDecoration(labelText: 'Stock alerte'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Article exonéré de TVA (0%)'),
-                    subtitle: const Text('Sinon TVA standard Mauritanie 16%'),
-                    value: isExempt,
-                    onChanged: (v) => setS(() => isExempt = v),
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Annuler')),
-            ElevatedButton(
-              onPressed: () async {
-                final err = await widget.store.createArticle(
-                  sku: skuCtrl.text,
-                  name: nameCtrl.text,
-                  category: catCtrl.text,
-                  unit: unitCtrl.text,
-                  priceRetailHt: double.tryParse(retailCtrl.text) ?? 0,
-                  priceWholeHt: double.tryParse(wholeCtrl.text) ?? 0,
-                  priceCostMru: double.tryParse(costCtrl.text) ?? 0,
-                  stockQty: double.tryParse(stockCtrl.text) ?? 0,
-                  minStock: double.tryParse(minCtrl.text) ?? 0,
-                  isExempt: isExempt,
-                );
-                if (!ctx.mounted) return;
-                if (err != null) {
-                  ScaffoldMessenger.of(ctx)
-                      .showSnackBar(SnackBar(content: Text(err)));
-                } else {
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text('Créer'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler')),
+              ElevatedButton(
+                onPressed: () async {
+                  final String? err;
+                  if (editing == null) {
+                    err = await widget.store.createArticle(
+                      sku: skuCtrl.text,
+                      name: nameCtrl.text,
+                      category: catCtrl.text,
+                      unit: unitCtrl.text,
+                      priceRetailHt: double.tryParse(retailCtrl.text) ?? 0,
+                      priceWholeHt: double.tryParse(wholeCtrl.text) ?? 0,
+                      priceCostMru: double.tryParse(costCtrl.text) ?? 0,
+                      stockQty: double.tryParse(stockCtrl.text) ?? 0,
+                      minStock: double.tryParse(minCtrl.text) ?? 0,
+                      isExempt: isExempt,
+                    );
+                  } else {
+                    err = await widget.store.updateArticle(
+                      editing.id,
+                      sku: skuCtrl.text,
+                      barcode: barcodeCtrl.text,
+                      name: nameCtrl.text,
+                      category: catCtrl.text,
+                      unit: unitCtrl.text,
+                      priceRetailHt: double.tryParse(retailCtrl.text) ?? 0,
+                      priceWholeHt: double.tryParse(wholeCtrl.text) ?? 0,
+                      priceCostMru: double.tryParse(costCtrl.text) ?? 0,
+                      minStock: double.tryParse(minCtrl.text) ?? 0,
+                      isExempt: isExempt,
+                    );
+                  }
+                  if (!ctx.mounted) return;
+                  if (err != null) {
+                    ScaffoldMessenger.of(ctx)
+                        .showSnackBar(SnackBar(content: Text(err)));
+                  } else {
+                    Navigator.pop(ctx);
+                  }
+                },
+                child:
+                    Text(editing == null ? 'Créer l\'article' : 'Enregistrer'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -706,7 +962,7 @@ class _ArticlesViewState extends State<ArticlesView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Stock actuel : ${a.stockQty.toStringAsFixed(1)} ${a.unit}',
+                'Stock actuel : ${a.stockQty.toStringAsFixed(1)} ${a.unit} • PMP : ${fmtMru(a.pmpCostMru)}',
                 style: const TextStyle(color: CommercialColors.textMuted),
               ),
               const SizedBox(height: 12),

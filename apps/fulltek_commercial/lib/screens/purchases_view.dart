@@ -3,6 +3,17 @@ import '../models/commercial_models.dart';
 import '../state/commercial_store.dart';
 import '../theme/commercial_theme.dart';
 
+class _DraftPurchaseLine {
+  int articleId;
+  double qty;
+  double unitCostHt;
+  _DraftPurchaseLine({
+    required this.articleId,
+    this.qty = 10,
+    required this.unitCostHt,
+  });
+}
+
 class SuppliersView extends StatefulWidget {
   final CommercialStore store;
   const SuppliersView({super.key, required this.store});
@@ -40,14 +51,14 @@ class _SuppliersViewState extends State<SuppliersView> {
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w700)),
                     SizedBox(height: 2),
-                    Text('Répertoire fournisseurs, NIF et dettes à payer',
+                    Text('Répertoire fournisseurs, NIF / RC, délais et dettes à payer',
                         style: TextStyle(
                             fontSize: 13, color: CommercialColors.textMuted)),
                   ],
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () => _openCreateSupplierDialog(context),
+                onPressed: () => _openSupplierDialog(context),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Nouveau fournisseur'),
               ),
@@ -82,10 +93,11 @@ class _SuppliersViewState extends State<SuppliersView> {
                         columns: const [
                           DataColumn(label: Text('Code')),
                           DataColumn(label: Text('Fournisseur')),
-                          DataColumn(label: Text('NIF')),
+                          DataColumn(label: Text('NIF / RC')),
                           DataColumn(label: Text('Téléphone & Ville')),
                           DataColumn(label: Text('Délai (j)'), numeric: true),
                           DataColumn(label: Text('Solde dû'), numeric: true),
+                          DataColumn(label: Text('Actions')),
                         ],
                         rows: filtered.map((s) {
                           return DataRow(
@@ -96,12 +108,14 @@ class _SuppliersViewState extends State<SuppliersView> {
                               DataCell(Text(s.name,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600))),
-                              DataCell(Text(s.nif.isEmpty ? '—' : s.nif)),
+                              DataCell(Text(s.nif.isEmpty
+                                  ? '—'
+                                  : '${s.nif}${s.rc.isNotEmpty ? ' / ${s.rc}' : ''}')),
                               DataCell(Text(
                                   '${s.phone.isEmpty ? '—' : s.phone} • ${s.city}')),
                               DataCell(Text('${s.paymentTermsDays} j')),
                               DataCell(Text(
-                                '${s.balanceDueMru.toStringAsFixed(0)} MRU',
+                                fmtMru(s.balanceDueMru),
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: s.balanceDueMru > 0
@@ -109,6 +123,29 @@ class _SuppliersViewState extends State<SuppliersView> {
                                       : CommercialColors.successGreen,
                                 ),
                               )),
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Modifier',
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 18),
+                                      onPressed: () => _openSupplierDialog(
+                                          context,
+                                          editing: s),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Supprimer',
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18,
+                                          color: CommercialColors.dangerRed),
+                                      onPressed: () =>
+                                          widget.store.deleteSupplier(s.id),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           );
                         }).toList(),
@@ -123,31 +160,50 @@ class _SuppliersViewState extends State<SuppliersView> {
     );
   }
 
-  Future<void> _openCreateSupplierDialog(BuildContext context) async {
-    final nameCtrl = TextEditingController();
-    final nifCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final cityCtrl = TextEditingController(text: 'Nouakchott');
-    final termsCtrl = TextEditingController(text: '30');
+  Future<void> _openSupplierDialog(BuildContext context,
+      {CommercialSupplier? editing}) async {
+    final nameCtrl = TextEditingController(text: editing?.name ?? '');
+    final nifCtrl = TextEditingController(text: editing?.nif ?? '');
+    final rcCtrl = TextEditingController(text: editing?.rc ?? '');
+    final phoneCtrl = TextEditingController(text: editing?.phone ?? '');
+    final cityCtrl =
+        TextEditingController(text: editing?.city ?? 'Nouakchott');
+    final termsCtrl =
+        TextEditingController(text: '${editing?.paymentTermsDays ?? 30}');
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nouveau fournisseur'),
+        title: Text(editing == null
+            ? 'Nouveau fournisseur'
+            : 'Modifier fournisseur · ${editing.code}'),
         content: SizedBox(
-          width: 420,
+          width: 480,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameCtrl,
                 decoration:
-                    const InputDecoration(labelText: 'Nom du fournisseur *'),
+                    const InputDecoration(labelText: 'Raison sociale *'),
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: nifCtrl,
-                decoration: const InputDecoration(labelText: 'NIF'),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: nifCtrl,
+                      decoration: const InputDecoration(labelText: 'NIF'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: rcCtrl,
+                      decoration: const InputDecoration(labelText: 'RC'),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Row(
@@ -184,13 +240,26 @@ class _SuppliersViewState extends State<SuppliersView> {
               child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
-              final err = await widget.store.createSupplier(
-                name: nameCtrl.text,
-                nif: nifCtrl.text,
-                phone: phoneCtrl.text,
-                city: cityCtrl.text,
-                paymentTermsDays: int.tryParse(termsCtrl.text) ?? 30,
-              );
+              final String? err;
+              if (editing == null) {
+                err = await widget.store.createSupplier(
+                  name: nameCtrl.text,
+                  nif: nifCtrl.text,
+                  phone: phoneCtrl.text,
+                  city: cityCtrl.text,
+                  paymentTermsDays: int.tryParse(termsCtrl.text) ?? 30,
+                );
+              } else {
+                err = await widget.store.updateSupplier(
+                  editing.id,
+                  name: nameCtrl.text,
+                  nif: nifCtrl.text,
+                  rc: rcCtrl.text,
+                  phone: phoneCtrl.text,
+                  city: cityCtrl.text,
+                  paymentTermsDays: int.tryParse(termsCtrl.text) ?? 30,
+                );
+              }
               if (!ctx.mounted) return;
               if (err != null) {
                 ScaffoldMessenger.of(ctx)
@@ -199,7 +268,7 @@ class _SuppliersViewState extends State<SuppliersView> {
                 Navigator.pop(ctx);
               }
             },
-            child: const Text('Enregistrer'),
+            child: Text(editing == null ? 'Enregistrer' : 'Mettre à jour'),
           ),
         ],
       ),
@@ -258,7 +327,7 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                             fontSize: 20, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 2),
                     const Text(
-                      'Chaîne achats : Commande → Réception (recalcul PMP) → Facture → Règlement',
+                      'Chaîne achats : Commande → Réception (recalcul PMP pondéré) → Facture → Règlement',
                       style: TextStyle(
                           fontSize: 13, color: CommercialColors.textMuted),
                     ),
@@ -311,25 +380,28 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                         rows: docs.map((d) {
                           return DataRow(
                             cells: [
-                              DataCell(Text(d.docNumber,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))),
+                              DataCell(
+                                InkWell(
+                                  onTap: () => _openPurchaseDetail(context, d),
+                                  child: Text(d.docNumber,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: CommercialColors.primaryBlue)),
+                                ),
+                              ),
                               DataCell(Text(d.partyName)),
                               DataCell(Text(d.issueDate)),
+                              DataCell(Text(fmtMru(d.totalHtMru))),
+                              DataCell(Text(fmtMru(d.totalTtcMru),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600))),
                               DataCell(Text(
-                                  '${d.totalHtMru.toStringAsFixed(0)} MRU')),
-                              DataCell(Text(
-                                '${d.totalTtcMru.toStringAsFixed(0)} MRU',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600),
-                              )),
-                              DataCell(Text(
-                                '${d.remainingMru.toStringAsFixed(0)} MRU',
+                                fmtMru(d.remainingMru),
                                 style: TextStyle(
                                   color: d.remainingMru > 0
                                       ? CommercialColors.warningAmber
                                       : CommercialColors.successGreen,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               )),
                               DataCell(_StatusChip(status: d.status)),
@@ -337,6 +409,20 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    IconButton(
+                                      tooltip: 'Aperçu & Lignes',
+                                      icon: const Icon(
+                                          Icons.visibility_outlined,
+                                          size: 18),
+                                      onPressed: () =>
+                                          _openPurchaseDetail(context, d),
+                                    ),
+                                    if (d.status == 'BROUILLON')
+                                      TextButton(
+                                        onPressed: () => widget.store
+                                            .validatePurchaseDoc(d.id),
+                                        child: const Text('Valider'),
+                                      ),
                                     if (d.docType == 'BC_ACHAT')
                                       TextButton(
                                         onPressed: () => widget.store
@@ -393,102 +479,327 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
     }
 
     int supplierId = suppliers.first.id;
-    int articleId = articles.first.id;
-    final qtyCtrl = TextEditingController(text: '10');
-    final costCtrl = TextEditingController(
-      text: articles.first.pmpCostMru.toStringAsFixed(0),
+    final dueCtrl = TextEditingController(
+      text: DateTime.now()
+          .add(Duration(days: suppliers.first.paymentTermsDays))
+          .toIso8601String()
+          .substring(0, 10),
     );
+    bool validateNow = true;
+    final lines = <_DraftPurchaseLine>[
+      _DraftPurchaseLine(
+        articleId: articles.first.id,
+        qty: 10,
+        unitCostHt: articles.first.pmpCostMru,
+      ),
+    ];
 
     await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: Text('Nouveau — $_title'),
-          content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<int>(
-                  initialValue: supplierId,
-                  decoration: const InputDecoration(labelText: 'Fournisseur'),
-                  items: suppliers
-                      .map((s) =>
-                          DropdownMenuItem(value: s.id, child: Text(s.name)))
-                      .toList(),
-                  onChanged: (v) => setS(() => supplierId = v ?? supplierId),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<int>(
-                  initialValue: articleId,
-                  decoration: const InputDecoration(labelText: 'Article'),
-                  items: articles
-                      .map((a) => DropdownMenuItem(
-                          value: a.id, child: Text('${a.sku} — ${a.name}')))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v == null) return;
-                    final art = articles.firstWhere((e) => e.id == v);
-                    setS(() {
-                      articleId = v;
-                      costCtrl.text = art.pmpCostMru.toStringAsFixed(0);
-                    });
-                  },
-                ),
-                const SizedBox(height: 10),
-                Row(
+        builder: (ctx, setS) {
+          double totalHt = 0;
+          double totalTva = 0;
+          for (final l in lines) {
+            final art = articles.firstWhere((a) => a.id == l.articleId);
+            final lHt = CommercialMath.computeLineHt(
+                qty: l.qty, unitPriceHt: l.unitCostHt);
+            totalHt += lHt;
+            totalTva += CommercialMath.computeLineTva(
+                lineHt: lHt, isExempt: art.isExempt, tvaRate: art.tvaRate);
+          }
+
+          return AlertDialog(
+            title: Text('Nouveau · $_title (Multi-lignes & PMP)'),
+            content: SizedBox(
+              width: 780,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: qtyCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Quantité'),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<int>(
+                            initialValue: supplierId,
+                            isExpanded: true,
+                            decoration:
+                                const InputDecoration(labelText: 'Fournisseur *'),
+                            items: suppliers
+                                .map((s) => DropdownMenuItem(
+                                    value: s.id,
+                                    child: Text('${s.code} · ${s.name}',
+                                        overflow: TextOverflow.ellipsis)))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              final sup =
+                                  suppliers.firstWhere((s) => s.id == v);
+                              setS(() {
+                                supplierId = v;
+                                dueCtrl.text = DateTime.now()
+                                    .add(Duration(days: sup.paymentTermsDays))
+                                    .toIso8601String()
+                                    .substring(0, 10);
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: dueCtrl,
+                            decoration: const InputDecoration(
+                                labelText: 'Échéance (YYYY-MM-DD)'),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: costCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            labelText: 'Coût unitaire HT'),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Lignes d\'achat (${lines.length})',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
+                        OutlinedButton.icon(
+                          onPressed: () => setS(() {
+                            lines.add(_DraftPurchaseLine(
+                              articleId: articles.first.id,
+                              qty: 10,
+                              unitCostHt: articles.first.pmpCostMru,
+                            ));
+                          }),
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Ajouter ligne'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...List.generate(lines.length, (i) {
+                      final line = lines[i];
+                      final art =
+                          articles.firstWhere((a) => a.id == line.articleId);
+                      final newPmp = CommercialMath.computeWeightedPmp(
+                        currentStock: art.stockQty,
+                        currentPmp: art.pmpCostMru,
+                        incomingQty: line.qty,
+                        incomingCostHt: line.unitCostHt,
+                      );
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: CommercialColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 4,
+                              child: DropdownButtonFormField<int>(
+                                initialValue: line.articleId,
+                                isExpanded: true,
+                                decoration:
+                                    const InputDecoration(labelText: 'Article'),
+                                items: articles
+                                    .map((a) => DropdownMenuItem(
+                                        value: a.id,
+                                        child: Text('${a.sku} · ${a.name}',
+                                            overflow: TextOverflow.ellipsis)))
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  final a =
+                                      articles.firstWhere((e) => e.id == v);
+                                  setS(() {
+                                    line.articleId = v;
+                                    line.unitCostHt = a.pmpCostMru;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 82,
+                              child: TextFormField(
+                                initialValue: line.qty.toStringAsFixed(0),
+                                keyboardType: TextInputType.number,
+                                decoration:
+                                    const InputDecoration(labelText: 'Qté'),
+                                onChanged: (v) => setS(() {
+                                  line.qty =
+                                      (double.tryParse(v) ?? 1).clamp(0.1, 99999);
+                                }),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 112,
+                              child: TextFormField(
+                                key: ValueKey('cost_${i}_${line.articleId}'),
+                                initialValue:
+                                    line.unitCostHt.toStringAsFixed(0),
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                    labelText: 'Coût HT'),
+                                onChanged: (v) => setS(() {
+                                  line.unitCostHt = double.tryParse(v) ?? 0;
+                                }),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 130,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(fmtMru(line.qty * line.unitCostHt),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12)),
+                                  Text('PMP → ${fmtMru(newPmp)}',
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: CommercialColors.primaryBlue)),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: lines.length <= 1
+                                  ? null
+                                  : () => setS(() => lines.removeAt(i)),
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 18, color: CommercialColors.dangerRed),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Valider immédiatement (Entrée stock & recalcul PMP)'),
+                      value: validateNow,
+                      onChanged: (v) => setS(() => validateNow = v),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'Total HT : ${fmtMru(totalHt)}  •  TVA : ${fmtMru(totalTva)}  •  TTC : ${fmtMru(totalHt + totalTva)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: CommercialColors.primaryBlue),
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler')),
+              ElevatedButton(
+                onPressed: () async {
+                  final err = await widget.store.createPurchaseDoc(
+                    docType: widget.docType,
+                    supplierId: supplierId,
+                    validateNow: validateNow,
+                    dueDate: dueCtrl.text.trim(),
+                    lines: lines
+                        .map((l) => {
+                              'articleId': l.articleId,
+                              'qty': l.qty,
+                              'unitCostHt': l.unitCostHt,
+                            })
+                        .toList(),
+                  );
+                  if (!ctx.mounted) return;
+                  if (err != null) {
+                    ScaffoldMessenger.of(ctx)
+                        .showSnackBar(SnackBar(content: Text(err)));
+                  } else {
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('Enregistrer le document'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openPurchaseDetail(
+      BuildContext context, CommercialDoc summary) async {
+    final full = await widget.store.getPurchaseDocDetail(summary.id) ?? summary;
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${full.docNumber} · ${full.partyName}'),
+        content: SizedBox(
+          width: 680,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    'Date : ${full.issueDate} • Statut : ${full.status} • Stock appliqué : ${full.stockApplied ? 'Oui' : 'Non'}'),
+                const SizedBox(height: 12),
+                if (full.lines.isNotEmpty)
+                  DataTable(
+                    columns: const [
+                      DataColumn(label: Text('SKU')),
+                      DataColumn(label: Text('Article')),
+                      DataColumn(label: Text('Qté'), numeric: true),
+                      DataColumn(label: Text('Coût HT'), numeric: true),
+                      DataColumn(label: Text('Total TTC'), numeric: true),
+                    ],
+                    rows: full.lines
+                        .map((l) => DataRow(cells: [
+                              DataCell(Text(l.sku)),
+                              DataCell(Text(l.designation)),
+                              DataCell(Text(l.qty.toStringAsFixed(1))),
+                              DataCell(Text(fmtMru(l.unitPriceHtMru))),
+                              DataCell(Text(fmtMru(l.lineTtcMru))),
+                            ]))
+                        .toList(),
+                  ),
+                const SizedBox(height: 10),
+                Text(
+                  'HT : ${fmtMru(full.totalHtMru)} • TTC : ${fmtMru(full.totalTtcMru)} • Reste dû : ${fmtMru(full.remainingMru)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Annuler')),
-            ElevatedButton(
-              onPressed: () async {
-                final err = await widget.store.createPurchaseDoc(
-                  docType: widget.docType,
-                  supplierId: supplierId,
-                  lines: [
-                    {
-                      'articleId': articleId,
-                      'qty': double.tryParse(qtyCtrl.text) ?? 1,
-                      'unitCostHt': double.tryParse(costCtrl.text) ?? 0,
-                    }
-                  ],
-                );
-                if (!ctx.mounted) return;
-                if (err != null) {
-                  ScaffoldMessenger.of(ctx)
-                      .showSnackBar(SnackBar(content: Text(err)));
-                } else {
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text('Créer'),
-            ),
-          ],
         ),
+        actions: [
+          if (full.status == 'BROUILLON')
+            TextButton(
+              onPressed: () async {
+                await widget.store.deletePurchaseDoc(full.id);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Supprimer brouillon',
+                  style: TextStyle(color: CommercialColors.dangerRed)),
+            ),
+          OutlinedButton.icon(
+            onPressed: () => widget.store.printDocumentA4(full),
+            icon: const Icon(Icons.print_outlined, size: 18),
+            label: const Text('Imprimer A4'),
+          ),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+        ],
       ),
     );
   }
@@ -523,6 +834,7 @@ class _PurchaseDocsViewState extends State<PurchaseDocsView> {
                     'Cash',
                     'Bankily',
                     'Masrivi',
+                    'Sedad',
                     'Virement',
                     'Chèque',
                   ]
@@ -565,11 +877,11 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color color = switch (status) {
-      'PAID' => CommercialColors.successGreen,
-      'PARTIAL' => CommercialColors.warningAmber,
-      'VALIDATED' => CommercialColors.primaryBlue,
-      'DRAFT' => CommercialColors.textMuted,
-      _ => CommercialColors.brandOrange,
+      'PAID' || 'PAYEE' => CommercialColors.successGreen,
+      'PARTIAL' || 'PARTIELLE' => CommercialColors.warningAmber,
+      'VALIDATED' || 'VALIDEE' => CommercialColors.primaryBlue,
+      'DRAFT' || 'BROUILLON' => CommercialColors.textMuted,
+      _ => CommercialColors.brandViolet,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

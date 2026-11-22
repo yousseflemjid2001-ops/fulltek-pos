@@ -400,4 +400,87 @@ class ApiService {
       return ApiResult.success(parsed, statusCode: res.status);
     });
   }
+
+  static Future<ApiResult<List<TenantUserAccount>>> fetchTenantUsers(
+      int tenantId) {
+    return _guard(() async {
+      final res = await _send('GET', '/api/admin/tenants/$tenantId/users');
+      final raw = (res.json['users'] as List?) ?? const [];
+      final users = raw
+          .whereType<Map>()
+          .map((e) => TenantUserAccount.fromJson(e.cast<String, dynamic>()))
+          .toList();
+      return ApiResult.success(users, statusCode: res.status);
+    });
+  }
+
+  static Future<ApiResult<TenantUserAccount>> createTenantUser({
+    required int tenantId,
+    required String fullName,
+    required String username,
+    required String password,
+    required String role,
+    String pinCode = '1234',
+  }) {
+    return _guard(() async {
+      final res = await _send(
+        'POST',
+        '/api/admin/tenants/$tenantId/users',
+        body: {
+          'fullName': fullName.trim(),
+          'username': username.trim(),
+          'password': password.trim(),
+          'role': role.trim().toUpperCase(),
+          'pinCode': pinCode.trim().isEmpty ? '1234' : pinCode.trim(),
+        },
+      );
+      final userMap = (res.json['user'] as Map?)?.cast<String, dynamic>() ??
+          res.json;
+      return ApiResult.success(
+        TenantUserAccount.fromJson(userMap),
+        statusCode: res.status,
+      );
+    });
+  }
+
+  static Future<ApiResult<void>> deleteTenantUser(int tenantId, int userId) {
+    return _guard(() async {
+      final res = await _send(
+        'DELETE',
+        '/api/admin/tenants/$tenantId/users/$userId',
+      );
+      return ApiResult.success(null, statusCode: res.status);
+    });
+  }
+}
+
+class TenantUserAccount {
+  final int id;
+  final int tenantId;
+  final String fullName;
+  final String username;
+  final String role;
+  final String pinCode;
+  final String createdAt;
+
+  const TenantUserAccount({
+    required this.id,
+    required this.tenantId,
+    required this.fullName,
+    required this.username,
+    required this.role,
+    this.pinCode = '',
+    this.createdAt = '',
+  });
+
+  factory TenantUserAccount.fromJson(Map<String, dynamic> j) =>
+      TenantUserAccount(
+        id: (j['id'] as num?)?.toInt() ?? 0,
+        tenantId: (j['tenantId'] as num?)?.toInt() ?? 0,
+        fullName: '${j['fullName'] ?? ''}',
+        username: '${j['username'] ?? ''}',
+        role: '${j['role'] ?? 'CASHIER'}',
+        pinCode: '${j['pinCode'] ?? ''}',
+        createdAt: '${j['createdAt'] ?? ''}',
+      );
 }

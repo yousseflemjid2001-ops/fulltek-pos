@@ -6,6 +6,7 @@ import '../theme/commercial_theme.dart';
 class _PosCartLine {
   final CommercialArticle article;
   double qty;
+  double discountPct = 0;
   _PosCartLine({required this.article, this.qty = 1});
 }
 
@@ -18,11 +19,18 @@ class PosRegisterView extends StatefulWidget {
 }
 
 class _PosRegisterViewState extends State<PosRegisterView> {
+  final _scanCtrl = TextEditingController();
   String _query = '';
+  String _category = 'ALL';
   String _priceTier = 'retail';
-  String _payMethod = 'Cash';
   int? _selectedClientId;
   final List<_PosCartLine> _cart = [];
+
+  @override
+  void dispose() {
+    _scanCtrl.dispose();
+    super.dispose();
+  }
 
   double _unitHt(CommercialArticle a) =>
       _priceTier == 'wholesale' ? a.priceWholeHt : a.priceRetailHt;
@@ -32,10 +40,27 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     return a.isExempt ? ht : ht * (1 + a.tvaRate / 100);
   }
 
-  double get _totalHt =>
-      _cart.fold<double>(0, (s, l) => s + _unitHt(l.article) * l.qty);
-  double get _totalTtc =>
-      _cart.fold<double>(0, (s, l) => s + _unitTtc(l.article) * l.qty);
+  double get _totalHt => _cart.fold<double>(
+      0,
+      (s, l) =>
+          s +
+          CommercialMath.computeLineHt(
+              qty: l.qty,
+              unitPriceHt: _unitHt(l.article),
+              discountPct: l.discountPct));
+
+  double get _totalTtc => _cart.fold<double>(0, (s, l) {
+        final lHt = CommercialMath.computeLineHt(
+            qty: l.qty,
+            unitPriceHt: _unitHt(l.article),
+            discountPct: l.discountPct);
+        final lTva = CommercialMath.computeLineTva(
+            lineHt: lHt,
+            isExempt: l.article.isExempt,
+            tvaRate: l.article.tvaRate);
+        return s + lHt + lTva;
+      });
+
   double get _totalTva => _totalTtc - _totalHt;
 
   void _addArticle(CommercialArticle a) {
@@ -49,15 +74,213 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     });
   }
 
+  void _handleBarcodeSubmit(String raw) {
+    final code = raw.trim().toLowerCase();
+    if (code.isEmpty) return;
+    final found = widget.store.articles.where((a) =>
+        a.barcode.toLowerCase() == code || a.sku.toLowerCase() == code);
+    if (found.isNotEmpty) {
+      _addArticle(found.first);
+      _scanCtrl.clear();
+      setState(() => _query = '');
+    }
+  }
+
+  Future<void> _openSplitCheckoutDialog(BuildContext context) async {
+    final totalDue = _totalTtc;
+    final tenders = <Map<String, dynamic>>[
+      {'payMethod': 'Cash', 'amountMru': totalDue},
+    ];
+    final amountCtrl = TextEditingController(text: totalDue.toStringAsFixed(0));
+    String nextMethod = 'Bankily';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final paid = tenders.fold<double>(
+              0, (s, t) => s + ((t['amountMru'] as num?)?.toDouble() ?? 0));
+          final remaining = (totalDue - paid).clamp(0.0, double.infinity);
+          final change = (paid - totalDue).clamp(0.0, double.infinity);
+
+          return AlertDialog(
+            title: const Text('Encaissement Multi-Modes (Split Payment)'),
+            content: SizedBox(
+              width: 480,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: CommercialColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        _TotalRow('Net à payer TTC', totalDue, bold: true),
+                        _TotalRow('Total reçu', paid),
+                        if (remaining > 0)
+                          _TotalRow('Reste à encaisser', remaining),
+                        if (change > 0)
+                          _TotalRow('Monnaie à rendre', change, bold: true),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Règlements saisis :',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  const SizedBox(height: 6),
+                  ...List.generate(tenders.length, (i) {
+                    final t = tenders[i];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('${t['payMethod']}',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(fmtMru((t['amountMru'] as num).toDouble()),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700)),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 16, color: CommercialColors.dangerRed),
+                            onPressed: () => setS(() => tenders.removeAt(i)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const Divider(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: nextMethod,
+                          decoration:
+                              const InputDecoration(labelText: 'Mode'),
+                          items: const [
+                            'Cash',
+                            'Bankily',
+                            'Masrivi',
+                            'Sedad',
+                            'Bimbank',
+                            'Click',
+                            'Karni',
+                          ]
+                              .map((m) =>
+                                  DropdownMenuItem(value: m, child: Text(m)))
+                              .toList(),
+                          onChanged: (v) =>
+                              setS(() => nextMethod = v ?? 'Cash'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: amountCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Montant MRU'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          final val = double.tryParse(amountCtrl.text) ?? 0;
+                          if (val <= 0) return;
+                          setS(() {
+                            tenders.add(
+                                {'payMethod': nextMethod, 'amountMru': val});
+                            final newPaid = tenders.fold<double>(
+                                0,
+                                (s, t) =>
+                                    s +
+                                    ((t['amountMru'] as num?)?.toDouble() ?? 0));
+                            final rem =
+                                (totalDue - newPaid).clamp(0.0, double.infinity);
+                            amountCtrl.text = rem.toStringAsFixed(0);
+                          });
+                        },
+                        child: const Text('+ Ajouter'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler')),
+              ElevatedButton.icon(
+                onPressed: paid < totalDue - 0.5 || tenders.isEmpty
+                    ? null
+                    : () async {
+                        if (tenders.any((t) => t['payMethod'] == 'Karni') &&
+                            _selectedClientId == null) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                              content: Text(
+                                  'Sélectionnez un client pour encaisser en Karni.')));
+                          return;
+                        }
+                        final err = await widget.store.submitPosTicket(
+                          priceTier: _priceTier,
+                          clientId: _selectedClientId,
+                          lines: _cart
+                              .map((l) => {
+                                    'articleId': l.article.id,
+                                    'qty': l.qty,
+                                    'discountPct': l.discountPct,
+                                  })
+                              .toList(),
+                          payments: tenders,
+                        );
+                        if (!ctx.mounted) return;
+                        if (err != null) {
+                          ScaffoldMessenger.of(ctx)
+                              .showSnackBar(SnackBar(content: Text(err)));
+                        } else {
+                          Navigator.pop(ctx);
+                          setState(() => _cart.clear());
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(change > 0
+                                ? 'Ticket encaissé ! Monnaie à rendre : ${fmtMru(change)}'
+                                : 'Ticket encaissé avec succès !'),
+                          ));
+                        }
+                      },
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Valider le ticket'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
     final session = store.openPosSession;
+    final categories = <String>{
+      'ALL',
+      ...store.articles.map((a) => a.category),
+    }.toList();
+
     final articles = store.articles.where((a) {
+      if (_category != 'ALL' && a.category != _category) return false;
       if (_query.trim().isEmpty) return true;
       final q = _query.toLowerCase();
       return a.name.toLowerCase().contains(q) ||
-          a.sku.toLowerCase().contains(q);
+          a.sku.toLowerCase().contains(q) ||
+          a.barcode.toLowerCase().contains(q);
     }).toList();
 
     return Padding(
@@ -83,7 +306,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             style: TextStyle(fontWeight: FontWeight.w600),
                           )
                         : Text(
-                            'Session ${session.sessionNumber} (${session.registerCode}) • Caissier : ${session.cashierName} • Fond : ${session.openingFloatMru.toStringAsFixed(0)} MRU',
+                            'Session ${session.sessionNumber} (${session.registerCode}) • Caissier : ${session.cashierName} • Tickets : ${session.ticketsCount} • CA : ${fmtMru(session.totalSalesTtcMru)}',
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                   ),
@@ -114,16 +337,21 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     child: Padding(
                       padding: const EdgeInsets.all(14),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
                               Expanded(
                                 child: TextField(
+                                  controller: _scanCtrl,
                                   decoration: const InputDecoration(
-                                    hintText: 'Scanner ou rechercher un article...',
-                                    prefixIcon: Icon(Icons.search, size: 18),
+                                    hintText:
+                                        'Scanner EAN-13 / SKU (Entrée) ou rechercher...',
+                                    prefixIcon:
+                                        Icon(Icons.qr_code_scanner, size: 18),
                                   ),
                                   onChanged: (v) => setState(() => _query = v),
+                                  onSubmitted: _handleBarcodeSubmit,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -140,7 +368,24 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: categories.map((cat) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: ChoiceChip(
+                                    label: Text(cat == 'ALL' ? 'Toutes' : cat),
+                                    selected: _category == cat,
+                                    onSelected: (_) =>
+                                        setState(() => _category = cat),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
                           Expanded(
                             child: GridView.builder(
                               gridDelegate:
@@ -232,10 +477,24 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text('Ticket en cours',
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Ticket en cours',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700)),
+                              if (_cart.isNotEmpty)
+                                TextButton(
+                                  onPressed: () =>
+                                      setState(() => _cart.clear()),
+                                  child: const Text('Vider',
+                                      style: TextStyle(
+                                          color: CommercialColors.dangerRed)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                           DropdownButtonFormField<int?>(
                             initialValue: _selectedClientId,
                             isExpanded: true,
@@ -260,7 +519,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             child: _cart.isEmpty
                                 ? const Center(
                                     child: Text(
-                                      'Panier vide — sélectionnez un article.',
+                                      'Panier vide — scannez ou cliquez un article.',
                                       style: TextStyle(
                                           color: CommercialColors.textMuted),
                                     ),
@@ -313,66 +572,16 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                           ),
                           const Divider(),
                           _TotalRow('Total HT', _totalHt),
-                          _TotalRow('TVA (16%)', _totalTva),
+                          _TotalRow('TVA (16% / Exonéré)', _totalTva),
                           _TotalRow('Net à payer TTC', _totalTtc, bold: true),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField<String>(
-                            initialValue: _payMethod,
-                            decoration: const InputDecoration(
-                                labelText: 'Mode de paiement'),
-                            items: const [
-                              'Cash',
-                              'Bankily',
-                              'Masrivi',
-                              'Sedad',
-                              'Bimbank',
-                              'Click',
-                              'Karni',
-                            ]
-                                .map((m) =>
-                                    DropdownMenuItem(value: m, child: Text(m)))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _payMethod = v ?? 'Cash'),
-                          ),
                           const SizedBox(height: 12),
                           ElevatedButton.icon(
                             onPressed: session == null || _cart.isEmpty
                                 ? null
-                                : () async {
-                                    final err =
-                                        await widget.store.submitPosTicket(
-                                      priceTier: _priceTier,
-                                      clientId: _selectedClientId,
-                                      lines: _cart
-                                          .map((l) => {
-                                                'articleId': l.article.id,
-                                                'qty': l.qty,
-                                              })
-                                          .toList(),
-                                      payments: [
-                                        {
-                                          'payMethod': _payMethod,
-                                          'amountMru': _totalTtc,
-                                        }
-                                      ],
-                                    );
-                                    if (!context.mounted) return;
-                                    if (err != null) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                              SnackBar(content: Text(err)));
-                                    } else {
-                                      setState(() => _cart.clear());
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(const SnackBar(
-                                              content:
-                                                  Text('Ticket encaissé !')));
-                                    }
-                                  },
-                            icon: const Icon(Icons.check_circle_outline),
+                                : () => _openSplitCheckoutDialog(context),
+                            icon: const Icon(Icons.payments_outlined),
                             label: Text(
-                                'Encaisser ${_totalTtc.toStringAsFixed(0)} MRU'),
+                                'Encaisser ${fmtMru(_totalTtc)} (Multi-modes)'),
                           ),
                         ],
                       ),
@@ -455,44 +664,64 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     );
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Clôturer ${session.sessionNumber} (Rapport Z)'),
-        content: SizedBox(
-          width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                  'Espèces théoriques attendues : ${session.expectedCashMru.toStringAsFixed(0)} MRU'),
-              const SizedBox(height: 10),
-              TextField(
-                controller: countedCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Montant compté en tiroir (MRU)'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final counted = double.tryParse(countedCtrl.text) ?? 0;
+          final variance = counted - session.expectedCashMru;
+          return AlertDialog(
+            title: Text('Clôturer ${session.sessionNumber} · Rapport Z'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _TotalRow('Fond d\'ouverture', session.openingFloatMru),
+                  _TotalRow('Total ventes TTC', session.totalSalesTtcMru),
+                  _TotalRow('Espèces attendues tiroir', session.expectedCashMru,
+                      bold: true),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: countedCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'Espèces comptées en tiroir (MRU)'),
+                    onChanged: (_) => setS(() {}),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Écart de caisse : ${variance >= 0 ? '+' : ''}${fmtMru(variance)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: variance.abs() < 1
+                          ? CommercialColors.successGreen
+                          : CommercialColors.dangerRed,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler')),
+              ElevatedButton(
+                onPressed: () async {
+                  final err = await widget.store
+                      .closePosSession(session.id, counted);
+                  if (!ctx.mounted) return;
+                  if (err != null) {
+                    ScaffoldMessenger.of(ctx)
+                        .showSnackBar(SnackBar(content: Text(err)));
+                  } else {
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('Valider Clôture Z'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Annuler')),
-          ElevatedButton(
-            onPressed: () async {
-              final err = await widget.store.closePosSession(
-                  session.id, double.tryParse(countedCtrl.text) ?? 0);
-              if (!ctx.mounted) return;
-              if (err != null) {
-                ScaffoldMessenger.of(ctx)
-                    .showSnackBar(SnackBar(content: Text(err)));
-              } else {
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Clôturer Z'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -552,10 +781,8 @@ class PosSessionsView extends StatelessWidget {
                                           ? CommercialColors.successGreen
                                           : CommercialColors.textMuted,
                                       fontWeight: FontWeight.w600))),
-                              DataCell(Text(
-                                  '${s.openingFloatMru.toStringAsFixed(0)} MRU')),
-                              DataCell(Text(
-                                  '${s.totalSalesTtcMru.toStringAsFixed(0)} MRU')),
+                              DataCell(Text(fmtMru(s.openingFloatMru))),
+                              DataCell(Text(fmtMru(s.totalSalesTtcMru))),
                               DataCell(Text('${s.ticketsCount}')),
                             ],
                           );
@@ -619,8 +846,7 @@ class PosTicketsView extends StatelessWidget {
                                   ? 'Comptoir'
                                   : t.customerName)),
                               DataCell(Text(t.payMethod)),
-                              DataCell(Text(
-                                  '${t.totalTtcMru.toStringAsFixed(0)} MRU')),
+                              DataCell(Text(fmtMru(t.totalTtcMru))),
                               DataCell(Text(t.status,
                                   style: TextStyle(
                                       color: t.status == 'VOID'
@@ -666,7 +892,7 @@ class _TotalRow extends StatelessWidget {
               style: TextStyle(
                   fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
                   fontSize: bold ? 15 : 13)),
-          Text('${amount.toStringAsFixed(0)} MRU',
+          Text(fmtMru(amount),
               style: TextStyle(
                   fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
                   fontSize: bold ? 16 : 13,

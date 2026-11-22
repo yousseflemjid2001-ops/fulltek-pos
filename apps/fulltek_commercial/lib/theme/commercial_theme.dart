@@ -4,8 +4,9 @@ class CommercialColors {
   static const Color sidebarBg = Color(0xFF0F172A);
   static const Color sidebarHover = Color(0xFF1E293B);
   static const Color sidebarActive = Color(0xFF1E293B);
-  static const Color brandOrange = Color(0xFFF97316);
-  static const Color primaryBlue = Color(0xFF2563EB);
+  static const Color brandOrange = Color(0xFF7C3AED);
+  static const Color primaryBlue = Color(0xFF7C3AED);
+  static const Color brandViolet = Color(0xFF7C3AED);
   static const Color successGreen = Color(0xFF10B981);
   static const Color dangerRed = Color(0xFFEF4444);
   static const Color warningAmber = Color(0xFFF59E0B);

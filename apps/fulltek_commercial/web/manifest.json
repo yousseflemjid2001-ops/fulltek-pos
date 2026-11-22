@@ -1,11 +1,11 @@
 {
-    "name": "fulltek_commercial",
-    "short_name": "fulltek_commercial",
+    "name": "Full·Tek Gestion Commerciale",
+    "short_name": "Full·Tek Commercial",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F172A",
+    "theme_color": "#7C3AED",
+    "description": "Full·Tek Gestion Commerciale — Devis, Factures TVA 16%, Stock PMP, Trésorerie et POS en MRU.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

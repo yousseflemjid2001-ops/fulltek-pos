@@ -16,33 +16,45 @@ class TreasuryView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Trésorerie — Caisses & Banques',
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700)),
-                    Text(
-                      'Solde global consolidé : ${total.toStringAsFixed(0)} MRU',
-                      style: const TextStyle(
-                          fontSize: 13, color: CommercialColors.textMuted),
-                    ),
-                  ],
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Trésorerie — Caisses & Banques',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(
+                    'Solde global consolidé : ${fmtMru(total)}',
+                    style: const TextStyle(
+                        fontSize: 13, color: CommercialColors.textMuted),
+                  ),
+                ],
               ),
-              OutlinedButton.icon(
-                onPressed: () => _openTransferDialog(context),
-                icon: const Icon(Icons.swap_horiz, size: 18),
-                label: const Text('Virement interne'),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: () => _openMovementDialog(context),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Nouveau mouvement'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _openCreateAccountDialog(context),
+                    icon: const Icon(Icons.account_balance_outlined, size: 18),
+                    label: const Text('Nouveau compte'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openTransferDialog(context),
+                    icon: const Icon(Icons.swap_horiz, size: 18),
+                    label: const Text('Virement interne'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => _openMovementDialog(context),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Nouveau mouvement'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -77,9 +89,14 @@ class TreasuryView extends StatelessWidget {
                         Text(acc.name,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15)),
+                        if (acc.bankName.isNotEmpty)
+                          Text(acc.bankName,
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: CommercialColors.textMuted)),
                         const SizedBox(height: 8),
                         Text(
-                          '${acc.currentBalanceMru.toStringAsFixed(0)} MRU',
+                          fmtMru(acc.currentBalanceMru),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -118,6 +135,7 @@ class TreasuryView extends StatelessWidget {
                         columns: const [
                           DataColumn(label: Text('Date')),
                           DataColumn(label: Text('Compte')),
+                          DataColumn(label: Text('Mode')),
                           DataColumn(label: Text('Libellé')),
                           DataColumn(label: Text('Sens')),
                           DataColumn(label: Text('Montant'), numeric: true),
@@ -128,6 +146,9 @@ class TreasuryView extends StatelessWidget {
                             cells: [
                               DataCell(Text(m.movementDate)),
                               DataCell(Text(m.accountName)),
+                              DataCell(Text(m.payMethod.isEmpty
+                                  ? '—'
+                                  : m.payMethod)),
                               DataCell(Text(m.label)),
                               DataCell(Text(
                                 isIn ? 'Entrée' : 'Sortie',
@@ -138,7 +159,7 @@ class TreasuryView extends StatelessWidget {
                                     fontWeight: FontWeight.w600),
                               )),
                               DataCell(Text(
-                                '${isIn ? '+' : '-'}${m.amountMru.toStringAsFixed(0)} MRU',
+                                '${isIn ? '+' : '-'}${fmtMru(m.amountMru)}',
                                 style: TextStyle(
                                     color: isIn
                                         ? CommercialColors.successGreen
@@ -159,10 +180,104 @@ class TreasuryView extends StatelessWidget {
     );
   }
 
+  Future<void> _openCreateAccountDialog(BuildContext context) async {
+    final codeCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final bankCtrl = TextEditingController();
+    final balCtrl = TextEditingController(text: '0');
+    String accType = 'BANQUE';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text('Nouveau compte de trésorerie'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: codeCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Code (ex: BNM-01) *'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: accType,
+                        decoration: const InputDecoration(labelText: 'Type'),
+                        items: const [
+                          DropdownMenuItem(value: 'CAISSE', child: Text('Caisse')),
+                          DropdownMenuItem(value: 'BANQUE', child: Text('Banque')),
+                          DropdownMenuItem(
+                              value: 'MOBILE_MONEY', child: Text('Mobile Money')),
+                        ],
+                        onChanged: (v) => setS(() => accType = v ?? 'BANQUE'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Intitulé du compte * (ex: BNM Courant / Bankily)'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: bankCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Établissement (ex: BMCI, BNM, Attijari)'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: balCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: 'Solde d\'ouverture (MRU)'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Annuler')),
+            ElevatedButton(
+              onPressed: () async {
+                final err = await store.createTreasuryAccount(
+                  code: codeCtrl.text,
+                  name: nameCtrl.text,
+                  accountType: accType,
+                  bankName: bankCtrl.text,
+                  openingBalanceMru: double.tryParse(balCtrl.text) ?? 0,
+                );
+                if (!ctx.mounted) return;
+                if (err != null) {
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text(err)));
+                } else {
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Créer le compte'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openMovementDialog(BuildContext context) async {
     if (store.treasuryAccounts.isEmpty) return;
     int accountId = store.treasuryAccounts.first.id;
     String direction = 'IN';
+    String payMethod = 'Cash';
     final amountCtrl = TextEditingController();
     final labelCtrl = TextEditingController();
 
@@ -172,7 +287,7 @@ class TreasuryView extends StatelessWidget {
         builder: (ctx, setS) => AlertDialog(
           title: const Text('Nouveau mouvement de trésorerie'),
           content: SizedBox(
-            width: 400,
+            width: 420,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -186,14 +301,41 @@ class TreasuryView extends StatelessWidget {
                   onChanged: (v) => setS(() => accountId = v ?? accountId),
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: direction,
-                  decoration: const InputDecoration(labelText: 'Sens'),
-                  items: const [
-                    DropdownMenuItem(value: 'IN', child: Text('Entrée (+)')),
-                    DropdownMenuItem(value: 'OUT', child: Text('Sortie (-)')),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: direction,
+                        decoration: const InputDecoration(labelText: 'Sens'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'IN', child: Text('Entrée (+)')),
+                          DropdownMenuItem(
+                              value: 'OUT', child: Text('Sortie (-)')),
+                        ],
+                        onChanged: (v) => setS(() => direction = v ?? 'IN'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: payMethod,
+                        decoration: const InputDecoration(labelText: 'Mode'),
+                        items: const [
+                          'Cash',
+                          'Bankily',
+                          'Masrivi',
+                          'Sedad',
+                          'Virement',
+                          'Chèque',
+                        ]
+                            .map((m) =>
+                                DropdownMenuItem(value: m, child: Text(m)))
+                            .toList(),
+                        onChanged: (v) => setS(() => payMethod = v ?? 'Cash'),
+                      ),
+                    ),
                   ],
-                  onChanged: (v) => setS(() => direction = v ?? 'IN'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -204,7 +346,8 @@ class TreasuryView extends StatelessWidget {
                 const SizedBox(height: 10),
                 TextField(
                   controller: labelCtrl,
-                  decoration: const InputDecoration(labelText: 'Libellé'),
+                  decoration: const InputDecoration(
+                      labelText: 'Libellé / Motif (ex: Loyer, Apport, Frais)'),
                 ),
               ],
             ),
@@ -218,6 +361,7 @@ class TreasuryView extends StatelessWidget {
                 final err = await store.addTreasuryMovement(
                   accountId: accountId,
                   direction: direction,
+                  payMethod: payMethod,
                   amountMru: double.tryParse(amountCtrl.text) ?? 0,
                   label: labelCtrl.text,
                 );
@@ -247,7 +391,7 @@ class TreasuryView extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Virement interne'),
+          title: const Text('Virement interne entre comptes'),
           content: SizedBox(
             width: 380,
             child: Column(
@@ -330,7 +474,8 @@ class ChequesView extends StatelessWidget {
                     Text('Chèques & Traites à échéance',
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w700)),
-                    Text('Portefeuille clients / fournisseurs et encaissements',
+                    Text(
+                        'Cycle complet : En portefeuille → Déposé en banque → Encaissé / Payé / Impayé',
                         style: TextStyle(
                             fontSize: 13, color: CommercialColors.textMuted)),
                   ],
@@ -363,56 +508,75 @@ class ChequesView extends StatelessWidget {
                             const Color(0xFFF8FAFC)),
                         columns: const [
                           DataColumn(label: Text('Numéro')),
-                          DataColumn(label: Text('Type')),
+                          DataColumn(label: Text('Type / Banque')),
                           DataColumn(label: Text('Sens')),
                           DataColumn(label: Text('Tiers')),
                           DataColumn(label: Text('Échéance')),
                           DataColumn(label: Text('Montant'), numeric: true),
                           DataColumn(label: Text('Statut')),
-                          DataColumn(label: Text('Actions')),
+                          DataColumn(label: Text('Workflow')),
                         ],
                         rows: store.cheques.map((ch) {
+                          final isClient =
+                              ch.direction == 'IN' || ch.direction == 'CLIENT';
+                          final isClosed = ch.status == 'ENCAISSE' ||
+                              ch.status == 'PAYE' ||
+                              ch.status == 'IMPAYE';
                           return DataRow(
                             cells: [
                               DataCell(Text(ch.number,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600))),
-                              DataCell(Text(ch.instrumentType)),
-                              DataCell(Text(ch.direction == 'IN' ||
-                                      ch.direction == 'CLIENT'
-                                  ? 'À recevoir'
-                                  : 'À payer')),
+                              DataCell(Text(ch.bankName.isEmpty
+                                  ? ch.instrumentType
+                                  : '${ch.instrumentType} · ${ch.bankName}')),
+                              DataCell(
+                                  Text(isClient ? 'À recevoir' : 'À payer')),
                               DataCell(Text(ch.partyName)),
                               DataCell(Text(ch.dueDate)),
-                              DataCell(Text(
-                                  '${ch.amountMru.toStringAsFixed(0)} MRU')),
+                              DataCell(Text(fmtMru(ch.amountMru))),
                               DataCell(Text(ch.status,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: ch.status == 'IMPAYE'
+                                          ? CommercialColors.dangerRed
+                                          : (ch.status == 'ENCAISSE' ||
+                                                  ch.status == 'PAYE')
+                                              ? CommercialColors.successGreen
+                                              : CommercialColors.primaryBlue))),
                               DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (ch.status != 'ENCAISSE' &&
-                                        ch.status != 'PAYE')
+                                    if (ch.status == 'EN_PORTEFEUILLE')
+                                      TextButton(
+                                        onPressed: () => store
+                                            .updateChequeStatus(ch.id, 'DEPOSE'),
+                                        child: const Text('Déposer'),
+                                      ),
+                                    if (!isClosed) ...[
                                       TextButton(
                                         onPressed: () =>
                                             store.updateChequeStatus(
                                           ch.id,
-                                          ch.direction == 'IN' ||
-                                                  ch.direction == 'CLIENT'
-                                              ? 'ENCAISSE'
-                                              : 'PAYE',
+                                          isClient ? 'ENCAISSE' : 'PAYE',
                                           treasuryAccountId: store
                                                   .treasuryAccounts.isNotEmpty
                                               ? store.treasuryAccounts.first.id
                                               : null,
                                         ),
-                                        child: Text(ch.direction == 'IN' ||
-                                                ch.direction == 'CLIENT'
-                                            ? 'Encaisser'
-                                            : 'Payer'),
+                                        child: Text(
+                                            isClient ? 'Encaisser' : 'Payer'),
                                       ),
+                                      TextButton(
+                                        onPressed: () => store
+                                            .updateChequeStatus(ch.id, 'IMPAYE'),
+                                        child: const Text('Impayé',
+                                            style: TextStyle(
+                                                color:
+                                                    CommercialColors.dangerRed)),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -429,9 +593,13 @@ class ChequesView extends StatelessWidget {
   }
 
   Future<void> _openCreateChequeDialog(BuildContext context) async {
-    String direction = 'IN';
+    String direction = 'CLIENT';
     String instrumentType = 'CHEQUE';
+    int? clientId = store.clients.isNotEmpty ? store.clients.first.id : null;
+    int? supplierId =
+        store.suppliers.isNotEmpty ? store.suppliers.first.id : null;
     final numCtrl = TextEditingController();
+    final bankCtrl = TextEditingController(text: 'BMCI');
     final dueCtrl = TextEditingController(
         text: DateTime.now()
             .add(const Duration(days: 30))
@@ -445,7 +613,7 @@ class ChequesView extends StatelessWidget {
         builder: (ctx, setS) => AlertDialog(
           title: const Text('Nouveau chèque / traite'),
           content: SizedBox(
-            width: 400,
+            width: 460,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -457,11 +625,13 @@ class ChequesView extends StatelessWidget {
                         decoration: const InputDecoration(labelText: 'Sens'),
                         items: const [
                           DropdownMenuItem(
-                              value: 'IN', child: Text('Client (IN)')),
+                              value: 'CLIENT', child: Text('Client (À recevoir)')),
                           DropdownMenuItem(
-                              value: 'OUT', child: Text('Fournisseur (OUT)')),
+                              value: 'FOURNISSEUR',
+                              child: Text('Fournisseur (À payer)')),
                         ],
-                        onChanged: (v) => setS(() => direction = v ?? 'IN'),
+                        onChanged: (v) =>
+                            setS(() => direction = v ?? 'CLIENT'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -482,19 +652,70 @@ class ChequesView extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                TextField(
-                    controller: numCtrl,
-                    decoration: const InputDecoration(labelText: 'Numéro *')),
+                if (direction == 'CLIENT' && store.clients.isNotEmpty)
+                  DropdownButtonFormField<int?>(
+                    initialValue: clientId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Client'),
+                    items: store.clients
+                        .map((c) => DropdownMenuItem<int?>(
+                            value: c.id,
+                            child: Text(c.name,
+                                overflow: TextOverflow.ellipsis)))
+                        .toList(),
+                    onChanged: (v) => setS(() => clientId = v),
+                  )
+                else if (direction == 'FOURNISSEUR' &&
+                    store.suppliers.isNotEmpty)
+                  DropdownButtonFormField<int?>(
+                    initialValue: supplierId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Fournisseur'),
+                    items: store.suppliers
+                        .map((s) => DropdownMenuItem<int?>(
+                            value: s.id,
+                            child: Text(s.name,
+                                overflow: TextOverflow.ellipsis)))
+                        .toList(),
+                    onChanged: (v) => setS(() => supplierId = v),
+                  ),
                 const SizedBox(height: 10),
-                TextField(
-                    controller: dueCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Échéance (YYYY-MM-DD)')),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                          controller: numCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'Numéro *')),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                          controller: bankCtrl,
+                          decoration: const InputDecoration(
+                              labelText: 'Banque (BMCI, BNM...)')),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
-                TextField(
-                  controller: amountCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Montant (MRU)'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                          controller: dueCtrl,
+                          decoration: const InputDecoration(
+                              labelText: 'Échéance (YYYY-MM-DD)')),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: amountCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Montant (MRU) *'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -509,8 +730,11 @@ class ChequesView extends StatelessWidget {
                   direction: direction,
                   instrumentType: instrumentType,
                   number: numCtrl.text,
+                  bankName: bankCtrl.text,
                   dueDate: dueCtrl.text,
                   amountMru: double.tryParse(amountCtrl.text) ?? 0,
+                  clientId: direction == 'CLIENT' ? clientId : null,
+                  supplierId: direction == 'FOURNISSEUR' ? supplierId : null,
                 );
                 if (!ctx.mounted) return;
                 if (err != null) {
@@ -550,6 +774,13 @@ class ObjectivesView extends StatelessWidget {
       'Décembre',
     ];
 
+    final annualTarget =
+        store.objectives.fold<double>(0, (s, o) => s + o.targetCaHtMru);
+    final annualRealized =
+        store.objectives.fold<double>(0, (s, o) => s + o.realizedCaHtMru);
+    final annualPct =
+        annualTarget > 0 ? (annualRealized / annualTarget) * 100 : 0.0;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -576,53 +807,84 @@ class ObjectivesView extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              _AnalyticCard('Objectif Annuel HT', fmtMru(annualTarget)),
+              _AnalyticCard('Réalisé Annuel HT', fmtMru(annualRealized)),
+              _AnalyticCard(
+                  'Atteinte Globale', '${annualPct.toStringAsFixed(1)}%'),
+            ],
+          ),
           const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: DataTable(
-                headingRowColor:
-                    WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-                columns: const [
-                  DataColumn(label: Text('Mois')),
-                  DataColumn(label: Text('Objectif HT'), numeric: true),
-                  DataColumn(label: Text('Réalisé HT'), numeric: true),
-                  DataColumn(label: Text('Atteinte'), numeric: true),
-                  DataColumn(label: Text('Action')),
-                ],
-                rows: List.generate(12, (idx) {
-                  final m = idx + 1;
-                  final obj = store.objectives.where((o) => o.month == m);
-                  final item = obj.isNotEmpty ? obj.first : null;
-                  final target = item?.targetCaHtMru ?? 0;
-                  final actual = item?.realizedCaHtMru ?? 0;
-                  final pct = item?.attainmentPct ?? 0;
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowColor:
+                      WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+                  columns: const [
+                    DataColumn(label: Text('Mois')),
+                    DataColumn(label: Text('Objectif HT'), numeric: true),
+                    DataColumn(label: Text('Réalisé HT'), numeric: true),
+                    DataColumn(label: Text('Progression')),
+                    DataColumn(label: Text('Action')),
+                  ],
+                  rows: List.generate(12, (idx) {
+                    final m = idx + 1;
+                    final obj = store.objectives.where((o) => o.month == m);
+                    final item = obj.isNotEmpty ? obj.first : null;
+                    final target = item?.targetCaHtMru ?? 0;
+                    final actual = item?.realizedCaHtMru ?? 0;
+                    final pct = item?.attainmentPct ?? 0;
 
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(months[idx],
-                          style: const TextStyle(fontWeight: FontWeight.w600))),
-                      DataCell(Text('${target.toStringAsFixed(0)} MRU')),
-                      DataCell(Text('${actual.toStringAsFixed(0)} MRU')),
-                      DataCell(Text(
-                        '${pct.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: pct >= 100
-                              ? CommercialColors.successGreen
-                              : CommercialColors.primaryBlue,
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(months[idx],
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600))),
+                        DataCell(Text(fmtMru(target))),
+                        DataCell(Text(fmtMru(actual))),
+                        DataCell(
+                          SizedBox(
+                            width: 150,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: LinearProgressIndicator(
+                                    value: (pct / 100).clamp(0.0, 1.0),
+                                    minHeight: 7,
+                                    borderRadius: BorderRadius.circular(6),
+                                    color: pct >= 100
+                                        ? CommercialColors.successGreen
+                                        : CommercialColors.primaryBlue,
+                                    backgroundColor: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text('${pct.toStringAsFixed(0)}%',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12)),
+                              ],
+                            ),
+                          ),
                         ),
-                      )),
-                      DataCell(
-                        TextButton(
-                          onPressed: () =>
-                              _editObjectiveDialog(context, m, target),
-                          child: const Text('Définir'),
+                        DataCell(
+                          TextButton(
+                            onPressed: () =>
+                                _editObjectiveDialog(context, m, target),
+                            child: const Text('Définir'),
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                }),
+                      ],
+                    );
+                  }),
+                ),
               ),
             ),
           ),
@@ -695,23 +957,20 @@ class AnalyticsView extends StatelessWidget {
             runSpacing: 14,
             children: isSales
                 ? [
-                    _AnalyticCard('CA HT', '${k.caHtMru.toStringAsFixed(0)} MRU'),
-                    _AnalyticCard(
-                        'Marge HT', '${k.grossMarginMru.toStringAsFixed(0)} MRU'),
+                    _AnalyticCard('CA HT', fmtMru(k.caHtMru)),
+                    _AnalyticCard('Marge HT', fmtMru(k.grossMarginMru)),
                     _AnalyticCard('Taux de marge',
                         '${k.marginRatePct.toStringAsFixed(1)}%'),
-                    _AnalyticCard('Encaissements',
-                        '${k.receiptsMru.toStringAsFixed(0)} MRU'),
+                    _AnalyticCard('Encaissements', fmtMru(k.receiptsMru)),
                     _AnalyticCard('Créances clients TTC',
-                        '${k.clientReceivablesTtcMru.toStringAsFixed(0)} MRU'),
+                        fmtMru(k.clientReceivablesTtcMru)),
                   ]
                 : [
-                    _AnalyticCard('Achats HT',
-                        '${k.purchasesHtMru.toStringAsFixed(0)} MRU'),
-                    _AnalyticCard('Valeur Stock (PMP)',
-                        '${k.stockValuePmpMru.toStringAsFixed(0)} MRU'),
-                    _AnalyticCard('Dettes fournisseurs',
-                        '${k.supplierDebtMru.toStringAsFixed(0)} MRU'),
+                    _AnalyticCard('Achats HT', fmtMru(k.purchasesHtMru)),
+                    _AnalyticCard(
+                        'Valeur Stock (PMP)', fmtMru(k.stockValuePmpMru)),
+                    _AnalyticCard(
+                        'Dettes fournisseurs', fmtMru(k.supplierDebtMru)),
                     _AnalyticCard(
                         'Alertes stock bas', '${d.lowStockCount} articles'),
                   ],
@@ -747,14 +1006,11 @@ class AnalyticsView extends StatelessWidget {
                           cells: [
                             DataCell(Text(a.sku)),
                             DataCell(Text(a.name)),
-                            DataCell(
-                                Text('${a.priceRetailHt.toStringAsFixed(0)} MRU')),
-                            DataCell(
-                                Text('${a.pmpCostMru.toStringAsFixed(0)} MRU')),
-                            DataCell(
-                                Text('${a.stockQty.toStringAsFixed(1)} ${a.unit}')),
+                            DataCell(Text(fmtMru(a.priceRetailHt))),
+                            DataCell(Text(fmtMru(a.pmpCostMru))),
                             DataCell(Text(
-                                '${a.stockValuePmpMru.toStringAsFixed(0)} MRU')),
+                                '${a.stockQty.toStringAsFixed(1)} ${a.unit}')),
+                            DataCell(Text(fmtMru(a.stockValuePmpMru))),
                           ],
                         );
                       }).toList(),
