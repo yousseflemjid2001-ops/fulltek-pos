@@ -267,6 +267,11 @@ class _MenuStockViewState extends State<MenuStockView> {
     bool isTop = existing?.isTop ?? false;
     bool available = existing?.available ?? true;
     bool manualPrice = existing?.manualPrice ?? false;
+    final modGroups = List<ModifierGroup>.from(existing?.modifiers ?? const []);
+    final modNameCtrl = TextEditingController();
+    final modPriceCtrl = TextEditingController(text: '0');
+    String modGroupLabel = 'Suppléments';
+    bool modRequired = false;
     String? err;
 
     await showDialog<void>(
@@ -458,6 +463,185 @@ class _MenuStockViewState extends State<MenuStockView> {
                     value: available,
                     onChanged: (v) => setD(() => available = v),
                   ),
+                  const Divider(height: 20),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Suppléments & Options (ex: +Fromage, Taille, Sauce)',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: modGroupLabel,
+                          isDense: true,
+                          decoration:
+                              const InputDecoration(labelText: 'Groupe'),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'Suppléments',
+                                child: Text('Suppléments (Multiple)')),
+                            DropdownMenuItem(
+                                value: 'Taille',
+                                child: Text('Taille (Choix unique)')),
+                            DropdownMenuItem(
+                                value: 'Sauces',
+                                child: Text('Sauces (Multiple)')),
+                            DropdownMenuItem(
+                                value: 'Cuisson',
+                                child: Text('Cuisson (Choix unique)')),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setD(() {
+                              modGroupLabel = v;
+                              modRequired =
+                                  (v == 'Taille' || v == 'Cuisson');
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          key: const Key('dish_mod_name_input'),
+                          controller: modNameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Option (ex: +Mozzarella)',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          key: const Key('dish_mod_price_input'),
+                          controller: modPriceCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '+ MRU',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton.filledTonal(
+                        key: const Key('dish_mod_add_btn'),
+                        tooltip: 'Ajouter le supplément',
+                        icon: const Icon(Icons.add_rounded),
+                        onPressed: () {
+                          final optName = modNameCtrl.text.trim();
+                          if (optName.isEmpty) return;
+                          final extra =
+                              double.tryParse(modPriceCtrl.text.trim()) ?? 0;
+                          final isMulti = modGroupLabel == 'Suppléments' ||
+                              modGroupLabel == 'Sauces';
+                          final groupId =
+                              'grp-${modGroupLabel.toLowerCase().replaceAll(' ', '-')}';
+                          final newOpt = ModifierOption(
+                            id: 'opt-${DateTime.now().millisecondsSinceEpoch % 100000}',
+                            nameFr: optName,
+                            nameAr: optName,
+                            nameEn: optName,
+                            extraPriceMru: extra < 0 ? 0 : extra,
+                          );
+                          setD(() {
+                            final gIdx =
+                                modGroups.indexWhere((g) => g.id == groupId);
+                            if (gIdx != -1) {
+                              final g = modGroups[gIdx];
+                              modGroups[gIdx] = ModifierGroup(
+                                id: g.id,
+                                nameFr: g.nameFr,
+                                nameAr: g.nameAr,
+                                nameEn: g.nameEn,
+                                required: g.required,
+                                multiSelect: g.multiSelect,
+                                options: [...g.options, newOpt],
+                              );
+                            } else {
+                              modGroups.add(
+                                ModifierGroup(
+                                  id: groupId,
+                                  nameFr: modGroupLabel,
+                                  nameAr: modGroupLabel,
+                                  nameEn: modGroupLabel,
+                                  required: modRequired,
+                                  multiSelect: isMulti,
+                                  options: [newOpt],
+                                ),
+                              );
+                            }
+                            modNameCtrl.clear();
+                            modPriceCtrl.text = '0';
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  if (modGroups.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    for (int gi = 0; gi < modGroups.length; gi++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${modGroups[gi].nameFr} (${modGroups[gi].multiSelect ? 'multiple' : 'unique'})',
+                              style: const TextStyle(
+                                  fontSize: 11.5, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: modGroups[gi].options.map((opt) {
+                                final pStr = opt.extraPriceMru > 0
+                                    ? ' (+${opt.extraPriceMru.toStringAsFixed(0)} MRU)'
+                                    : '';
+                                return InputChip(
+                                  label: Text('${opt.nameFr}$pStr',
+                                      style: const TextStyle(fontSize: 11.5)),
+                                  onDeleted: () {
+                                    setD(() {
+                                      final g = modGroups[gi];
+                                      final nextOpts = g.options
+                                          .where((o) => o.id != opt.id)
+                                          .toList();
+                                      if (nextOpts.isEmpty) {
+                                        modGroups.removeAt(gi);
+                                      } else {
+                                        modGroups[gi] = ModifierGroup(
+                                          id: g.id,
+                                          nameFr: g.nameFr,
+                                          nameAr: g.nameAr,
+                                          nameEn: g.nameEn,
+                                          required: g.required,
+                                          multiSelect: g.multiSelect,
+                                          options: nextOpts,
+                                        );
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -489,6 +673,7 @@ class _MenuStockViewState extends State<MenuStockView> {
                   isTop: isTop,
                   available: available,
                   manualPrice: manualPrice,
+                  modifiers: modGroups,
                 );
                 if (res != null) {
                   setD(() => err = res);
@@ -507,6 +692,8 @@ class _MenuStockViewState extends State<MenuStockView> {
     priceCtrl.dispose();
     iconCtrl.dispose();
     imageCtrl.dispose();
+    modNameCtrl.dispose();
+    modPriceCtrl.dispose();
   }
 
   Future<void> _openNewIngredientDialog() async {

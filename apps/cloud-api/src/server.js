@@ -1632,14 +1632,15 @@ function createApp(options = {}) {
         }
 
         const skuRaw = typeof b.sku === 'string' && b.sku.trim() ? b.sku.trim() : `SKU-${Date.now().toString().slice(-6)}`;
+        const modifiersJson = JSON.stringify(Array.isArray(b.modifiers) ? b.modifiers : []);
         const nowIso = new Date().toISOString();
         const ins = database.prepare(`
           INSERT INTO products (
             tenant_id, category_id, sku, name_fr, name_ar, name_en, icon, image_url,
             unit, price_retail, kitchen_station, manual_price, is_top, is_out_of_stock,
             modifiers_json, active, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, ?, '[]', 1, ?, ?)
-        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, imageUrl, priceRetail, kitchenStation, manualPrice, isTop, isOutOfStock, nowIso, nowIso);
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'portion', ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        `).run(currentTenant.id, categoryId, skuRaw, nameFr, nameAr, nameEn, icon, imageUrl, priceRetail, kitchenStation, manualPrice, isTop, isOutOfStock, modifiersJson, nowIso, nowIso);
         const created = database.prepare('SELECT * FROM products WHERE id = ?').get(ins.lastInsertRowid);
 
         database.prepare(`
@@ -1678,12 +1679,15 @@ function createApp(options = {}) {
           const catRow = database.prepare('SELECT id FROM categories WHERE id = ? AND tenant_id = ?').get(Number(b.categoryId), currentTenant.id);
           if (catRow) categoryId = catRow.id;
         }
+        const modifiersJson = Array.isArray(b.modifiers)
+          ? JSON.stringify(b.modifiers)
+          : (product.modifiers_json || '[]');
         const nowIso = new Date().toISOString();
         database.prepare(`
           UPDATE products SET name_fr = ?, name_ar = ?, name_en = ?, price_retail = ?,
-            category_id = ?, kitchen_station = ?, icon = ?, image_url = ?, manual_price = ?, is_top = ?, is_out_of_stock = ?, updated_at = ?
+            category_id = ?, kitchen_station = ?, icon = ?, image_url = ?, manual_price = ?, is_top = ?, is_out_of_stock = ?, modifiers_json = ?, updated_at = ?
           WHERE id = ? AND tenant_id = ?
-        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, imageUrl, manualPrice, isTop, isOutOfStock, nowIso, product.id, currentTenant.id);
+        `).run(nameFr, nameAr, nameEn, priceRetail, categoryId, kitchenStation, icon, imageUrl, manualPrice, isTop, isOutOfStock, modifiersJson, nowIso, product.id, currentTenant.id);
         const updated = database.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
         return sendJson(res, 200, { ok: true, product: updated });
       }

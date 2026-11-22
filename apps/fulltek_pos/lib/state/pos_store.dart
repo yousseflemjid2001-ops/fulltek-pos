@@ -1759,6 +1759,7 @@ class PosStore extends ChangeNotifier {
     bool manualPrice = false,
     bool isTop = false,
     bool available = true,
+    List<ModifierGroup>? modifiers,
   }) async {
     final trimmedFr = nameFr.trim();
     if (trimmedFr.isEmpty) return 'Nom du plat requis.';
@@ -1787,6 +1788,7 @@ class PosStore extends ChangeNotifier {
         manualPrice: manualPrice,
         isTop: isTop,
         available: available,
+        modifiers: modifiers ?? old.modifiers,
       );
       notifyListeners();
 
@@ -1814,6 +1816,8 @@ class PosStore extends ChangeNotifier {
               'manualPrice': manualPrice,
               'isTop': isTop,
               'available': available,
+              if (modifiers != null)
+                'modifiers': modifiers.map((g) => g.toJson()).toList(),
             }),
           );
         } catch (_) {}
@@ -1837,6 +1841,7 @@ class PosStore extends ChangeNotifier {
       manualPrice: manualPrice,
       isTop: isTop,
       available: available,
+      modifiers: modifiers ?? const [],
     );
 
     if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
@@ -1863,6 +1868,7 @@ class PosStore extends ChangeNotifier {
             'manualPrice': manualPrice,
             'isTop': isTop,
             'available': available,
+            'modifiers': (modifiers ?? const []).map((g) => g.toJson()).toList(),
           }),
         );
         if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -1886,6 +1892,7 @@ class PosStore extends ChangeNotifier {
               manualPrice: finalItem.manualPrice,
               isTop: finalItem.isTop,
               available: finalItem.available,
+              modifiers: finalItem.modifiers,
             );
           }
         } else if (res.statusCode == 401) {
