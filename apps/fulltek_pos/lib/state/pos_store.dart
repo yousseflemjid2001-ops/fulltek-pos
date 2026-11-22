@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../l10n/pos_i18n.dart';
+import '../models/backoffice_models.dart';
 import '../models/pos_models.dart';
 import '../services/catalog_mapper.dart';
 import '../services/http_bridge.dart';
@@ -50,6 +51,13 @@ class PosStore extends ChangeNotifier {
   List<DeliveryZone> deliveryZones = [];
   List<Ingredient> ingredients = [];
   List<RecipeBomLine> recipesBom = [];
+
+  // Back-Office ERP state (persisted to Cloud API SQLite + PostgreSQL)
+  List<RestoSupplier> restoSuppliers = [];
+  List<RestoPurchase> restoPurchases = [];
+  List<RestoExpense> restoExpenses = [];
+  List<RestoB2bInvoice> restoInvoices = [];
+  bool isLoadingBackOffice = false;
 
   double freeDeliveryAboveMru = DeliveryZone.freeDeliveryAboveMru;
   ServiceMode _serviceMode = ServiceMode.dineIn;
@@ -707,6 +715,7 @@ class PosStore extends ChangeNotifier {
       accountOffline = false;
       catalogSource = 'cloud_api';
       lastCatalogSyncAt = DateTime.now();
+      Future.microtask(() => fetchBackOfficeData());
       return parsed.menuItems.isNotEmpty;
     } catch (_) {
       cloudConnected = false;
@@ -2090,6 +2099,376 @@ class PosStore extends ChangeNotifier {
   }
 
   /// Adds a new raw ingredient locally and on Cloud API (/api/pos/ingredients).
+  // --- Back-Office ERP (Fournisseurs, Achats, Charges, Facturation B2B, Comptabilité) ---
+
+  Future<void> fetchBackOfficeData() async {
+    if (cloudJwtToken == null || cloudJwtToken!.isEmpty || accountOffline) {
+      return;
+    }
+    isLoadingBackOffice = true;
+    notifyListeners();
+    try {
+      final res = await _httpRequest(
+        'GET',
+        '$apiBaseUrl/api/pos/backoffice/summary',
+        headers: {
+          'Authorization': 'Bearer $cloudJwtToken',
+          'Accept': 'application/json',
+        },
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        restoSuppliers = ((data['suppliers'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((m) => RestoSupplier.fromJson(m.cast<String, dynamic>()))
+            .toList();
+        restoPurchases = ((data['purchases'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((m) => RestoPurchase.fromJson(m.cast<String, dynamic>()))
+            .toList();
+        restoExpenses = ((data['expenses'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((m) => RestoExpense.fromJson(m.cast<String, dynamic>()))
+            .toList();
+        restoInvoices = ((data['invoices'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((m) => RestoB2bInvoice.fromJson(m.cast<String, dynamic>()))
+            .toList();
+      }
+    } catch (_) {} finally {
+      isLoadingBackOffice = false;
+      notifyListeners();
+    }
+  }
+
+  Future<String?> saveRestoSupplier({
+    int? existingId,
+    required String name,
+    String phone = '',
+    String category = 'Alimentaire',
+    String nif = '',
+    String address = '',
+    String notes = '',
+  }) async {
+    final clean = name.trim();
+    if (clean.isEmpty) return 'Nom du fournisseur requis.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final method = existingId != null ? 'PATCH' : 'POST';
+        final url = existingId != null
+            ? '$apiBaseUrl/api/pos/backoffice/suppliers/$existingId'
+            : '$apiBaseUrl/api/pos/backoffice/suppliers';
+        final res = await _httpRequest(
+          method,
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'name': clean,
+            'phone': phone.trim(),
+            'category': category.trim(),
+            'nif': nif.trim(),
+            'address': address.trim(),
+            'notes': notes.trim(),
+          }),
+        );
+        if (res.statusCode >= 400) {
+          return 'Erreur serveur (HTTP ${res.statusCode})';
+        }
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    final localId = existingId ?? (DateTime.now().millisecondsSinceEpoch % 100000);
+    restoSuppliers.removeWhere((s) => s.id == localId);
+    restoSuppliers.insert(
+      0,
+      RestoSupplier(
+        id: localId,
+        name: clean,
+        phone: phone.trim(),
+        category: category.trim(),
+        nif: nif.trim(),
+        address: address.trim(),
+        notes: notes.trim(),
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> deleteRestoSupplier(int id) async {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/backoffice/suppliers/$id',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    restoSuppliers.removeWhere((s) => s.id == id);
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> createRestoPurchase({
+    int? supplierId,
+    required String supplierName,
+    required double totalTtcMru,
+    double paidMru = 0,
+    bool includeTva = true,
+    String payMethod = 'Cash',
+    String notes = '',
+  }) async {
+    if (supplierName.trim().isEmpty) return 'Fournisseur requis.';
+    if (totalTtcMru <= 0) return 'Montant invalide.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/purchases',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'supplierId': supplierId,
+            'supplierName': supplierName.trim(),
+            'totalTtcMru': totalTtcMru,
+            'paidMru': paidMru,
+            'includeTva': includeTva,
+            'payMethod': payMethod,
+            'notes': notes.trim(),
+          }),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    final tva = includeTva ? (totalTtcMru * 16 / 116).roundToDouble() : 0.0;
+    restoPurchases.insert(
+      0,
+      RestoPurchase(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        docNumber: 'ACH-${DateTime.now().millisecondsSinceEpoch % 100000}',
+        supplierId: supplierId,
+        supplierName: supplierName.trim(),
+        docDate: DateTime.now().toIso8601String().substring(0, 10),
+        status: paidMru >= totalTtcMru ? 'PAID' : (paidMru > 0 ? 'PARTIAL' : 'UNPAID'),
+        subtotalHtMru: totalTtcMru - tva,
+        tvaMru: tva,
+        totalTtcMru: totalTtcMru,
+        paidMru: paidMru,
+        payMethod: payMethod,
+        notes: notes.trim(),
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> payRestoPurchase(int purchaseId, double amountMru,
+      {String payMethod = 'Cash'}) async {
+    if (amountMru <= 0) return 'Montant invalide.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/purchases/$purchaseId/pay',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({'amountMru': amountMru, 'payMethod': payMethod}),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    return null;
+  }
+
+  Future<String?> addRestoExpense({
+    required String category,
+    required String label,
+    required double amountMru,
+    bool includeTva = false,
+    String payMethod = 'Cash',
+    String ref = '',
+    String notes = '',
+  }) async {
+    if (label.trim().isEmpty) return 'Libellé requis.';
+    if (amountMru <= 0) return 'Montant invalide.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/expenses',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'category': category,
+            'label': label.trim(),
+            'amountMru': amountMru,
+            'includeTva': includeTva,
+            'payMethod': payMethod,
+            'ref': ref.trim(),
+            'notes': notes.trim(),
+          }),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    final tva = includeTva ? (amountMru * 16 / 116).roundToDouble() : 0.0;
+    restoExpenses.insert(
+      0,
+      RestoExpense(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        category: category,
+        label: label.trim(),
+        amountMru: amountMru,
+        tvaMru: tva,
+        payMethod: payMethod,
+        expenseDate: DateTime.now().toIso8601String().substring(0, 10),
+        ref: ref.trim(),
+        notes: notes.trim(),
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> deleteRestoExpense(int id) async {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/backoffice/expenses/$id',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    restoExpenses.removeWhere((e) => e.id == id);
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> createRestoB2bInvoice({
+    String docType = 'FACTURE',
+    required String clientName,
+    String clientPhone = '',
+    String clientNif = '',
+    required double totalTtcMru,
+    double paidMru = 0,
+    bool includeTva = true,
+    String payMethod = 'Bankily',
+    String notes = '',
+  }) async {
+    if (clientName.trim().isEmpty) return 'Nom du client requis.';
+    if (totalTtcMru <= 0) return 'Montant invalide.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/invoices',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'docType': docType,
+            'clientName': clientName.trim(),
+            'clientPhone': clientPhone.trim(),
+            'clientNif': clientNif.trim(),
+            'totalTtcMru': totalTtcMru,
+            'paidMru': paidMru,
+            'includeTva': includeTva,
+            'payMethod': payMethod,
+            'notes': notes.trim(),
+          }),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    final tva = includeTva ? (totalTtcMru * 16 / 116).roundToDouble() : 0.0;
+    restoInvoices.insert(
+      0,
+      RestoB2bInvoice(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        docType: docType,
+        docNumber: '${docType == 'DEVIS' ? 'DEV' : 'FAC'}-${DateTime.now().millisecondsSinceEpoch % 100000}',
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        clientNif: clientNif.trim(),
+        docDate: DateTime.now().toIso8601String().substring(0, 10),
+        status: docType == 'DEVIS' ? 'DRAFT' : (paidMru >= totalTtcMru ? 'PAID' : 'UNPAID'),
+        subtotalHtMru: totalTtcMru - tva,
+        tvaMru: tva,
+        totalTtcMru: totalTtcMru,
+        paidMru: paidMru,
+        payMethod: payMethod,
+        notes: notes.trim(),
+      ),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> payRestoB2bInvoice(int invoiceId, double amountMru,
+      {String payMethod = 'Bankily'}) async {
+    if (amountMru <= 0) return 'Montant invalide.';
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
+      try {
+        final res = await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/backoffice/invoices/$invoiceId/pay',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({'amountMru': amountMru, 'payMethod': payMethod}),
+        );
+        if (res.statusCode >= 400) return 'Erreur serveur (HTTP ${res.statusCode})';
+        await fetchBackOfficeData();
+        return null;
+      } catch (_) {
+        return 'Serveur injoignable.';
+      }
+    }
+    return null;
+  }
+
   Future<String?> addIngredient({
     required String nameFr,
     String? nameAr,

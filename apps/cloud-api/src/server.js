@@ -2269,6 +2269,237 @@ function createApp(options = {}) {
         });
       }
 
+      // 2h-bis. Resto Back-Office ERP Routes (/api/pos/backoffice/*) — Tenant-scoped
+      if (req.method === 'GET' && p === '/api/pos/backoffice/summary') {
+        const tenantId = currentTenant.id;
+        const suppliers = database
+          .prepare('SELECT * FROM resto_suppliers WHERE tenant_id = ? AND active = 1 ORDER BY id DESC')
+          .all(tenantId);
+        const purchases = database
+          .prepare('SELECT * FROM resto_purchases WHERE tenant_id = ? ORDER BY id DESC LIMIT 200')
+          .all(tenantId)
+          .map((r) => ({ ...r, items: parseJson(r.items_json, []) }));
+        const expenses = database
+          .prepare('SELECT * FROM resto_expenses WHERE tenant_id = ? ORDER BY id DESC LIMIT 200')
+          .all(tenantId);
+        const invoices = database
+          .prepare('SELECT * FROM resto_b2b_invoices WHERE tenant_id = ? ORDER BY id DESC LIMIT 200')
+          .all(tenantId)
+          .map((r) => ({ ...r, items: parseJson(r.items_json, []) }));
+        return sendJson(res, 200, {
+          ok: true,
+          suppliers,
+          purchases,
+          expenses,
+          invoices,
+        });
+      }
+
+      if (req.method === 'POST' && p === '/api/pos/backoffice/suppliers') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const name = String(b.name || '').trim();
+        if (!name) return sendJson(res, 400, { error: 'Nom du fournisseur requis' });
+        const ins = database.prepare(`
+          INSERT INTO resto_suppliers (tenant_id, name, phone, category, nif, address, balance_due_mru, notes, active)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `).run(
+          currentTenant.id,
+          name,
+          String(b.phone || '').trim(),
+          String(b.category || 'Alimentaire').trim(),
+          String(b.nif || '').trim(),
+          String(b.address || '').trim(),
+          Number(b.balanceDueMru || 0),
+          String(b.notes || '').trim(),
+        );
+        const created = database.prepare('SELECT * FROM resto_suppliers WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, supplier: created });
+      }
+
+      if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/backoffice\/suppliers\/(\d+)$/))) {
+        const sid = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM resto_suppliers WHERE id = ? AND tenant_id = ? AND active = 1').get(sid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Fournisseur introuvable' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        database.prepare(`
+          UPDATE resto_suppliers SET name = ?, phone = ?, category = ?, nif = ?, address = ?, notes = ?
+          WHERE id = ? AND tenant_id = ?
+        `).run(
+          String(b.name ?? cur.name).trim(),
+          String(b.phone ?? cur.phone).trim(),
+          String(b.category ?? cur.category).trim(),
+          String(b.nif ?? cur.nif).trim(),
+          String(b.address ?? cur.address).trim(),
+          String(b.notes ?? cur.notes).trim(),
+          sid,
+          currentTenant.id,
+        );
+        const updated = database.prepare('SELECT * FROM resto_suppliers WHERE id = ?').get(sid);
+        return sendJson(res, 200, { ok: true, supplier: updated });
+      }
+
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/backoffice\/suppliers\/(\d+)$/))) {
+        const sid = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM resto_suppliers WHERE id = ? AND tenant_id = ? AND active = 1').get(sid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Fournisseur introuvable' });
+        database.prepare('UPDATE resto_suppliers SET active = 0 WHERE id = ? AND tenant_id = ?').run(sid, currentTenant.id);
+        return sendJson(res, 200, { ok: true, id: sid });
+      }
+
+      if (req.method === 'POST' && p === '/api/pos/backoffice/purchases') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const supplierId = b.supplierId ? Number(b.supplierId) : null;
+        let supplierName = String(b.supplierName || '').trim();
+        if (supplierId) {
+          const sup = database.prepare('SELECT id, name FROM resto_suppliers WHERE id = ? AND tenant_id = ?').get(supplierId, currentTenant.id);
+          if (sup) supplierName = sup.name;
+        }
+        if (!supplierName) return sendJson(res, 400, { error: 'Fournisseur requis' });
+        const totalTtc = Number(b.totalTtcMru || 0);
+        if (!Number.isFinite(totalTtc) || totalTtc <= 0) return sendJson(res, 400, { error: 'Montant invalide' });
+        const includeTva = b.includeTva !== false;
+        const tvaMru = includeTva ? Math.round((totalTtc * 16) / 116) : 0;
+        const subtotalHt = totalTtc - tvaMru;
+        const paidMru = Math.min(totalTtc, Math.max(0, Number(b.paidMru || 0)));
+        const status = paidMru >= totalTtc ? 'PAID' : (paidMru > 0 ? 'PARTIAL' : 'UNPAID');
+        const docNumber = String(b.docNumber || '').trim() || `ACH-${Date.now().toString().slice(-6)}`;
+        const docDate = String(b.docDate || '').trim() || new Date().toISOString().slice(0, 10);
+        const itemsJson = JSON.stringify(Array.isArray(b.items) ? b.items : []);
+        const ins = database.prepare(`
+          INSERT INTO resto_purchases (
+            tenant_id, doc_number, supplier_id, supplier_name, doc_date, status,
+            subtotal_ht_mru, tva_mru, total_ttc_mru, paid_mru, pay_method, items_json, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          currentTenant.id, docNumber, supplierId, supplierName, docDate, status,
+          subtotalHt, tvaMru, totalTtc, paidMru, String(b.payMethod || 'Cash'), itemsJson, String(b.notes || '').trim(),
+        );
+        const remaining = totalTtc - paidMru;
+        if (supplierId && remaining > 0) {
+          database.prepare('UPDATE resto_suppliers SET balance_due_mru = balance_due_mru + ? WHERE id = ? AND tenant_id = ?')
+            .run(remaining, supplierId, currentTenant.id);
+        }
+        const created = database.prepare('SELECT * FROM resto_purchases WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, purchase: { ...created, items: parseJson(created.items_json, []) } });
+      }
+
+      if (req.method === 'POST' && (m = p.match(/^\/api\/pos\/backoffice\/purchases\/(\d+)\/pay$/))) {
+        const pid = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM resto_purchases WHERE id = ? AND tenant_id = ?').get(pid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Achat introuvable' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const amount = Number(b.amountMru || 0);
+        if (!Number.isFinite(amount) || amount <= 0) return sendJson(res, 400, { error: 'Montant invalide' });
+        const remaining = Math.max(0, Number(cur.total_ttc_mru) - Number(cur.paid_mru));
+        const applied = Math.min(remaining, amount);
+        const nextPaid = Number(cur.paid_mru) + applied;
+        const nextStatus = nextPaid >= Number(cur.total_ttc_mru) ? 'PAID' : 'PARTIAL';
+        database.prepare('UPDATE resto_purchases SET paid_mru = ?, status = ?, pay_method = ? WHERE id = ? AND tenant_id = ?')
+          .run(nextPaid, nextStatus, String(b.payMethod || cur.pay_method || 'Cash'), pid, currentTenant.id);
+        if (cur.supplier_id && applied > 0) {
+          database.prepare('UPDATE resto_suppliers SET balance_due_mru = MAX(0, balance_due_mru - ?) WHERE id = ? AND tenant_id = ?')
+            .run(applied, cur.supplier_id, currentTenant.id);
+        }
+        const updated = database.prepare('SELECT * FROM resto_purchases WHERE id = ?').get(pid);
+        return sendJson(res, 200, { ok: true, purchase: { ...updated, items: parseJson(updated.items_json, []) } });
+      }
+
+      if (req.method === 'POST' && p === '/api/pos/backoffice/expenses') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const label = String(b.label || '').trim();
+        const amount = Number(b.amountMru || 0);
+        if (!label || !Number.isFinite(amount) || amount <= 0) {
+          return sendJson(res, 400, { error: 'Libellé et montant positif requis' });
+        }
+        const includeTva = b.includeTva === true;
+        const tvaMru = includeTva ? Math.round((amount * 16) / 116) : 0;
+        const expDate = String(b.expenseDate || '').trim() || new Date().toISOString().slice(0, 10);
+        const ins = database.prepare(`
+          INSERT INTO resto_expenses (tenant_id, category, label, amount_mru, tva_mru, pay_method, expense_date, ref, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          currentTenant.id,
+          String(b.category || 'Loyer').trim(),
+          label,
+          amount,
+          tvaMru,
+          String(b.payMethod || 'Cash').trim(),
+          expDate,
+          String(b.ref || '').trim(),
+          String(b.notes || '').trim(),
+        );
+        const created = database.prepare('SELECT * FROM resto_expenses WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, expense: created });
+      }
+
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/backoffice\/expenses\/(\d+)$/))) {
+        const eid = Number(m[1]);
+        const cur = database.prepare('SELECT id FROM resto_expenses WHERE id = ? AND tenant_id = ?').get(eid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Charge introuvable' });
+        database.prepare('DELETE FROM resto_expenses WHERE id = ? AND tenant_id = ?').run(eid, currentTenant.id);
+        return sendJson(res, 200, { ok: true, id: eid });
+      }
+
+      if (req.method === 'POST' && p === '/api/pos/backoffice/invoices') {
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const clientName = String(b.clientName || '').trim();
+        if (!clientName) return sendJson(res, 400, { error: 'Nom du client requis' });
+        const docType = String(b.docType || 'FACTURE').toUpperCase();
+        const items = Array.isArray(b.items) ? b.items : [];
+        let totalTtc = Number(b.totalTtcMru || 0);
+        if (totalTtc <= 0 && items.length > 0) {
+          totalTtc = items.reduce((s, it) => s + Number(it.qty || 1) * Number(it.unitPriceMru || 0), 0);
+        }
+        if (!Number.isFinite(totalTtc) || totalTtc <= 0) {
+          return sendJson(res, 400, { error: 'Montant de facture invalide' });
+        }
+        const includeTva = b.includeTva !== false;
+        const tvaMru = includeTva ? Math.round((totalTtc * 16) / 116) : 0;
+        const subtotalHt = totalTtc - tvaMru;
+        const paidMru = Math.min(totalTtc, Math.max(0, Number(b.paidMru || 0)));
+        const status = docType === 'DEVIS' ? 'DRAFT' : (paidMru >= totalTtc ? 'PAID' : (paidMru > 0 ? 'PARTIAL' : 'UNPAID'));
+        const prefix = docType === 'DEVIS' ? 'DEV' : 'FAC';
+        const docNumber = String(b.docNumber || '').trim() || `${prefix}-${Date.now().toString().slice(-6)}`;
+        const docDate = String(b.docDate || '').trim() || new Date().toISOString().slice(0, 10);
+        const ins = database.prepare(`
+          INSERT INTO resto_b2b_invoices (
+            tenant_id, doc_type, doc_number, client_name, client_phone, client_nif, doc_date,
+            status, subtotal_ht_mru, tva_mru, total_ttc_mru, paid_mru, pay_method, items_json, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          currentTenant.id, docType, docNumber, clientName,
+          String(b.clientPhone || '').trim(), String(b.clientNif || '').trim(),
+          docDate, status, subtotalHt, tvaMru, totalTtc, paidMru,
+          String(b.payMethod || 'Bankily'), JSON.stringify(items), String(b.notes || '').trim(),
+        );
+        const created = database.prepare('SELECT * FROM resto_b2b_invoices WHERE id = ?').get(ins.lastInsertRowid);
+        return sendJson(res, 201, { ok: true, invoice: { ...created, items: parseJson(created.items_json, []) } });
+      }
+
+      if (req.method === 'POST' && (m = p.match(/^\/api\/pos\/backoffice\/invoices\/(\d+)\/pay$/))) {
+        const iid = Number(m[1]);
+        const cur = database.prepare('SELECT * FROM resto_b2b_invoices WHERE id = ? AND tenant_id = ?').get(iid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Facture introuvable' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const amount = Number(b.amountMru || 0);
+        if (!Number.isFinite(amount) || amount <= 0) return sendJson(res, 400, { error: 'Montant invalide' });
+        const remaining = Math.max(0, Number(cur.total_ttc_mru) - Number(cur.paid_mru));
+        const applied = Math.min(remaining, amount);
+        const nextPaid = Number(cur.paid_mru) + applied;
+        const nextStatus = nextPaid >= Number(cur.total_ttc_mru) ? 'PAID' : 'PARTIAL';
+        database.prepare("UPDATE resto_b2b_invoices SET doc_type = 'FACTURE', paid_mru = ?, status = ?, pay_method = ? WHERE id = ? AND tenant_id = ?")
+          .run(nextPaid, nextStatus, String(b.payMethod || cur.pay_method || 'Bankily'), iid, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM resto_b2b_invoices WHERE id = ?').get(iid);
+        return sendJson(res, 200, { ok: true, invoice: { ...updated, items: parseJson(updated.items_json, []) } });
+      }
+
       // 2i. Centralized Tenant JWT Auth Guard & Router for ALL /api/commercial/* routes
       if (p === '/api/commercial' || p.startsWith('/api/commercial/')) {
         currentTenant = requireTenantAuth(req, res, database, {

@@ -1128,6 +1128,75 @@ function initSchema(database) {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(tenant_id, payment_number)
     );
+
+    -- =========================================================================
+    -- Full-Tek Resto Back-Office ERP Tables (Suppliers, Purchases, Expenses, B2B Invoices)
+    -- =========================================================================
+    CREATE TABLE IF NOT EXISTS resto_suppliers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT 'Alimentaire',
+      nif TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      balance_due_mru REAL NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS resto_purchases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      doc_number TEXT NOT NULL,
+      supplier_id INTEGER REFERENCES resto_suppliers(id) ON DELETE SET NULL,
+      supplier_name TEXT NOT NULL DEFAULT '',
+      doc_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'UNPAID',
+      subtotal_ht_mru REAL NOT NULL DEFAULT 0,
+      tva_mru REAL NOT NULL DEFAULT 0,
+      total_ttc_mru REAL NOT NULL DEFAULT 0,
+      paid_mru REAL NOT NULL DEFAULT 0,
+      pay_method TEXT NOT NULL DEFAULT 'Cash',
+      items_json TEXT NOT NULL DEFAULT '[]',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS resto_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      category TEXT NOT NULL DEFAULT 'Loyer',
+      label TEXT NOT NULL,
+      amount_mru REAL NOT NULL DEFAULT 0,
+      tva_mru REAL NOT NULL DEFAULT 0,
+      pay_method TEXT NOT NULL DEFAULT 'Cash',
+      expense_date TEXT NOT NULL,
+      ref TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS resto_b2b_invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      doc_type TEXT NOT NULL DEFAULT 'FACTURE',
+      doc_number TEXT NOT NULL,
+      client_name TEXT NOT NULL,
+      client_phone TEXT NOT NULL DEFAULT '',
+      client_nif TEXT NOT NULL DEFAULT '',
+      doc_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'UNPAID',
+      subtotal_ht_mru REAL NOT NULL DEFAULT 0,
+      tva_mru REAL NOT NULL DEFAULT 0,
+      total_ttc_mru REAL NOT NULL DEFAULT 0,
+      paid_mru REAL NOT NULL DEFAULT 0,
+      pay_method TEXT NOT NULL DEFAULT 'Bankily',
+      items_json TEXT NOT NULL DEFAULT '[]',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
