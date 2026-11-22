@@ -290,6 +290,11 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
     final store = widget.store;
     final p = FullTekThemes.paletteOf(context);
     final profiles = store.profiles;
+    if (profiles.isEmpty) {
+      return const Center(
+        child: Text('Aucun profil RBAC configuré.'),
+      );
+    }
     final activeProfile = profiles.firstWhere(
       (prof) => prof.id == _selectedProfileId,
       orElse: () => profiles.first,

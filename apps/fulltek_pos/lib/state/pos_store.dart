@@ -80,6 +80,8 @@ class PosStore extends ChangeNotifier {
   PosStore({HttpBridgeFn? httpRequest, bool? enablePersistence})
       : _httpRequest = httpRequest ?? httpBridgeRequest,
         _enablePersistence = enablePersistence ?? kIsWeb {
+    _initSystemProfiles();
+    deliveryZones = List<DeliveryZone>.from(DeliveryZone.nouakchottPresets);
     if (_enablePersistence) {
       // Production mode: never seed fake demo restaurant data; start clean
       // and load strictly from Cloud API (PostgreSQL/SQLite).
@@ -89,6 +91,55 @@ class PosStore extends ChangeNotifier {
       // Unit-test mode: keep deterministic seed fixture when persistence is disabled.
       _seedMauritanianRestaurantData();
     }
+  }
+
+  void _initSystemProfiles() {
+    profiles = [
+      PosProfile(
+        id: 'prof-master',
+        name: 'Administrateur (Master)',
+        baseRole: PosRole.owner,
+        permissions: Set<PosPermission>.from(PosPermission.values),
+        isMaster: true,
+      ),
+      PosProfile(
+        id: 'prof-supervisor',
+        name: 'Superviseur / Gérant',
+        baseRole: PosRole.manager,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.manager] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-cashier-z',
+        name: 'Caissier (+ Impression Z)',
+        baseRole: PosRole.cashier,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.cashier] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-cashier',
+        name: 'Caissier (Sans Z)',
+        baseRole: PosRole.cashier,
+        permissions: {
+          PosPermission.openTable,
+          PosPermission.serveTable,
+          PosPermission.editCovers,
+          PosPermission.openRegister,
+          PosPermission.takeOrders,
+          PosPermission.checkout,
+          PosPermission.splitBill,
+          PosPermission.manageReservations,
+          PosPermission.manageKarni,
+        },
+      ),
+      PosProfile(
+        id: 'prof-waiter',
+        name: 'Serveur (Table / Salle)',
+        baseRole: PosRole.waiter,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.waiter] ?? const {}),
+      ),
+    ];
   }
 
   static const _storageKey = 'fulltek_pos_state_v1';
