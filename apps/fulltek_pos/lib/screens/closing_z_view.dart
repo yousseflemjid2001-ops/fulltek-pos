@@ -5,6 +5,7 @@ import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/touch_numpad.dart';
 import 'checkout_dialog.dart';
+import 'shift_handover_dialog.dart';
 
 class ClosingZView extends StatefulWidget {
   final PosStore store;
@@ -186,7 +187,41 @@ class _ClosingZViewState extends State<ClosingZView> {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('open_report_x_btn'),
+                    onPressed: () => showReportXDialog(context, store),
+                    icon: Icon(Icons.assessment_outlined,
+                        size: 18, color: p.accent),
+                    label: const Text(
+                      'Rapport X Caissier',
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('open_shift_transfer_z_btn'),
+                    onPressed: () => showShiftHandoverDialog(context, store),
+                    icon: Icon(Icons.swap_horizontal_circle_outlined,
+                        size: 18, color: p.primary),
+                    label: const Text(
+                      'Transfert Service',
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             _zNumericField(
               fieldKey: const Key('z_counted_cash_input'),
               ctrl: _cashCtrl,

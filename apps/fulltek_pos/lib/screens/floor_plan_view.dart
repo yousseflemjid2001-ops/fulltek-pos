@@ -4,6 +4,7 @@ import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/touch_numpad.dart';
+import 'shift_handover_dialog.dart';
 
 class FloorPlanView extends StatefulWidget {
   final PosStore store;
@@ -555,6 +556,16 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                       icon: const Icon(Icons.swap_horiz_rounded, size: 18),
                       label: const Text('Transférer / Fusionner'),
                     ),
+                  OutlinedButton.icon(
+                    key: const Key('shift_transfer_btn'),
+                    onPressed: () async {
+                      await showShiftHandoverDialog(context, store);
+                      if (mounted) setState(() {});
+                    },
+                    icon: const Icon(Icons.swap_horizontal_circle_outlined,
+                        size: 18),
+                    label: const Text('Transfert Service'),
+                  ),
                   ElevatedButton.icon(
                     key: const Key('new_vip_res_btn'),
                     onPressed: _openNewReservationDialog,

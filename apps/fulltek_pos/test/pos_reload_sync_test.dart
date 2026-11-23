@@ -344,4 +344,54 @@ void main() {
       expect(store.tables.first.status, TableStatus.free);
     },
   );
+
+  test(
+    'Report X filters per cashier without closing Z, and Shift Transfer moves open tables between cashiers and servers',
+    () {
+      final store = PosStore(enablePersistence: false);
+      final owner = store.staff.firstWhere((s) => s.role == PosRole.owner);
+      final cashier = store.staff.firstWhere((s) => s.role == PosRole.cashier);
+      final waiter = store.staff.firstWhere((s) => s.role == PosRole.waiter);
+      final dish = store.menuItems.first;
+
+      // Cashier completes 1 cash order
+      expect(store.loginWithPin(cashier.pinCode), isTrue);
+      store.addItemToActiveOrder(dish);
+      final total = store.activeOrder!.netTotal;
+      store.completeCheckout([
+        PaymentEntry(method: PaymentMethod.cash, amountMru: total),
+      ]);
+      expect(store.unclosedOrdersCount, 1);
+
+      // X Report for cashier shows 1 ticket and DOES NOT close Z
+      final xCashier = store.generateReportX80mm(staffName: cashier.name);
+      expect(xCashier, contains('RAPPORT X'));
+      expect(xCashier, contains('X Caissier: ${cashier.name}'));
+      expect(xCashier, contains('Tickets encaisses:'));
+      expect(store.unclosedOrdersCount, 1); // still unclosed!
+
+      // Open 2 tables under cashier/waiter and send to kitchen
+      final t1 = store.tables[0];
+      final t2 = store.tables[1];
+      store.openOrSelectTable(t1.id);
+      store.setActiveOrderServer(waiter.name);
+      store.addItemToActiveOrder(dish);
+      store.sendActiveOrderToKitchenAndPark();
+
+      store.openOrSelectTable(t2.id);
+      store.setActiveOrderServer(waiter.name);
+      store.addItemToActiveOrder(dish);
+      store.sendActiveOrderToKitchenAndPark();
+
+      // Transfer shift: waiter -> owner (server transfer) & cashier -> owner (cashier transfer)
+      final movedServers = store.transferShiftServer(waiter.name, owner.name);
+      expect(movedServers, 2);
+      expect(store.orderForTable(t1.id)!.serverName, owner.name);
+      expect(store.tables.firstWhere((t) => t.id == t1.id).serverName, owner.name);
+
+      final movedCashier = store.transferShiftCashier(cashier.name, owner.name);
+      expect(movedCashier, 2);
+      expect(store.orderForTable(t2.id)!.cashierName, owner.name);
+    },
+  );
 }

@@ -412,6 +412,58 @@ class ReceiptFormatter {
     return buf.toString();
   }
 
+  static String formatReportX80mm({
+    required String scopeLabel,
+    required int ordersCount,
+    required int openTablesCount,
+    required int remakesCount,
+    required double cashMru,
+    required double bankilyMru,
+    required double masriviMru,
+    required double sedadMru,
+    required double bimbankMru,
+    required double clickMru,
+    required double karniMru,
+    String restaurantName = 'FULL-TEK RESTO POS',
+  }) {
+    final now = DateTime.now();
+    final dateStr =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final total = cashMru +
+        bankilyMru +
+        masriviMru +
+        sedadMru +
+        bimbankMru +
+        clickMru +
+        karniMru;
+    final buf = StringBuffer();
+    buf.writeln(_line('='));
+    buf.writeln(_center('*** RAPPORT X / قراءة X ***'));
+    buf.writeln(_center('LECTURE INTERMEDIAIRE (SANS CLOTURE)'));
+    buf.writeln(_center(restaurantName));
+    buf.writeln(_line('='));
+    buf.writeln('Date: $dateStr');
+    buf.writeln('Perimetre: $scopeLabel');
+    buf.writeln(_padRow('Tickets encaisses:', '$ordersCount'));
+    buf.writeln(_padRow('Tables en cours:', '$openTablesCount'));
+    buf.writeln(_padRow('Annulations/Offerts:', '$remakesCount'));
+    buf.writeln(_line());
+    buf.writeln(_padRow('Especes (Cash):', formatMru(cashMru)));
+    buf.writeln(_padRow('Bankily:', formatMru(bankilyMru)));
+    buf.writeln(_padRow('Masrivi:', formatMru(masriviMru)));
+    buf.writeln(_padRow('Sedad:', formatMru(sedadMru)));
+    buf.writeln(_padRow('Bimbank:', formatMru(bimbankMru)));
+    buf.writeln(_padRow('Click:', formatMru(clickMru)));
+    buf.writeln(_padRow('Karni emis:', formatMru(karniMru)));
+    buf.writeln(_line('='));
+    buf.writeln(_padRow('TOTAL ENCAISSE (X):', formatMru(total)));
+    buf.writeln(_line('='));
+    buf.writeln(_center('COMPTEURS NON REMIS A ZERO'));
+    buf.writeln(_line('='));
+    return buf.toString();
+  }
+
   static String formatClosingZReport(CashClosingZ z) {
     final buf = StringBuffer();
     buf.writeln(_line('='));

@@ -4069,9 +4069,10 @@ class PosStore extends ChangeNotifier {
     }).toList(growable: false);
   }
 
-  double _expectedForMethod(PaymentMethod method) {
+  double _expectedForMethodInOrders(
+      List<PosOrder> orders, PaymentMethod method) {
     double sum = 0;
-    for (final o in _unclosedRealOrders) {
+    for (final o in orders) {
       var remainingChange = o.changeDue;
       for (final p in o.payments) {
         if (p.method == method) {
@@ -4087,6 +4088,109 @@ class PosStore extends ChangeNotifier {
       }
     }
     return sum;
+  }
+
+  double _expectedForMethod(PaymentMethod method) =>
+      _expectedForMethodInOrders(_unclosedRealOrders, method);
+
+  /// Generates an 80mm intermediate X-Report ("Rapport X Caissier" or "X Général")
+  /// WITHOUT closing the shift or resetting counters.
+  String generateReportX80mm({String? staffName}) {
+    final target = staffName?.trim();
+    final filterByStaff = target != null && target.isNotEmpty;
+    final normTarget = target?.toLowerCase();
+
+    final orders = filterByStaff
+        ? _unclosedRealOrders.where((o) {
+            final cashier = (o.cashierName ?? o.staffName).trim().toLowerCase();
+            return cashier == normTarget;
+          }).toList(growable: false)
+        : _unclosedRealOrders;
+
+    final remakes = filterByStaff
+        ? _unclosedRemakes
+            .where((r) => r.staffName.trim().toLowerCase() == normTarget)
+            .length
+        : _unclosedRemakes.length;
+
+    final openTables = filterByStaff
+        ? waitingOrders.where((o) {
+            final op = (o.cashierName ?? o.staffName).trim().toLowerCase();
+            return op == normTarget;
+          }).length
+        : waitingOrders.length;
+
+    return ReceiptFormatter.formatReportX80mm(
+      scopeLabel: filterByStaff ? 'X Caissier: $target' : 'X General (Tous)',
+      ordersCount: orders.length,
+      openTablesCount: openTables,
+      remakesCount: remakes,
+      cashMru: _expectedForMethodInOrders(orders, PaymentMethod.cash),
+      bankilyMru: _expectedForMethodInOrders(orders, PaymentMethod.bankily),
+      masriviMru: _expectedForMethodInOrders(orders, PaymentMethod.masrivi),
+      sedadMru: _expectedForMethodInOrders(orders, PaymentMethod.sedad),
+      bimbankMru: _expectedForMethodInOrders(orders, PaymentMethod.bimbank),
+      clickMru: _expectedForMethodInOrders(orders, PaymentMethod.click),
+      karniMru: _expectedForMethodInOrders(orders, PaymentMethod.karni),
+      restaurantName: tenantName,
+    );
+  }
+
+  /// Shift handover: transfers all open/waiting orders from outgoing cashier
+  /// [fromCashierName] to incoming cashier [toCashierName].
+  int transferShiftCashier(String fromCashierName, String toCashierName) {
+    final fromNorm = fromCashierName.trim().toLowerCase();
+    final toClean = toCashierName.trim();
+    if (fromNorm.isEmpty ||
+        toClean.isEmpty ||
+        fromNorm == toClean.toLowerCase()) {
+      return 0;
+    }
+    int count = 0;
+    for (final entry in _openOrdersById.entries.toList()) {
+      final o = entry.value;
+      if (o.items.isEmpty) continue;
+      final curCashier = (o.cashierName ?? o.staffName).trim().toLowerCase();
+      if (curCashier == fromNorm) {
+        _openOrdersById[entry.key] = o.copyWith(
+          cashierName: toClean,
+        );
+        count++;
+      }
+    }
+    if (count > 0) notifyListeners();
+    return count;
+  }
+
+  /// Shift handover: transfers all open/waiting tables & orders from outgoing server
+  /// [fromServerName] to incoming server [toServerName].
+  int transferShiftServer(String fromServerName, String toServerName) {
+    final fromNorm = fromServerName.trim().toLowerCase();
+    final toClean = toServerName.trim();
+    if (fromNorm.isEmpty ||
+        toClean.isEmpty ||
+        fromNorm == toClean.toLowerCase()) {
+      return 0;
+    }
+    int count = 0;
+    for (final entry in _openOrdersById.entries.toList()) {
+      final o = entry.value;
+      if (o.items.isEmpty) continue;
+      final curSrv = (o.serverName ?? o.staffName).trim().toLowerCase();
+      if (curSrv == fromNorm) {
+        _openOrdersById[entry.key] = o.copyWith(serverName: toClean);
+        count++;
+      }
+    }
+    for (var i = 0; i < tables.length; i++) {
+      final t = tables[i];
+      if (t.status != TableStatus.free &&
+          (t.serverName ?? '').trim().toLowerCase() == fromNorm) {
+        tables[i] = t.copyWith(serverName: toClean);
+      }
+    }
+    if (count > 0) notifyListeners();
+    return count;
   }
 
   CashClosingZ submitBlindClosingZ({
