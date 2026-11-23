@@ -1071,7 +1071,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     : (c.maxWidth >= 780
                         ? 4
                         : (c.maxWidth >= 520 ? 3 : 2));
-                final aspect = c.maxWidth < 400 ? 0.86 : 0.94;
+                final aspect = c.maxWidth < 400 ? 0.84 : 0.90;
                 return GridView.builder(
                   itemCount: items.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -1165,47 +1165,53 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                 ),
                                 Padding(
                                   padding:
-                                      const EdgeInsets.fromLTRB(9, 7, 9, 8),
+                                      const EdgeInsets.fromLTRB(10, 8, 10, 9),
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       Text(
                                         item.nameFr,
+                                        textAlign: TextAlign.center,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
                                           color: p.textPrimary,
                                         ),
                                       ),
-                                      const SizedBox(height: 1),
+                                      const SizedBox(height: 2),
                                       Text(
                                         item.nameAr,
+                                        textAlign: TextAlign.center,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          fontSize: 10.5,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
                                           color: p.textMuted,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 6),
                                       Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
+                                            MainAxisAlignment.end,
                                         children: [
+                                          if (item.hasModifiers && !oos) ...[
+                                            Icon(Icons.tune_rounded,
+                                                size: 17, color: p.accent),
+                                            const Spacer(),
+                                          ],
                                           Text(
                                             '${item.priceMru.toStringAsFixed(0)} ${i18n.t('mru')}',
+                                            textAlign: TextAlign.right,
                                             style: TextStyle(
-                                              fontSize: 13,
+                                              fontSize: 15.5,
                                               fontWeight: FontWeight.w900,
                                               color: p.primary,
                                             ),
                                           ),
-                                          if (item.hasModifiers && !oos)
-                                            Icon(Icons.tune_rounded,
-                                                size: 15, color: p.accent),
                                         ],
                                       ),
                                     ],
