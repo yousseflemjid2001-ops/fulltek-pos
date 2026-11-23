@@ -293,7 +293,15 @@ class _MenuStockViewState extends State<MenuStockView> {
                                   'Voulez-vous vraiment supprimer la famille « ${c.nameFr} » ?\nLes plats associés seront déplacés dans « Sans famille ».',
                             );
                             if (!confirmed) return;
-                            await store.deleteCategory(c.id);
+                            final err = await store.deleteCategory(c.id);
+                            if (err != null && mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: Colors.redAccent,
+                                  content: Text(err),
+                                ),
+                              );
+                            }
                             setD(() {});
                           },
                         ),
@@ -1199,7 +1207,15 @@ class _MenuStockViewState extends State<MenuStockView> {
                           'Voulez-vous vraiment supprimer la famille « ${c.nameFr} » ?\nLes plats associés seront déplacés dans « Sans famille ».',
                     );
                     if (!confirmed) return;
-                    await store.deleteCategory(c.id);
+                    final err = await store.deleteCategory(c.id);
+                    if (err != null && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: Colors.redAccent,
+                          content: Text(err),
+                        ),
+                      );
+                    }
                   },
                   icon: Icon(Icons.delete_outline_rounded, color: p.danger),
                 ),
@@ -1286,7 +1302,18 @@ class _MenuStockViewState extends State<MenuStockView> {
                         'Voulez-vous vraiment supprimer « ${m.nameFr} » (${m.priceMru.toStringAsFixed(0)} MRU) ?\nCette action est irréversible.',
                   );
                   if (!confirmed) return;
-                  await store.deleteMenuItem(m.id);
+                  final ok = await store.deleteMenuItem(m.id);
+                  if (!ok && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: Colors.redAccent,
+                        content: Text(
+                          store.lastDeleteError ??
+                              'Suppression refusée : article déjà mouvementé.',
+                        ),
+                      ),
+                    );
+                  }
                 },
                 icon: Icon(Icons.delete_outline_rounded,
                     color: p.danger, size: 19),

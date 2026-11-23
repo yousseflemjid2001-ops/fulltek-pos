@@ -1531,6 +1531,21 @@ function createApp(options = {}) {
         const catId = Number(m[1]);
         const cur = database.prepare('SELECT * FROM categories WHERE id = ? AND tenant_id = ? AND active = 1').get(catId, currentTenant.id);
         if (!cur) return sendJson(res, 404, { error: 'Category not found' });
+        const movRow = database.prepare(`
+          SELECT COUNT(*) AS cnt
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          JOIN products pr ON pr.id = oi.product_id
+          WHERE o.tenant_id = ? AND COALESCE(o.is_training, 0) = 0 AND pr.category_id = ?
+        `).get(currentTenant.id, catId);
+        const movCount = Number(movRow?.cnt || 0);
+        if (movCount > 0) {
+          return sendJson(res, 409, {
+            error: `Suppression impossible : la famille « ${cur.name_fr} » est déjà mouvementée (${movCount} ligne(s) de vente enregistrée(s)).`,
+            code: 'ENTITY_HAS_MOVEMENTS',
+            movementsCount: movCount,
+          });
+        }
         database.prepare('UPDATE categories SET active = 0 WHERE id = ? AND tenant_id = ?').run(catId, currentTenant.id);
         return sendJson(res, 200, { ok: true, categoryId: catId });
       }
@@ -1708,7 +1723,7 @@ function createApp(options = {}) {
         return sendJson(res, 200, { ok: true, product: updated });
       }
 
-      // 2d-quater. DELETE /api/pos/products/:id — Soft-deactivate menu item
+      // 2d-quater. DELETE /api/pos/products/:id — Block if moved, else deactivate
       if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/products\/([^/]+)$/))) {
         let rawKey;
         try { rawKey = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid id' }); }
@@ -1716,6 +1731,25 @@ function createApp(options = {}) {
           ? database.prepare('SELECT * FROM products WHERE tenant_id = ? AND (id = ? OR sku = ?) LIMIT 1').get(currentTenant.id, Number(rawKey), rawKey)
           : database.prepare('SELECT * FROM products WHERE tenant_id = ? AND sku = ? LIMIT 1').get(currentTenant.id, rawKey);
         if (!product) return sendJson(res, 404, { error: 'Product not found' });
+        const salesRow = database.prepare(`
+          SELECT COUNT(*) AS cnt
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          WHERE o.tenant_id = ? AND COALESCE(o.is_training, 0) = 0 AND oi.product_id = ?
+        `).get(currentTenant.id, product.id);
+        const rrcRow = database.prepare(`
+          SELECT COUNT(*) AS cnt
+          FROM returns_remakes_comps
+          WHERE tenant_id = ? AND product_id = ?
+        `).get(currentTenant.id, product.id);
+        const movCount = Number(salesRow?.cnt || 0) + Number(rrcRow?.cnt || 0);
+        if (movCount > 0) {
+          return sendJson(res, 409, {
+            error: `Suppression impossible : l'article « ${product.name_fr} » est déjà mouvementé (${movCount} mouvement(s) enregistré(s)). Désactivez-le (Rupture 86) à la place.`,
+            code: 'ENTITY_HAS_MOVEMENTS',
+            movementsCount: movCount,
+          });
+        }
         database.prepare('UPDATE products SET active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?').run(new Date().toISOString(), product.id, currentTenant.id);
         return sendJson(res, 200, { ok: true, productId: product.id, active: false });
       }
@@ -2986,17 +3020,27 @@ function createApp(options = {}) {
         });
       }
 
-      // 9d. Delete Tenant User Account
+      // 9d. Delete Tenant User Account (blocked if user already has movements)
       if (req.method === 'DELETE' && (m = p.match(/^\/api\/admin\/tenants\/(\d+)\/users\/(\d+)$/))) {
         const tenantId = Number(m[1]);
         const userId = Number(m[2]);
         const target = database
-          .prepare('SELECT id, username, role FROM users WHERE id = ? AND tenant_id = ?')
+          .prepare('SELECT id, full_name, username, role FROM users WHERE id = ? AND tenant_id = ?')
           .get(userId, tenantId);
         if (!target) return sendJson(res, 404, { error: 'User not found' });
         const countRow = database.prepare('SELECT COUNT(*) AS cnt FROM users WHERE tenant_id = ?').get(tenantId);
         if (Number(countRow.cnt) <= 1) {
           return sendJson(res, 400, { error: 'Impossible de supprimer le dernier compte de la boutique' });
+        }
+        const ordRow = database.prepare('SELECT COUNT(*) AS cnt FROM orders WHERE tenant_id = ? AND user_id = ? AND COALESCE(is_training, 0) = 0').get(tenantId, userId);
+        const zRow = database.prepare('SELECT COUNT(*) AS cnt FROM cash_closings_z WHERE tenant_id = ? AND (user_id = ? OR LOWER(approved_by) = LOWER(?)) AND COALESCE(is_training, 0) = 0').get(tenantId, userId, target.full_name || target.username);
+        const movCount = Number(ordRow?.cnt || 0) + Number(zRow?.cnt || 0);
+        if (movCount > 0) {
+          return sendJson(res, 409, {
+            error: `Suppression impossible : le compte « ${target.full_name || target.username} » est déjà mouvementé (${movCount} opération(s)). Désactivez-le à la place.`,
+            code: 'ENTITY_HAS_MOVEMENTS',
+            movementsCount: movCount,
+          });
         }
         database.prepare('DELETE FROM users WHERE id = ? AND tenant_id = ?').run(userId, tenantId);
         return sendJson(res, 200, { deleted: true, id: userId });

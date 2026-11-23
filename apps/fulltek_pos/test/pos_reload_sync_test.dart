@@ -265,4 +265,48 @@ void main() {
       expect(store.shouldAutoPrintLastReceipt, isTrue);
     },
   );
+
+  test(
+    'Strict movement integrity blocks deleting moved products, families, and staff accounts',
+    () async {
+      final store = PosStore(enablePersistence: false);
+      final cashier = store.staff.firstWhere((s) => s.role == PosRole.cashier);
+      expect(store.loginWithPin(cashier.pinCode), isTrue);
+
+      // Create a fresh category and dish, then sell it once
+      await store.saveCategory(nameFr: 'Catégorie Test Mouvement');
+      final cat = store.categories
+          .firstWhere((c) => c.nameFr == 'Catégorie Test Mouvement');
+      await store.saveMenuItem(
+        nameFr: 'Riz au Poisson Test',
+        categoryId: cat.id,
+        priceMru: 200,
+      );
+      final dish = store.menuItems
+          .firstWhere((m) => m.nameFr == 'Riz au Poisson Test');
+
+      store.addItemToActiveOrder(dish);
+      final paid = store.completeCheckout([
+        PaymentEntry(method: PaymentMethod.cash, amountMru: dish.priceMru),
+      ]);
+      expect(paid, isNotNull);
+
+      // 1. Deleting moved product -> BLOCKED
+      expect(await store.deleteMenuItem(dish.id), isFalse);
+      expect(store.lastDeleteError, contains('déjà mouvementé'));
+      expect(store.menuItems.any((m) => m.id == dish.id), isTrue);
+
+      // 2. Deleting moved family -> BLOCKED
+      final catErr = await store.deleteCategory(cat.id);
+      expect(catErr, isNotNull);
+      expect(catErr, contains('déjà mouvementée'));
+      expect(store.categories.any((c) => c.id == cat.id), isTrue);
+
+      // 3. Deleting moved staff account -> BLOCKED
+      final staffErr = store.deleteStaffMember(cashier.id);
+      expect(staffErr, isNotNull);
+      expect(staffErr, contains('déjà mouvementé'));
+      expect(store.staff.any((s) => s.id == cashier.id), isTrue);
+    },
+  );
 }

@@ -2292,12 +2292,152 @@ class PosStore extends ChangeNotifier {
     return null;
   }
 
+  String? lastDeleteError;
+
+  /// Returns true if a menu dish already has sales, open orders, or remake/void movements.
+  bool hasProductMovements(MenuItem m) {
+    bool matches(OrderItem l) =>
+        l.item.id == m.id ||
+        (m.sku.isNotEmpty && l.item.sku == m.sku) ||
+        l.item.nameFr.trim().toLowerCase() == m.nameFr.trim().toLowerCase();
+
+    if (_completedOrders.any((o) => !o.isTraining && o.items.any(matches))) {
+      return true;
+    }
+    if (_openOrdersById.values
+        .any((o) => !o.isTraining && o.items.any(matches))) {
+      return true;
+    }
+    if (_remakeRecords.any((r) =>
+        r.itemName.trim().toLowerCase() == m.nameFr.trim().toLowerCase())) {
+      return true;
+    }
+    for (final q in _syncQueue) {
+      if (q.entityType == 'order') {
+        final rawItems = q.payload['items'];
+        if (rawItems is List) {
+          for (final it in rawItems.whereType<Map>()) {
+            final pid = '${it['product_id'] ?? it['id'] ?? ''}';
+            final sku = '${it['sku'] ?? ''}';
+            final name = '${it['name'] ?? it['name_fr'] ?? ''}'.trim().toLowerCase();
+            if (pid == m.id ||
+                (m.sku.isNotEmpty && sku == m.sku) ||
+                (name.isNotEmpty && name == m.nameFr.trim().toLowerCase())) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Returns true if any dish in [catId] has recorded movements.
+  bool hasCategoryMovements(String catId) {
+    final inCat = menuItems.where((m) => m.categoryId == catId);
+    if (inCat.any(hasProductMovements)) return true;
+    if (_completedOrders.any(
+        (o) => !o.isTraining && o.items.any((l) => l.item.categoryId == catId))) {
+      return true;
+    }
+    if (_openOrdersById.values.any(
+        (o) => !o.isTraining && o.items.any((l) => l.item.categoryId == catId))) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Returns true if a staff account already has recorded tickets, Z-closings, or voids.
+  bool hasStaffMovements(StaffMember s) {
+    final name = s.name.trim().toLowerCase();
+    if (_completedOrders.any((o) =>
+        !o.isTraining &&
+        (o.staffName.trim().toLowerCase() == name ||
+            (o.serverName?.trim().toLowerCase() == name) ||
+            (o.cashierName?.trim().toLowerCase() == name)))) {
+      return true;
+    }
+    if (_openOrdersById.values.any((o) =>
+        !o.isTraining &&
+        (o.staffName.trim().toLowerCase() == name ||
+            (o.serverName?.trim().toLowerCase() == name)))) {
+      return true;
+    }
+    if (_closingsZ.any((z) => z.cashierName.trim().toLowerCase() == name)) {
+      return true;
+    }
+    if (_remakeRecords.any((r) =>
+        r.staffName.trim().toLowerCase() == name ||
+        (r.approvedBy?.trim().toLowerCase() == name))) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Deletes a staff account ONLY if it has zero recorded movements.
+  String? deleteStaffMember(String staffId) {
+    lastDeleteError = null;
+    final idx = staff.indexWhere((s) => s.id == staffId);
+    if (idx == -1) return 'Compte introuvable.';
+    final target = staff[idx];
+    if (target.role == PosRole.owner &&
+        staff.where((s) => s.role == PosRole.owner && s.isActive).length <= 1) {
+      lastDeleteError =
+          'Impossible de supprimer le dernier compte Propriétaire.';
+      return lastDeleteError;
+    }
+    if (hasStaffMovements(target)) {
+      lastDeleteError =
+          'Suppression impossible : le compte « ${target.name} » est déjà mouvementé (ventes ou clôtures Z enregistrées). Désactivez-le à la place.';
+      return lastDeleteError;
+    }
+    staff.removeAt(idx);
+    notifyListeners();
+    return null;
+  }
+
   Future<String?> deleteCategory(String id) async {
+    lastDeleteError = null;
     if (id == 'sans-famille') {
-      return 'La famille par défaut "Sans famille" ne peut pas être supprimée.';
+      lastDeleteError =
+          'La famille par défaut "Sans famille" ne peut pas être supprimée.';
+      return lastDeleteError;
     }
     final idx = categories.indexWhere((c) => c.id == id);
     if (idx == -1) return 'Famille introuvable.';
+    final cat = categories[idx];
+
+    if (hasCategoryMovements(id)) {
+      lastDeleteError =
+          'Suppression impossible : la famille « ${cat.nameFr} » est déjà mouvementée (ventes enregistrées sur ses articles).';
+      return lastDeleteError;
+    }
+
+    if (cloudConnected &&
+        cloudJwtToken != null &&
+        !accountOffline &&
+        RegExp(r'^\d+$').hasMatch(id)) {
+      try {
+        final res = await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/categories/$id',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        if (res.statusCode == 409 || res.statusCode >= 400) {
+          try {
+            final map = jsonDecode(res.body);
+            if (map is Map && map['error'] != null) {
+              lastDeleteError = '${map['error']}';
+              return lastDeleteError;
+            }
+          } catch (_) {}
+          lastDeleteError =
+              'Suppression refusée par le serveur (HTTP ${res.statusCode}).';
+          return lastDeleteError;
+        }
+      } catch (_) {}
+    }
+
     categories.removeAt(idx);
     // Reassign items to 'sans-famille'
     if (!categories.any((c) => c.id == 'sans-famille')) {
@@ -2318,18 +2458,6 @@ class PosStore extends ChangeNotifier {
         m.categoryId == id ? m.copyWith(categoryId: 'sans-famille') : m,
     ];
     notifyListeners();
-
-    if (cloudConnected &&
-        cloudJwtToken != null &&
-        RegExp(r'^\d+$').hasMatch(id)) {
-      try {
-        await _httpRequest(
-          'DELETE',
-          '$apiBaseUrl/api/pos/categories/$id',
-          headers: {'Authorization': 'Bearer $cloudJwtToken'},
-        );
-      } catch (_) {}
-    }
     return null;
   }
 
@@ -2503,24 +2631,46 @@ class PosStore extends ChangeNotifier {
   }
 
   /// Deactivates / deletes a menu dish locally and on Cloud API.
+  /// Strictly blocked if the dish already has recorded sales/void movements.
   Future<bool> deleteMenuItem(String id) async {
+    lastDeleteError = null;
     final idx = menuItems.indexWhere((m) => m.id == id);
     if (idx == -1) return false;
-    final old = menuItems.removeAt(idx);
-    notifyListeners();
+    final target = menuItems[idx];
+
+    if (hasProductMovements(target)) {
+      lastDeleteError =
+          'Suppression impossible : « ${target.nameFr} » est déjà mouvementé (ventes enregistrées). Désactivez-le (Rupture 86) à la place.';
+      return false;
+    }
 
     if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
-        final key = old.sku.isNotEmpty ? old.sku : old.id;
-        await _httpRequest(
+        final key = target.sku.isNotEmpty ? target.sku : target.id;
+        final res = await _httpRequest(
           'DELETE',
           '$apiBaseUrl/api/pos/products/${Uri.encodeComponent(key)}',
           headers: {
             'Authorization': 'Bearer $cloudJwtToken',
           },
         );
+        if (res.statusCode == 409 || res.statusCode >= 400) {
+          try {
+            final map = jsonDecode(res.body);
+            if (map is Map && map['error'] != null) {
+              lastDeleteError = '${map['error']}';
+              return false;
+            }
+          } catch (_) {}
+          lastDeleteError =
+              'Suppression refusée par le serveur (HTTP ${res.statusCode}).';
+          return false;
+        }
       } catch (_) {}
     }
+
+    menuItems.removeAt(idx);
+    notifyListeners();
     return true;
   }
 
