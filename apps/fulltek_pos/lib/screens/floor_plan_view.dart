@@ -406,6 +406,37 @@ class _FloorPlanViewState extends State<FloorPlanView> {
               TextButton.icon(
                 key: const Key('delete_table_btn'),
                 onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: ctx,
+                    builder: (c2) => AlertDialog(
+                      title: const Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              color: Colors.redAccent),
+                          SizedBox(width: 8),
+                          Expanded(child: Text('Supprimer la table')),
+                        ],
+                      ),
+                      content: Text(
+                        'Voulez-vous vraiment supprimer la table « ${existing.code} » ?\nCette action est irréversible.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(c2).pop(false),
+                          child: Text(store.i18n.t('cancel')),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () => Navigator.of(c2).pop(true),
+                          child: const Text('Supprimer'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
                   final res = await store.deleteDiningTable(existing.id);
                   if (res != null) {
                     setD(() => err = res);
@@ -630,7 +661,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
               children: [
                 _statusLegendChip('Libre', p.success, p),
                 _statusLegendChip('En attente / Occupée', p.warning, p),
-                _statusLegendChip('Addition demandée', p.primary, p),
+                _statusLegendChip('Note sortie', p.primary, p),
                 _statusLegendChip('Réservée VIP', p.vipGold, p),
               ],
             ),
@@ -704,7 +735,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                   ? '⏳ En attente'
                   : i18n.t('status_occupied'),
           TableStatus.reserved => i18n.t('status_reserved'),
-          TableStatus.billRequested => '🧾 ${i18n.t('status_bill')}',
+          TableStatus.billRequested => '🧾 Note',
         };
 
         final shapeIcon = switch (t.shape) {

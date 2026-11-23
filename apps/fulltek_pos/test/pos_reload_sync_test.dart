@@ -237,13 +237,32 @@ void main() {
 
       final addition = store.requestAdditionForActiveOrder();
       expect(addition, isNotNull);
-      expect(addition, contains('ADDITION'));
+      expect(addition, contains('NOTE'));
       expect(addition, contains('Serveur: ${waiter.name}'));
       expect(addition, contains('TOTAL A PAYER:'));
       expect(
         store.tables.firstWhere((t) => t.id == tbl.id).status,
         TableStatus.billRequested,
       );
+
+      // Option "Impression après Note" OFF -> checkout skips auto-print for orders that had a Note
+      store.setPrintReceiptAfterNote(false);
+      final total = store.activeOrder!.netTotal;
+      final paid = store.completeCheckout([
+        PaymentEntry(method: PaymentMethod.bankily, amountMru: total),
+      ]);
+      expect(paid, isNotNull);
+      expect(store.lastCheckoutHadNote, isTrue);
+      expect(store.shouldAutoPrintLastReceipt, isFalse);
+
+      // Direct counter order without Note still auto-prints even when printReceiptAfterNote == false
+      store.addItemToActiveOrder(store.menuItems.first);
+      final total2 = store.activeOrder!.netTotal;
+      store.completeCheckout([
+        PaymentEntry(method: PaymentMethod.cash, amountMru: total2),
+      ]);
+      expect(store.lastCheckoutHadNote, isFalse);
+      expect(store.shouldAutoPrintLastReceipt, isTrue);
     },
   );
 }

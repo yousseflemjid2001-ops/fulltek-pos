@@ -240,8 +240,8 @@ class ReceiptFormatter {
     if (order.isTraining) {
       buf.writeln(_center('*** MODE FORMATION ***'));
     }
-    buf.writeln(_center('*** ADDITION / الفاتورة المبدئية ***'));
-    buf.writeln(_center('PRE-NOTE AVANT ENCAISSEMENT'));
+    buf.writeln(_center('*** NOTE / ADDITION ***'));
+    buf.writeln(_center('NOTE SANS ENCAISSEMENT / الفاتورة المبدئية'));
     buf.writeln(_center(restaurantName));
     if (restaurantNameAr.trim().isNotEmpty) {
       buf.writeln(_center(restaurantNameAr));

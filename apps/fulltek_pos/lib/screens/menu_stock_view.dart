@@ -20,6 +20,41 @@ class _MenuStockViewState extends State<MenuStockView> {
   bool get _canEdit =>
       widget.store.canCurrent(PosPermission.voidOrComp) || _elevatedByPin;
 
+  Future<bool> _confirmDelete({
+    required String title,
+    required String message,
+  }) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(widget.store.i18n.t('cancel')),
+          ),
+          ElevatedButton(
+            key: const Key('confirm_delete_btn'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
   Future<void> _requestManagerElevation() async {
     final ctrl = TextEditingController();
     String? err;
@@ -251,6 +286,12 @@ class _MenuStockViewState extends State<MenuStockView> {
                           icon: const Icon(Icons.delete_outline_rounded,
                               size: 18),
                           onPressed: () async {
+                            final confirmed = await _confirmDelete(
+                              title: 'Supprimer la famille',
+                              message:
+                                  'Voulez-vous vraiment supprimer la famille « ${c.nameFr} » ?\nLes plats associés seront déplacés dans « Sans famille ».',
+                            );
+                            if (!confirmed) return;
                             await store.deleteCategory(c.id);
                             setD(() {});
                           },
@@ -1143,7 +1184,15 @@ class _MenuStockViewState extends State<MenuStockView> {
                 IconButton(
                   key: Key('delete_family_${c.id}'),
                   tooltip: 'Supprimer',
-                  onPressed: () => store.deleteCategory(c.id),
+                  onPressed: () async {
+                    final confirmed = await _confirmDelete(
+                      title: 'Supprimer la famille',
+                      message:
+                          'Voulez-vous vraiment supprimer la famille « ${c.nameFr} » ?\nLes plats associés seront déplacés dans « Sans famille ».',
+                    );
+                    if (!confirmed) return;
+                    await store.deleteCategory(c.id);
+                  },
                   icon: Icon(Icons.delete_outline_rounded, color: p.danger),
                 ),
             ],
@@ -1222,7 +1271,15 @@ class _MenuStockViewState extends State<MenuStockView> {
               IconButton(
                 key: Key('delete_dish_${m.id}'),
                 tooltip: 'Supprimer',
-                onPressed: () => store.deleteMenuItem(m.id),
+                onPressed: () async {
+                  final confirmed = await _confirmDelete(
+                    title: 'Supprimer l\'article',
+                    message:
+                        'Voulez-vous vraiment supprimer « ${m.nameFr} » (${m.priceMru.toStringAsFixed(0)} MRU) ?\nCette action est irréversible.',
+                  );
+                  if (!confirmed) return;
+                  await store.deleteMenuItem(m.id);
+                },
                 icon: Icon(Icons.delete_outline_rounded,
                     color: p.danger, size: 19),
               ),

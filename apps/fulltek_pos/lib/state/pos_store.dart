@@ -180,6 +180,7 @@ class PosStore extends ChangeNotifier {
         'enabledPayMethods': enabledPayMethods,
         'ticketCounter': _ticketCounter,
         'syncCounter': _syncCounter,
+        'printReceiptAfterNote': printReceiptAfterNote,
         'lastZClosedAt': _lastZClosedAt?.toIso8601String(),
         'closingsZ': _closingsZ.map((z) => z.toSyncJson()).toList(),
         'remakeRecords': _remakeRecords
@@ -291,6 +292,9 @@ class PosStore extends ChangeNotifier {
       }
       if (map['syncCounter'] is int) {
         _syncCounter = map['syncCounter'] as int;
+      }
+      if (map['printReceiptAfterNote'] is bool) {
+        printReceiptAfterNote = map['printReceiptAfterNote'] as bool;
       }
       final savedZ = map['closingsZ'] as List?;
       if (savedZ != null) {
@@ -1972,11 +1976,28 @@ class PosStore extends ChangeNotifier {
     return kdsText;
   }
 
-  /// Generates the 80mm Pre-Bill / Addition ("L'Addition") before checkout
+  /// Option « Impression après Note » (ON by default; when OFF, skips auto-printing
+  /// the Final Ticket at checkout if a Note was already printed for the order to save paper).
+  bool printReceiptAfterNote = true;
+  final Set<String> _notePrintedOrderIds = {};
+  bool lastCheckoutHadNote = false;
+
+  bool hasNotePrinted(String orderId) => _notePrintedOrderIds.contains(orderId);
+
+  bool get shouldAutoPrintLastReceipt =>
+      printReceiptAfterNote || !lastCheckoutHadNote;
+
+  void setPrintReceiptAfterNote(bool value) {
+    printReceiptAfterNote = value;
+    notifyListeners();
+  }
+
+  /// Generates the 80mm Note / Pre-Bill ("La Note") before checkout
   /// and marks any linked table as [TableStatus.billRequested].
   String? requestAdditionForActiveOrder() {
     final order = activeOrder;
     if (order == null || order.items.isEmpty) return null;
+    _notePrintedOrderIds.add(order.id);
     if (order.tableId != null) {
       final tIdx = tables.indexWhere((t) =>
           t.id == order.tableId ||
@@ -3519,6 +3540,8 @@ class PosStore extends ChangeNotifier {
       lastCheckoutError = karniErr;
       return null;
     }
+
+    lastCheckoutHadNote = _notePrintedOrderIds.remove(order.id);
 
     final closed = order.copyWith(
       payments: payments,

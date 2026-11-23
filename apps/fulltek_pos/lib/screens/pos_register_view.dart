@@ -138,19 +138,45 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     }
   }
 
+  void _handlePostCheckoutReceipt(PosOrder closed) {
+    final receipt = buildReceiptForClosedOrder(closed, store: widget.store);
+    if (widget.store.shouldAutoPrintLastReceipt) {
+      showReceiptPreviewDialog(
+        context,
+        title: 'Ticket Final · ${widget.store.i18n.t('receipt_preview')}',
+        subtitle: widget.store.i18n.t('open_drawer'),
+        receiptText: receipt,
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '✅ Encaissé (${closed.netTotal.toStringAsFixed(0)} MRU) · Note déjà sortie (ticket non réimprimé)',
+        ),
+        action: SnackBarAction(
+          label: 'Imprimer Ticket Final',
+          onPressed: () {
+            if (!mounted) return;
+            showReceiptPreviewDialog(
+              context,
+              title: 'Ticket Final · ${widget.store.i18n.t('receipt_preview')}',
+              subtitle: widget.store.i18n.t('open_drawer'),
+              receiptText: receipt,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _openCheckout() async {
     final closed = await showDialog<PosOrder>(
       context: context,
       builder: (_) => CheckoutDialog(store: widget.store),
     );
     if (closed != null && mounted) {
-      final receipt = buildReceiptForClosedOrder(closed, store: widget.store);
-      showReceiptPreviewDialog(
-        context,
-        title: widget.store.i18n.t('receipt_preview'),
-        subtitle: widget.store.i18n.t('open_drawer'),
-        receiptText: receipt,
-      );
+      _handlePostCheckoutReceipt(closed);
     }
   }
 
@@ -161,12 +187,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       PaymentEntry(method: method, amountMru: order.netTotal),
     ]);
     if (closed != null && mounted) {
-      showReceiptPreviewDialog(
-        context,
-        title: widget.store.i18n.t('receipt_preview'),
-        subtitle: widget.store.i18n.t('open_drawer'),
-        receiptText: buildReceiptForClosedOrder(closed, store: widget.store),
-      );
+      _handlePostCheckoutReceipt(closed);
     }
   }
 
@@ -185,8 +206,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     if (additionTicket == null) return;
     showReceiptPreviewDialog(
       context,
-      title: '🧾 Addition / Pré-note (avant encaissement)',
-      subtitle: 'Table marquée « Addition » · Document non encaissé',
+      title: '🧾 Note (sans encaissement)',
+      subtitle: 'Table marquée « Note sortie » · Document non encaissé',
       receiptText: additionTicket,
     );
   }
@@ -1728,7 +1749,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                   style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                           vertical: 9, horizontal: 4)),
-                  child: const Text('🧾 Addition',
+                  child: const Text('🧾 Note',
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 11)),
                 ),

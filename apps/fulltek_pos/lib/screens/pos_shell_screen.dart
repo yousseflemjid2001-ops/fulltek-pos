@@ -233,6 +233,55 @@ class _PosShellScreenState extends State<PosShellScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                // Option "Impression après Note" (save thermal paper)
+                StatefulBuilder(
+                  builder: (ctx, setOpt) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: p.surfaceAlt,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.print_outlined, color: p.primary, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Impression après Note (Ticket Final)',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                store.printReceiptAfterNote
+                                    ? 'Activé : imprime automatiquement le Ticket Final après une Note.'
+                                    : 'Désactivé : n\'imprime pas de 2ᵉ ticket après une Note (économie papier).',
+                                style: TextStyle(
+                                    fontSize: 11.5, color: p.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          key: const Key('print_after_note_switch'),
+                          value: store.printReceiptAfterNote,
+                          onChanged: (v) {
+                            store.setPrintReceiptAfterNote(v);
+                            setOpt(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Divider(height: 1, color: p.border),
                 const SizedBox(height: 12),
                 // Secondary utility bar inside Functions Hub (Theme, Language, License, Fullscreen)

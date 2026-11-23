@@ -419,7 +419,38 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
                     tooltip: 'Supprimer ce profil',
                     icon: Icon(Icons.delete_outline_rounded,
                         size: 18, color: p.danger),
-                    onPressed: () {
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded,
+                                  color: Colors.redAccent),
+                              SizedBox(width: 8),
+                              Expanded(child: Text('Supprimer le profil')),
+                            ],
+                          ),
+                          content: Text(
+                            'Voulez-vous vraiment supprimer le profil « ${prof.name} » ?\nCette action est irréversible.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: Text(store.i18n.t('cancel')),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.redAccent,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Supprimer'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true) return;
                       final err = store.deleteProfile(prof.id);
                       if (err != null && mounted) {
                         ScaffoldMessenger.of(context)
