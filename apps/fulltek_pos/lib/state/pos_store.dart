@@ -3715,13 +3715,16 @@ class PosStore extends ChangeNotifier {
 
   // --- Blind Z-Closing ---
 
+  final Set<String> _closedOrderIdsInZ = {};
+
   int get unclosedOrdersCount => _unclosedRealOrders.length;
 
   List<PosOrder> get _unclosedRealOrders {
     return _completedOrders.where((o) {
       if (o.isTraining) return false;
+      if (_closedOrderIdsInZ.contains(o.id)) return false;
       if (_lastZClosedAt == null) return true;
-      return (o.paidAt ?? o.createdAt).isAfter(_lastZClosedAt!);
+      return !(o.paidAt ?? o.createdAt).isBefore(_lastZClosedAt!);
     }).toList(growable: false);
   }
 
@@ -3782,6 +3785,9 @@ class PosStore extends ChangeNotifier {
       ordersCount: closedOrdersForZ.length,
       remakesCount: _unclosedRemakes.length,
     );
+    for (final o in closedOrdersForZ) {
+      _closedOrderIdsInZ.add(o.id);
+    }
     _lastZClosedAt = zTime;
     _closingsZ.insert(0, z);
     _enqueueSync(

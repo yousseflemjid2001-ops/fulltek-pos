@@ -357,6 +357,145 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     }
   }
 
+  /// Large touch-first Waiter / Server selector modal (easy to tap with a finger).
+  Future<void> _openServerPickerDialog() async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    final activeStaff = store.staff.where((s) => s.isActive).toList();
+    final currentServer =
+        store.activeOrder?.serverName ?? store.currentStaff?.name;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: p.border),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 500),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.badge_rounded, color: p.primary, size: 24),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Choisir le Serveur (Tactile)',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: p.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 2.5,
+                    ),
+                    itemCount: activeStaff.length,
+                    itemBuilder: (_, idx) {
+                      final s = activeStaff[idx];
+                      final selected = s.name == currentServer;
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          store.setActiveOrderServer(s.name);
+                          Navigator.of(ctx).pop();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? p.primary.withValues(alpha: 0.16)
+                                : p.surfaceAlt,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selected ? p.primary : p.border,
+                              width: selected ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: selected
+                                    ? p.primary
+                                    : p.primary.withValues(alpha: 0.14),
+                                child: Text(
+                                  s.name.isNotEmpty
+                                      ? s.name[0].toUpperCase()
+                                      : 'S',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color:
+                                        selected ? p.onPrimary : p.primary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      s.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: p.textPrimary,
+                                      ),
+                                    ),
+                                    Text(
+                                      s.role.label(store.lang),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: p.textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openWaitingOrdersDialog() async {
     final store = widget.store;
     final waiting = store.waitingOrders;
@@ -1101,110 +1240,123 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Ticket Header + Waiter Selector + Waiting Orders button
+          // Touch-friendly Ticket Header: Table | Large Waiter Button | Waiting Orders
           Row(
             children: [
+              // Table / Counter selector button (opens floor plan on tap)
               Flexible(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: p.primary.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    order?.tableCode != null
-                        ? '${i18n.t('table_label')} ${order!.tableCode}'
-                        : '${store.serviceMode.emoji} ${store.serviceMode.label(store.lang)}',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: p.primary,
-                        fontSize: 12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: widget.onOpenFloorPlan,
+                  child: Container(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: p.primary.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: p.primary.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.table_restaurant_rounded,
+                            size: 16, color: p.primary),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            order?.tableCode != null
+                                ? '${i18n.t('table_label')} ${order!.tableCode}'
+                                : '${store.serviceMode.emoji} ${store.serviceMode.label(store.lang)}',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: p.primary,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              // Server / Waiter selector dropdown
+              const SizedBox(width: 8),
+              // Large Touch Server / Waiter button (opens big touch grid dialog)
               if (store.staff.isNotEmpty)
-                Flexible(
-                  child: PopupMenuButton<String>(
+                Expanded(
+                  child: InkWell(
                     key: const Key('select_server_menu'),
-                    tooltip: 'Sélectionner le serveur qui gère la table',
-                    onSelected: store.setActiveOrderServer,
-                    itemBuilder: (_) => store.staff
-                        .where((s) => s.isActive)
-                        .map((s) => PopupMenuItem<String>(
-                              value: s.name,
-                              child: Text(
-                                  '👤 ${s.name} (${s.role.label(store.lang)})'),
-                            ))
-                        .toList(),
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _openServerPickerDialog,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 5),
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
                         color: p.surfaceAlt,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: p.border),
                       ),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.person_outline_rounded,
-                              size: 13, color: p.accent),
-                          const SizedBox(width: 3),
-                          Flexible(
+                          Icon(Icons.person_rounded,
+                              size: 17, color: p.accent),
+                          const SizedBox(width: 6),
+                          Expanded(
                             child: Text(
                               order?.serverName ??
                                   store.currentStaff?.name ??
                                   'Serveur',
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: p.textPrimary),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w900,
+                                color: p.textPrimary,
+                              ),
                             ),
                           ),
-                          Icon(Icons.arrow_drop_down_rounded,
+                          Icon(Icons.touch_app_rounded,
                               size: 15, color: p.textMuted),
                         ],
                       ),
                     ),
                   ),
                 ),
-              const SizedBox(width: 6),
-              // Waiting Orders button ("En attente")
+              const SizedBox(width: 8),
+              // Large Touch Waiting Orders button ("En attente")
               InkWell(
                 key: const Key('waiting_orders_btn'),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 onTap: _openWaitingOrdersDialog,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
                     color: store.waitingOrders.isNotEmpty
                         ? p.warning.withValues(alpha: 0.18)
                         : p.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: store.waitingOrders.isNotEmpty
-                            ? p.warning
-                            : p.border),
+                      color: store.waitingOrders.isNotEmpty
+                          ? p.warning
+                          : p.border,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.hourglass_top_rounded,
-                          size: 13,
-                          color: store.waitingOrders.isNotEmpty
-                              ? p.warning
-                              : p.textMuted),
-                      const SizedBox(width: 3),
+                      Icon(
+                        Icons.hourglass_top_rounded,
+                        size: 16,
+                        color: store.waitingOrders.isNotEmpty
+                            ? p.warning
+                            : p.textMuted,
+                      ),
+                      const SizedBox(width: 4),
                       Text(
                         '${store.waitingOrders.length}',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: FontWeight.w900,
                           color: store.waitingOrders.isNotEmpty
                               ? p.warning
@@ -1215,22 +1367,22 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                   ),
                 ),
               ),
+              const SizedBox(width: 4),
               IconButton(
-                visualDensity: VisualDensity.compact,
                 tooltip: i18n.t('counter_sale'),
                 onPressed: store.startCounterOrder,
                 icon: Icon(Icons.add_shopping_cart_rounded,
-                    size: 18, color: p.textMuted),
+                    size: 20, color: p.textMuted),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          // 3 Service Modes (Sur place | Emporter | Livraison) right in the order panel
+          // 3 Service Modes (Sur place | Emporter | Livraison) with generous touch height
           Container(
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: p.surfaceAlt,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: p.border),
             ),
             child: Row(
@@ -1239,23 +1391,23 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                 return Expanded(
                   child: InkWell(
                     key: Key('service_mode_${m.name}'),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(9),
                     onTap: () => store.setServiceMode(m),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 6),
+                          horizontal: 6, vertical: 9),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: active ? p.primary : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(9),
                       ),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           '${m.emoji} ${m.label(store.lang)}',
                           style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
                             color: active ? p.onPrimary : p.textMuted,
                           ),
                         ),
@@ -1287,23 +1439,28 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     itemBuilder: (context, idx) {
                       final line = items[idx];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Row(
                           children: [
                             Container(
-                              width: 24,
-                              height: 24,
+                              width: 30,
+                              height: 30,
                               alignment: Alignment.center,
-                              margin: const EdgeInsets.only(right: 8),
+                              margin: const EdgeInsets.only(right: 10),
                               decoration: BoxDecoration(
                                 color: p.surfaceAlt,
-                                borderRadius: BorderRadius.circular(7),
+                                borderRadius: BorderRadius.circular(9),
+                                border: Border.all(
+                                    color: p.primary.withValues(alpha: 0.3)),
                               ),
-                              child: Text('${line.quantity}',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w900,
-                                      color: p.primary)),
+                              child: Text(
+                                '${line.quantity}',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: p.primary,
+                                ),
+                              ),
                             ),
                             Expanded(
                               child: Column(
@@ -1312,7 +1469,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                   Text(
                                     line.item.label(store.lang),
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
                                       color: p.textPrimary,
                                       decoration: line.isComp
                                           ? TextDecoration.lineThrough
@@ -1322,10 +1480,11 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                   for (final m in line.selectedModifiers)
                                     Text('+ ${m.label(store.lang)}',
                                         style: TextStyle(
-                                            fontSize: 10.5, color: p.accent)),
-                                  const SizedBox(height: 2),
+                                            fontSize: 11, color: p.accent)),
+                                  const SizedBox(height: 4),
                                   Wrap(
                                     spacing: 6,
+                                    runSpacing: 4,
                                     crossAxisAlignment:
                                         WrapCrossAlignment.center,
                                     children: [
@@ -1334,8 +1493,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                             ? 'OFFERT'
                                             : '${line.lineTotal.toStringAsFixed(0)} ${i18n.t('mru')}',
                                         style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
                                           color: line.isComp
                                               ? p.success
                                               : p.primary,
@@ -1343,12 +1502,12 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                       ),
                                       InkWell(
                                         key: Key('line_mode_${line.lineId}'),
-                                        borderRadius: BorderRadius.circular(6),
+                                        borderRadius: BorderRadius.circular(8),
                                         onTap: () => store
                                             .toggleLineTakeaway(line.lineId),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
+                                              horizontal: 9, vertical: 4),
                                           decoration: BoxDecoration(
                                             color: line.isTakeaway
                                                 ? p.warning
@@ -1356,14 +1515,21 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                                 : p.primary
                                                     .withValues(alpha: 0.12),
                                             borderRadius:
-                                                BorderRadius.circular(6),
+                                                BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: line.isTakeaway
+                                                  ? p.warning
+                                                      .withValues(alpha: 0.4)
+                                                  : p.primary
+                                                      .withValues(alpha: 0.35),
+                                            ),
                                           ),
                                           child: Text(
                                             line.isTakeaway
                                                 ? '🥡 Emporter'
                                                 : '🍽 Sur place',
                                             style: TextStyle(
-                                              fontSize: 10,
+                                              fontSize: 11,
                                               fontWeight: FontWeight.w800,
                                               color: line.isTakeaway
                                                   ? p.warning
@@ -1375,12 +1541,12 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                       if (line.sentToKitchen)
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
+                                              horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
                                             color: p.danger
                                                 .withValues(alpha: 0.14),
                                             borderRadius:
-                                                BorderRadius.circular(6),
+                                                BorderRadius.circular(8),
                                             border: Border.all(
                                               color: p.danger
                                                   .withValues(alpha: 0.35),
@@ -1389,7 +1555,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                           child: Text(
                                             '🔒 En cuisine',
                                             style: TextStyle(
-                                              fontSize: 9.5,
+                                              fontSize: 10.5,
                                               fontWeight: FontWeight.w800,
                                               color: p.danger,
                                             ),
@@ -1402,20 +1568,18 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                     Text(
                                       '📝 ${line.kitchenNote}',
                                       style: TextStyle(
-                                          fontSize: 11, color: p.warning),
+                                          fontSize: 11.5, color: p.warning),
                                     ),
                                 ],
                               ),
                             ),
                             IconButton(
-                              visualDensity: VisualDensity.compact,
                               tooltip: i18n.t('add_note'),
                               onPressed: () => _editNote(line),
                               icon: Icon(Icons.edit_note_rounded,
-                                  size: 18, color: p.textMuted),
+                                  size: 20, color: p.textMuted),
                             ),
                             IconButton(
-                              visualDensity: VisualDensity.compact,
                               tooltip: line.sentToKitchen
                                   ? 'Annuler 1 unité (code gérant + motif)'
                                   : 'Diminuer quantité',
@@ -1430,19 +1594,17 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                 line.sentToKitchen
                                     ? Icons.lock_outline_rounded
                                     : Icons.remove_circle_outline,
-                                size: 18,
+                                size: 22,
                                 color: line.sentToKitchen ? p.warning : null,
                               ),
                             ),
                             IconButton(
-                              visualDensity: VisualDensity.compact,
                               onPressed: () =>
                                   store.updateLineQuantity(line.lineId, 1),
                               icon: const Icon(Icons.add_circle_outline,
-                                  size: 19),
+                                  size: 22),
                             ),
                             IconButton(
-                              visualDensity: VisualDensity.compact,
                               tooltip: line.sentToKitchen
                                   ? 'Annuler après cuisine (code gérant + motif)'
                                   : 'Supprimer la ligne',
@@ -1457,7 +1619,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                 line.sentToKitchen
                                     ? Icons.cancel_outlined
                                     : Icons.delete_outline_rounded,
-                                size: 18,
+                                size: 21,
                                 color: p.danger,
                               ),
                             ),
