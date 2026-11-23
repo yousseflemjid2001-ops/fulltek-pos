@@ -4,6 +4,7 @@ import '../services/receipt_formatter.dart';
 import '../services/web_printer.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/touch_numpad.dart';
 
 class CheckoutDialog extends StatefulWidget {
   final PosStore store;
@@ -274,9 +275,27 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                       key: const Key('payment_amount_input'),
                       controller: _amountCtrl,
                       keyboardType: TextInputType.number,
+                      onTap: () => showTouchNumpad(
+                        context: context,
+                        controller: _amountCtrl,
+                        title: i18n.t('amount_received'),
+                        showQuickBills: true,
+                        onChanged: () => setState(() {}),
+                      ),
                       decoration: InputDecoration(
                         labelText: i18n.t('amount_received'),
                         suffixText: i18n.t('mru'),
+                        suffixIcon: IconButton(
+                          tooltip: 'Pavé numérique tactile',
+                          icon: const Icon(Icons.dialpad_rounded, size: 20),
+                          onPressed: () => showTouchNumpad(
+                            context: context,
+                            controller: _amountCtrl,
+                            title: i18n.t('amount_received'),
+                            showQuickBills: true,
+                            onChanged: () => setState(() {}),
+                          ),
+                        ),
                       ),
                     ),
                   ),

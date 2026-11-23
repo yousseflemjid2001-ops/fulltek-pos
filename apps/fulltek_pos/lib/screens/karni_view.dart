@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/touch_numpad.dart';
 
 class KarniView extends StatelessWidget {
   final PosStore store;
@@ -17,9 +18,16 @@ class KarniView extends StatelessWidget {
           key: const Key('karni_settle_amount_input'),
           controller: ctrl,
           keyboardType: TextInputType.number,
+          onTap: () => showTouchNumpad(
+            context: ctx,
+            controller: ctrl,
+            title: 'Montant encaissé (MRU)',
+            showQuickBills: true,
+          ),
           decoration: const InputDecoration(
             labelText: 'Montant encaissé (MRU)',
             suffixText: 'MRU',
+            suffixIcon: Icon(Icons.dialpad_rounded, size: 20),
           ),
         ),
         actions: [

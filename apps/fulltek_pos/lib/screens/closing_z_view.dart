@@ -3,6 +3,7 @@ import '../models/pos_models.dart';
 import '../services/receipt_formatter.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/touch_numpad.dart';
 import 'checkout_dialog.dart';
 
 class ClosingZView extends StatefulWidget {
@@ -20,6 +21,33 @@ class _ClosingZViewState extends State<ClosingZView> {
   final _sedadCtrl = TextEditingController(text: '0');
   final _bimbankCtrl = TextEditingController(text: '0');
   final _clickCtrl = TextEditingController(text: '0');
+
+  Widget _zNumericField({
+    Key? fieldKey,
+    required TextEditingController ctrl,
+    required String label,
+    IconData? prefixIcon,
+  }) {
+    return TextField(
+      key: fieldKey,
+      controller: ctrl,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+        suffixIcon: IconButton(
+          tooltip: 'Pavé numérique tactile',
+          icon: const Icon(Icons.dialpad_rounded, size: 20),
+          onPressed: () => showTouchNumpad(
+            context: context,
+            controller: ctrl,
+            title: label,
+            showQuickBills: true,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -159,64 +187,52 @@ class _ClosingZViewState extends State<ClosingZView> {
               ),
             ),
             const SizedBox(height: 14),
-            TextField(
-              key: const Key('z_counted_cash_input'),
-              controller: _cashCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: i18n.t('counted_cash'),
-                prefixIcon: const Icon(Icons.money_rounded),
-              ),
+            _zNumericField(
+              fieldKey: const Key('z_counted_cash_input'),
+              ctrl: _cashCtrl,
+              label: i18n.t('counted_cash'),
+              prefixIcon: Icons.money_rounded,
             ),
             const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    key: const Key('z_counted_bankily_input'),
-                    controller: _bankilyCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        InputDecoration(labelText: i18n.t('counted_bankily')),
+                  child: _zNumericField(
+                    fieldKey: const Key('z_counted_bankily_input'),
+                    ctrl: _bankilyCtrl,
+                    label: i18n.t('counted_bankily'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: TextField(
-                    controller: _masriviCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        InputDecoration(labelText: i18n.t('counted_masrivi')),
+                  child: _zNumericField(
+                    ctrl: _masriviCtrl,
+                    label: i18n.t('counted_masrivi'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: _sedadCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: i18n.t('counted_sedad')),
+            _zNumericField(
+              ctrl: _sedadCtrl,
+              label: i18n.t('counted_sedad'),
             ),
             const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    key: const Key('z_counted_bimbank_input'),
-                    controller: _bimbankCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        InputDecoration(labelText: i18n.t('counted_bimbank')),
+                  child: _zNumericField(
+                    fieldKey: const Key('z_counted_bimbank_input'),
+                    ctrl: _bimbankCtrl,
+                    label: i18n.t('counted_bimbank'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: TextField(
-                    key: const Key('z_counted_click_input'),
-                    controller: _clickCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        InputDecoration(labelText: i18n.t('counted_click')),
+                  child: _zNumericField(
+                    fieldKey: const Key('z_counted_click_input'),
+                    ctrl: _clickCtrl,
+                    label: i18n.t('counted_click'),
                   ),
                 ),
               ],

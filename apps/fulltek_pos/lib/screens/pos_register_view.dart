@@ -3,6 +3,7 @@ import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/dish_image.dart';
+import '../widgets/touch_numpad.dart';
 import 'checkout_dialog.dart';
 import 'modifiers_dialog.dart';
 import 'remake_comp_dialog.dart';
@@ -61,26 +62,41 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     child: Text(err!,
                         style: const TextStyle(color: Colors.redAccent)),
                   ),
-                TextField(
-                  key: const Key('manual_price_input'),
-                  controller: ctrl,
-                  autofocus: true,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Montant (MRU) *',
-                    suffixText: 'MRU',
+                  TextField(
+                    key: const Key('manual_price_input'),
+                    controller: ctrl,
+                    autofocus: true,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Montant (MRU) *',
+                      suffixText: 'MRU',
+                    ),
+                    onSubmitted: (_) {
+                      final v = double.tryParse(
+                          ctrl.text.trim().replaceAll(',', '.'));
+                      if (v == null || v <= 0) {
+                        setD(() => err = 'Veuillez saisir un montant > 0.');
+                        return;
+                      }
+                      Navigator.of(ctx).pop(v);
+                    },
                   ),
-                  onSubmitted: (_) {
-                    final v = double.tryParse(
-                        ctrl.text.trim().replaceAll(',', '.'));
-                    if (v == null || v <= 0) {
-                      setD(() => err = 'Veuillez saisir un montant > 0.');
-                      return;
-                    }
-                    Navigator.of(ctx).pop(v);
-                  },
-                ),
+                  const SizedBox(height: 12),
+                  TouchNumpadGrid(
+                    keyHeight: 46,
+                    onDigit: (d) => setD(() {
+                      ctrl.text = (ctrl.text == '0') ? d : '${ctrl.text}$d';
+                      err = null;
+                    }),
+                    onBackspace: () => setD(() {
+                      if (ctrl.text.isNotEmpty) {
+                        ctrl.text =
+                            ctrl.text.substring(0, ctrl.text.length - 1);
+                      }
+                    }),
+                    onClear: () => setD(() => ctrl.text = ''),
+                  ),
               ],
             ),
           ),
@@ -304,10 +320,18 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                       controller: pinCtrl,
                       obscureText: true,
                       keyboardType: TextInputType.number,
+                      onTap: () => showTouchNumpad(
+                        context: ctx,
+                        controller: pinCtrl,
+                        title: 'Code PIN Gérant / Propriétaire',
+                        suffix: '',
+                        obscure: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Code PIN Gérant / Propriétaire *',
-                        hintText: 'Saisissez le code PIN autorisé',
+                        hintText: 'Touchez pour ouvrir le pavé numérique',
                         prefixIcon: Icon(Icons.vpn_key_outlined),
+                        suffixIcon: Icon(Icons.dialpad_rounded, size: 20),
                       ),
                     )
                   else

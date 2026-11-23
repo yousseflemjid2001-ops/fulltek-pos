@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/touch_numpad.dart';
 
 class RemakeCompDialog extends StatefulWidget {
   final PosStore store;
@@ -130,10 +131,18 @@ class _RemakeCompDialogState extends State<RemakeCompDialog> {
                   controller: _pinCtrl,
                   obscureText: true,
                   keyboardType: TextInputType.number,
+                  onTap: () => showTouchNumpad(
+                    context: context,
+                    controller: _pinCtrl,
+                    title: i18n.t('manager_pin_required'),
+                    suffix: '',
+                    obscure: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: i18n.t('manager_pin_required'),
                     hintText: '0000 / 9999',
                     prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: const Icon(Icons.dialpad_rounded, size: 20),
                   ),
                 ),
               ],

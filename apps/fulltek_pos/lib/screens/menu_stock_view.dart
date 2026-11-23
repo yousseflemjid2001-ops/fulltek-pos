@@ -3,6 +3,7 @@ import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/dish_image.dart';
+import '../widgets/touch_numpad.dart';
 
 class MenuStockView extends StatefulWidget {
   final PosStore store;
@@ -421,9 +422,16 @@ class _MenuStockViewState extends State<MenuStockView> {
                           key: const Key('dish_price_input'),
                           controller: priceCtrl,
                           keyboardType: TextInputType.number,
+                          onTap: () => showTouchNumpad(
+                            context: ctx,
+                            controller: priceCtrl,
+                            title: 'Prix du plat (MRU)',
+                            showQuickBills: true,
+                          ),
                           decoration: const InputDecoration(
                             labelText: 'Prix (MRU) *',
                             suffixText: 'MRU',
+                            suffixIcon: Icon(Icons.dialpad_rounded, size: 19),
                           ),
                         ),
                       ),

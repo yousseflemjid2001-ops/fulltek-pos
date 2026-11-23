@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/touch_numpad.dart';
 
 class FloorPlanView extends StatefulWidget {
   final PosStore store;
@@ -102,9 +103,17 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                       child: TextField(
                         controller: arbounCtrl,
                         keyboardType: TextInputType.number,
+                        onTap: () => showTouchNumpad(
+                          context: ctx,
+                          controller: arbounCtrl,
+                          title: widget.store.i18n.t('arboun'),
+                          showQuickBills: true,
+                        ),
                         decoration: InputDecoration(
                           labelText: widget.store.i18n.t('arboun'),
                           suffixText: 'MRU',
+                          suffixIcon:
+                              const Icon(Icons.dialpad_rounded, size: 19),
                         ),
                       ),
                     ),
