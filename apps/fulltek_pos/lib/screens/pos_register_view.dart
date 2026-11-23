@@ -228,6 +228,137 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     );
   }
 
+  /// "Abandonner toute la commande" — clears the entire cart in 1 tap.
+  /// Shows a simple confirmation if unsent, or Manager PIN + Reason if sent to kitchen.
+  Future<void> _openAbandonOrderDialog() async {
+    final store = widget.store;
+    final order = store.activeOrder;
+    if (order == null || order.items.isEmpty) return;
+    final p = FullTekThemes.paletteOf(context);
+    final hasSent = order.items.any((i) => i.sentToKitchen);
+    final needsPin = hasSent && !store.canCurrent(PosPermission.voidOrComp);
+    final reasonCtrl = TextEditingController();
+    final pinCtrl = TextEditingController();
+    String? error;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.delete_sweep_rounded, color: p.danger, size: 24),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Abandonner toute la commande ?',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  hasSent
+                      ? '⚠️ Attention : certains plats (${order.items.where((i) => i.sentToKitchen).length}) ont déjà été envoyés en cuisine.\n'
+                          'Un motif et une validation gérant sont obligatoires. Un ticket d\'annulation sera imprimé en cuisine.'
+                      : 'Voulez-vous vraiment abandonner cette commande (${order.items.length} ligne(s) · ${order.netTotal.toStringAsFixed(0)} MRU) ?',
+                  style: TextStyle(fontSize: 13, color: p.textPrimary),
+                ),
+                if (hasSent) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('abandon_order_reason_input'),
+                    controller: reasonCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Motif d\'abandon *',
+                      hintText: 'Ex: Client parti / Erreur de table',
+                    ),
+                  ),
+                  if (needsPin) ...[
+                    const SizedBox(height: 10),
+                    TextField(
+                      key: const Key('abandon_order_pin_input'),
+                      controller: pinCtrl,
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      onTap: () => showTouchNumpad(
+                        context: ctx,
+                        controller: pinCtrl,
+                        title: 'Code PIN Gérant / Propriétaire',
+                        suffix: '',
+                        obscure: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Code PIN Gérant / Propriétaire *',
+                        prefixIcon: Icon(Icons.vpn_key_outlined),
+                        suffixIcon: Icon(Icons.dialpad_rounded, size: 20),
+                      ),
+                    ),
+                  ],
+                ],
+                if (error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    error!,
+                    style: TextStyle(
+                      color: p.danger,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton.icon(
+              key: const Key('confirm_abandon_order_btn'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: p.danger,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final res = store.abandonActiveOrder(
+                  reason: reasonCtrl.text,
+                  managerPin: pinCtrl.text,
+                );
+                if (res == null) {
+                  setD(() => error =
+                      store.lastVoidError ?? 'Abandon refusé.');
+                  return;
+                }
+                Navigator.of(ctx).pop(res);
+              },
+              icon: const Icon(Icons.delete_forever_rounded, size: 18),
+              label: const Text('Abandonner tout'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reasonCtrl.dispose();
+    pinCtrl.dispose();
+
+    if (result != null && result.isNotEmpty && mounted) {
+      showReceiptPreviewDialog(
+        context,
+        title: '❌ Annulation commande (Cuisine)',
+        subtitle: 'À remettre en cuisine · Trace enregistrée dans l\'historique',
+        receiptText: result,
+      );
+    }
+  }
+
   Future<void> _openCancelSentLineDialog(
     OrderItem line, {
     int? cancelQty,
@@ -1430,12 +1561,34 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                 ),
               ),
               const SizedBox(width: 4),
-              IconButton(
-                tooltip: i18n.t('counter_sale'),
-                onPressed: store.startCounterOrder,
-                icon: Icon(Icons.add_shopping_cart_rounded,
-                    size: 20, color: p.textMuted),
-              ),
+              if (items.isNotEmpty)
+                Tooltip(
+                  message: 'Abandonner toute la commande',
+                  child: InkWell(
+                    key: const Key('abandon_order_btn'),
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _openAbandonOrderDialog,
+                    child: Container(
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 9),
+                      decoration: BoxDecoration(
+                        color: p.danger.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: p.danger.withValues(alpha: 0.45)),
+                      ),
+                      child: Icon(Icons.delete_sweep_rounded,
+                          size: 20, color: p.danger),
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  tooltip: i18n.t('counter_sale'),
+                  onPressed: store.startCounterOrder,
+                  icon: Icon(Icons.add_shopping_cart_rounded,
+                      size: 20, color: p.textMuted),
+                ),
             ],
           ),
           const SizedBox(height: 8),

@@ -1941,6 +1941,134 @@ class PosStore extends ChangeNotifier {
     return cancelTicketText;
   }
 
+  /// Abandons the entire active order in 1 action ("Abandonner toute la commande").
+  /// - If NO lines were sent to kitchen yet: clears the order immediately, frees any table,
+  ///   and returns an empty string `''` (success without kitchen cancellation ticket).
+  /// - If ANY line was already sent to kitchen: requires [reason] + manager auth/PIN,
+  ///   logs every sent line in history/SyncQueue, frees the table, and returns the
+  ///   combined 80mm kitchen cancellation ticket text.
+  /// Returns `null` if blocked/unauthorized (see [lastVoidError]).
+  String? abandonActiveOrder({
+    String? reason,
+    String? managerPin,
+  }) {
+    lastVoidError = null;
+    final order = activeOrder;
+    if (order == null || order.items.isEmpty) return '';
+
+    final sentLines = order.items.where((i) => i.sentToKitchen).toList();
+    if (sentLines.isEmpty) {
+      // Pure draft order (nothing sent to kitchen): clear immediately
+      _openOrdersById.remove(order.id);
+      _notePrintedOrderIds.remove(order.id);
+      if (order.tableId != null) {
+        final tIdx = tables.indexWhere((t) => t.id == order.tableId);
+        if (tIdx != -1) {
+          tables[tIdx] = tables[tIdx].copyWith(
+            status: TableStatus.free,
+            guests: 0,
+            clearOrder: true,
+            clearOccupied: true,
+            clearServer: true,
+            waitAlert: false,
+            arbounMru: 0,
+          );
+        }
+      }
+      startCounterOrder();
+      return '';
+    }
+
+    // Has items already sent to kitchen -> enforce reason + manager authorization
+    final cleanReason = (reason ?? '').trim();
+    if (cleanReason.isEmpty) {
+      lastVoidError =
+          'Motif d\'annulation obligatoire (des plats ont déjà été envoyés en cuisine).';
+      return null;
+    }
+    String? approver;
+    if (canCurrent(PosPermission.voidOrComp)) {
+      approver = _currentStaff!.name;
+    } else if (managerPin != null && managerPin.trim().isNotEmpty) {
+      final mgr = verifyManagerPin(managerPin.trim());
+      if (mgr == null) {
+        lastVoidError = 'Code PIN gérant invalide.';
+        return null;
+      }
+      approver = mgr.name;
+    } else {
+      lastVoidError =
+          'Code PIN gérant requis pour abandonner une commande déjà envoyée en cuisine.';
+      return null;
+    }
+
+    final tickets = <String>[];
+    final requestedBy = _currentStaff?.name ?? order.staffName;
+    for (final line in sentLines) {
+      tickets.add(
+        ReceiptFormatter.formatKitchenCancellationTicket(
+          order: order,
+          cancelledLine: line,
+          cancelledQty: line.quantity,
+          reason: cleanReason,
+          requestedBy: requestedBy,
+          approvedBy: approver,
+        ),
+      );
+      if (!order.isTraining) {
+        final rec = ReturnRemakeCompRecord(
+          id: 'VOID-${DateTime.now().millisecondsSinceEpoch}-${line.lineId}',
+          type: 'void_kitchen',
+          orderTicket: order.ticketNumber,
+          itemName: line.item.nameFr,
+          quantity: line.quantity,
+          amountMru: line.unitPriceWithModifiers * line.quantity,
+          reason: 'ABANDON COMMANDE: $cleanReason',
+          staffName: requestedBy,
+          approvedBy: approver,
+          createdAt: DateTime.now(),
+        );
+        _remakeRecords.insert(0, rec);
+        _enqueueSync(
+          entityType: 'remake',
+          summary:
+              'ABANDON COMMANDE · ${line.quantity}x ${line.item.nameFr} ($cleanReason)',
+          payload: {
+            'id': rec.id,
+            'type': 'VOID_KITCHEN',
+            'ticket': rec.orderTicket,
+            'item': rec.itemName,
+            'sku': line.item.sku,
+            'qty': line.quantity,
+            'amount_mru': rec.amountMru,
+            'reason': rec.reason,
+            'staff_name': requestedBy,
+            'approved_by': approver,
+          },
+        );
+      }
+    }
+
+    _openOrdersById.remove(order.id);
+    _notePrintedOrderIds.remove(order.id);
+    if (order.tableId != null) {
+      final tIdx = tables.indexWhere((t) => t.id == order.tableId);
+      if (tIdx != -1) {
+        tables[tIdx] = tables[tIdx].copyWith(
+          status: TableStatus.free,
+          guests: 0,
+          clearOrder: true,
+          clearOccupied: true,
+          clearServer: true,
+          waitAlert: false,
+          arbounMru: 0,
+        );
+      }
+    }
+    startCounterOrder();
+    return tickets.join('\n');
+  }
+
   /// All open orders that are waiting (sent to kitchen or attached to an occupied table).
   List<PosOrder> get waitingOrders {
     return _openOrdersById.values

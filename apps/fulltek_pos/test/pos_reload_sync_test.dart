@@ -309,4 +309,39 @@ void main() {
       expect(store.staff.any((s) => s.id == cashier.id), isTrue);
     },
   );
+
+  test(
+    'abandonActiveOrder clears entire unsent order in 1 call and enforces manager PIN + reason after kitchen send',
+    () {
+      final store = PosStore(enablePersistence: false);
+      final owner = store.staff.firstWhere((s) => s.role == PosRole.owner);
+      final cashier = store.staff.firstWhere((s) => s.role == PosRole.cashier);
+      expect(store.loginWithPin(cashier.pinCode), isTrue);
+
+      // Add 6x dish1 + 1x dish2 (unsent) -> remove 6x line in 1 call, or abandon all in 1 call
+      final d1 = store.menuItems[0];
+      final d2 = store.menuItems[1];
+      for (var i = 0; i < 6; i++) {
+        store.addItemToActiveOrder(d1);
+      }
+      store.addItemToActiveOrder(d2);
+      expect(store.activeOrder!.items.first.quantity, 6);
+      expect(store.abandonActiveOrder(), '');
+      expect(store.activeOrder!.items, isEmpty);
+
+      // Sent-to-kitchen order -> abandon requires reason + manager PIN
+      store.openOrSelectTable(store.tables.first.id);
+      store.addItemToActiveOrder(d1);
+      store.sendActiveOrderToKitchen();
+      expect(store.abandonActiveOrder(reason: 'Client parti'), isNull);
+      final cancelText = store.abandonActiveOrder(
+        reason: 'Client parti',
+        managerPin: owner.pinCode,
+      );
+      expect(cancelText, isNotNull);
+      expect(cancelText, contains('ANNULATION CUISINE'));
+      expect(store.activeOrder!.items, isEmpty);
+      expect(store.tables.first.status, TableStatus.free);
+    },
+  );
 }
