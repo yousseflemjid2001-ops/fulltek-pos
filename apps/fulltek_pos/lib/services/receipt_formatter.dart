@@ -290,7 +290,7 @@ class ReceiptFormatter {
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     buf.writeln(_padRow(targetLabel, order.ticketNumber));
     buf.writeln(_padRow('Demande par: $requestedBy', hm));
-    buf.writeln(_padRow('Autorise par: $approvedBy', 'ANNULE'));
+    buf.writeln('Autorise par: $approvedBy');
     buf.writeln(_line());
     buf.writeln(
         '[${cancelledLine.item.kitchenStation}] -${cancelledQty}x ${cancelledLine.item.nameFr} (ANNULE)');
