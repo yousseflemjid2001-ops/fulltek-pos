@@ -41,6 +41,12 @@ class _ClosingZViewState extends State<ClosingZView> {
       countedBimbankMru: double.tryParse(_bimbankCtrl.text.trim()) ?? 0,
       countedClickMru: double.tryParse(_clickCtrl.text.trim()) ?? 0,
     );
+    _cashCtrl.text = '0';
+    _bankilyCtrl.text = '0';
+    _masriviCtrl.text = '0';
+    _sedadCtrl.text = '0';
+    _bimbankCtrl.text = '0';
+    _clickCtrl.text = '0';
     showReceiptPreviewDialog(
       context,
       title: widget.store.i18n.t('closing_z_report'),
@@ -118,6 +124,39 @@ class _ClosingZViewState extends State<ClosingZView> {
             Text(
               i18n.t('closing_z_hint'),
               style: TextStyle(fontSize: 12.5, color: p.textMuted),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: p.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: p.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.receipt_long_rounded,
+                      size: 17, color: p.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tickets encaissés sur cette période : ${store.unclosedOrdersCount}',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: p.textPrimary),
+                    ),
+                  ),
+                  if (store.waitingOrders.isNotEmpty)
+                    Text(
+                      '⚠️ ${store.waitingOrders.length} en attente',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: p.warning),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             TextField(

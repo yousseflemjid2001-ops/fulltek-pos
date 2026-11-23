@@ -1374,6 +1374,19 @@ function createApp(options = {}) {
             isActive: Number(u.active ?? 1) === 1,
           }));
 
+        const closingsZ = database
+          .prepare('SELECT * FROM cash_closings_z WHERE tenant_id = ? AND is_training = 0 ORDER BY id DESC LIMIT 30')
+          .all(tenantId)
+          .map((z) => ({
+            id: `Z-${z.id}`,
+            closedAt: z.closed_at || z.created_at,
+            cashierName: z.approved_by || 'Caissier',
+            expectedCashMru: Number(z.expected_mru ?? 0),
+            countedCashMru: Number(z.counted_mru ?? 0),
+            digitalMru: Number(z.digital_mru ?? 0),
+            varianceMru: Number(z.variance_mru ?? 0),
+          }));
+
         return sendJson(res, 200, {
           ok: true,
           tenantId,
@@ -1403,6 +1416,7 @@ function createApp(options = {}) {
           recipesBom,
           karniCustomers,
           staff: staffRows,
+          closingsZ,
         });
       }
 

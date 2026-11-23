@@ -178,7 +178,10 @@ class PosStore extends ChangeNotifier {
         'cloudJwtToken': cloudJwtToken,
         'enabledThemeCodes': enabledThemeCodes,
         'enabledPayMethods': enabledPayMethods,
+        'ticketCounter': _ticketCounter,
+        'syncCounter': _syncCounter,
         'lastZClosedAt': _lastZClosedAt?.toIso8601String(),
+        'closingsZ': _closingsZ.map((z) => z.toSyncJson()).toList(),
         'licenseExpiresAt': license.expiresAt.toIso8601String(),
         'licenseVerified': license.ed25519Verified,
         'licenseCode': license.code12,
@@ -269,6 +272,54 @@ class PosStore extends ChangeNotifier {
       }
       final zAt = map['lastZClosedAt'] as String?;
       if (zAt != null) _lastZClosedAt = DateTime.tryParse(zAt);
+      if (map['ticketCounter'] is int) {
+        _ticketCounter = map['ticketCounter'] as int;
+      }
+      if (map['syncCounter'] is int) {
+        _syncCounter = map['syncCounter'] as int;
+      }
+      final savedZ = map['closingsZ'] as List?;
+      if (savedZ != null) {
+        _closingsZ.clear();
+        for (final rawZ in savedZ.whereType<Map>()) {
+          final zm = rawZ.cast<String, dynamic>();
+          _closingsZ.add(
+            CashClosingZ(
+              id: '${zm['id'] ?? 'Z'}',
+              closedAt:
+                  DateTime.tryParse('${zm['closed_at'] ?? ''}') ?? DateTime.now(),
+              cashierName: '${zm['cashier_name'] ?? 'Caissier'}',
+              countedCashMru: ((zm['counted_cash_mru'] ?? 0) as num).toDouble(),
+              expectedCashMru:
+                  ((zm['expected_cash_mru'] ?? 0) as num).toDouble(),
+              countedBankilyMru:
+                  ((zm['counted_bankily_mru'] ?? 0) as num).toDouble(),
+              expectedBankilyMru:
+                  ((zm['expected_bankily_mru'] ?? 0) as num).toDouble(),
+              countedMasriviMru:
+                  ((zm['counted_masrivi_mru'] ?? 0) as num).toDouble(),
+              expectedMasriviMru:
+                  ((zm['expected_masrivi_mru'] ?? 0) as num).toDouble(),
+              countedSedadMru:
+                  ((zm['counted_sedad_mru'] ?? 0) as num).toDouble(),
+              expectedSedadMru:
+                  ((zm['expected_sedad_mru'] ?? 0) as num).toDouble(),
+              countedBimbankMru:
+                  ((zm['counted_bimbank_mru'] ?? 0) as num).toDouble(),
+              expectedBimbankMru:
+                  ((zm['expected_bimbank_mru'] ?? 0) as num).toDouble(),
+              countedClickMru:
+                  ((zm['counted_click_mru'] ?? 0) as num).toDouble(),
+              expectedClickMru:
+                  ((zm['expected_click_mru'] ?? 0) as num).toDouble(),
+              karniIssuedMru:
+                  ((zm['karni_issued_mru'] ?? 0) as num).toDouble(),
+              ordersCount: ((zm['orders_count'] ?? 0) as num).toInt(),
+              remakesCount: ((zm['remakes_count'] ?? 0) as num).toInt(),
+            ),
+          );
+        }
+      }
 
       final licExp = map['licenseExpiresAt'] as String?;
       if (licExp != null) {
@@ -288,20 +339,87 @@ class PosStore extends ChangeNotifier {
         _syncQueue.clear();
         for (final item in qList.whereType<Map>()) {
           final m = item.cast<String, dynamic>();
-          _syncQueue.add(
-            SyncQueueItem(
-              id: '${m['id'] ?? 'SYNC'}',
-              entityType: '${m['entityType'] ?? 'order'}',
-              summary: '${m['summary'] ?? ''}',
-              payload: (m['payload'] as Map?)?.cast<String, dynamic>() ?? {},
-              status: '${m['status'] ?? 'pending'}',
-              createdAt:
-                  DateTime.tryParse('${m['createdAt'] ?? ''}') ?? DateTime.now(),
-              syncedAt: m['syncedAt'] != null
-                  ? DateTime.tryParse('${m['syncedAt']}')
-                  : null,
-            ),
+          final sq = SyncQueueItem(
+            id: '${m['id'] ?? 'SYNC'}',
+            entityType: '${m['entityType'] ?? 'order'}',
+            summary: '${m['summary'] ?? ''}',
+            payload: (m['payload'] as Map?)?.cast<String, dynamic>() ?? {},
+            status: '${m['status'] ?? 'pending'}',
+            createdAt:
+                DateTime.tryParse('${m['createdAt'] ?? ''}') ?? DateTime.now(),
+            syncedAt: m['syncedAt'] != null
+                ? DateTime.tryParse('${m['syncedAt']}')
+                : null,
           );
+          _syncQueue.add(sq);
+          // Reconstruct completedOrders from persisted order sync items so Z-Closing
+          // and Sales Journal retain all paid tickets across F5 page reloads.
+          if (sq.entityType == 'order' && sq.payload.isNotEmpty) {
+            final p = sq.payload;
+            final orderId = '${p['id'] ?? sq.id}';
+            if (!_completedOrders.any((o) => o.id == orderId)) {
+              final rawPays = (p['payments'] as List?) ?? const [];
+              final restoredPays = rawPays.whereType<Map>().map((pm) {
+                final mStr = '${pm['method'] ?? 'cash'}'.toLowerCase();
+                final method = PaymentMethod.values.firstWhere(
+                  (e) => e.name.toLowerCase() == mStr,
+                  orElse: () => PaymentMethod.cash,
+                );
+                return PaymentEntry(
+                  method: method,
+                  amountMru: ((pm['amount_mru'] ?? 0) as num).toDouble(),
+                  reference: pm['reference'] as String?,
+                  karniCustomerId: pm['karni_customer_id'] as String?,
+                );
+              }).toList();
+              final rawLines = (p['items'] as List?) ?? const [];
+              final restoredLines = rawLines.whereType<Map>().map((lm) {
+                final price = ((lm['base_price'] ?? lm['unit_price'] ?? 0) as num)
+                    .toDouble();
+                return OrderItem(
+                  lineId: 'LN-R-${_lineCounter++}',
+                  item: MenuItem(
+                    id: '${lm['product_id'] ?? ''}',
+                    sku: '${lm['sku'] ?? ''}',
+                    categoryId: '',
+                    nameFr: '${lm['name'] ?? 'Article'}',
+                    nameAr: '${lm['name'] ?? 'Article'}',
+                    nameEn: '${lm['name'] ?? 'Article'}',
+                    priceMru: price,
+                    kitchenStation: '${lm['kitchen_station'] ?? 'KITCHEN'}',
+                  ),
+                  quantity: ((lm['qty'] ?? 1) as num).toInt(),
+                  isComp: lm['is_comp'] == true,
+                  isTakeaway: lm['is_takeaway'] == true,
+                  sentToKitchen: true,
+                );
+              }).toList();
+              final paidAt = DateTime.tryParse('${p['paid_at'] ?? ''}') ??
+                  sq.createdAt;
+              _completedOrders.add(
+                PosOrder(
+                  id: orderId,
+                  ticketNumber: '${p['ticket_number'] ?? orderId}',
+                  tableId: p['table_id'] as String?,
+                  tableCode: p['table_code'] as String?,
+                  staffName: '${p['staff_name'] ?? 'Caisse'}',
+                  items: restoredLines,
+                  discountPercent:
+                      ((p['discount_percent'] ?? 0) as num).toDouble(),
+                  arbounDepositMru:
+                      ((p['arboun_deposit_mru'] ?? 0) as num).toDouble(),
+                  deliveryFeeMru:
+                      ((p['delivery_fee_mru'] ?? 0) as num).toDouble(),
+                  payments: restoredPays,
+                  status: 'paid',
+                  createdAt:
+                      DateTime.tryParse('${p['created_at'] ?? ''}') ?? paidAt,
+                  paidAt: paidAt,
+                  isTraining: p['is_training'] == true,
+                ),
+              );
+            }
+          }
         }
       }
 
@@ -761,6 +879,9 @@ class PosStore extends ChangeNotifier {
       catalogSource = 'cloud_api';
       lastCatalogSyncAt = DateTime.now();
       Future.microtask(() => fetchBackOfficeData());
+      if (pendingSyncCount > 0) {
+        Future.microtask(() => syncPendingToCloud());
+      }
       return parsed.menuItems.isNotEmpty;
     } catch (_) {
       cloudConnected = false;
@@ -3369,11 +3490,20 @@ class PosStore extends ChangeNotifier {
 
   // --- Blind Z-Closing ---
 
+  int get unclosedOrdersCount => _unclosedRealOrders.length;
+
   List<PosOrder> get _unclosedRealOrders {
     return _completedOrders.where((o) {
       if (o.isTraining) return false;
       if (_lastZClosedAt == null) return true;
       return (o.paidAt ?? o.createdAt).isAfter(_lastZClosedAt!);
+    }).toList(growable: false);
+  }
+
+  List<ReturnRemakeCompRecord> get _unclosedRemakes {
+    return _remakeRecords.where((r) {
+      if (_lastZClosedAt == null) return true;
+      return r.createdAt.isAfter(_lastZClosedAt!);
     }).toList(growable: false);
   }
 
@@ -3425,7 +3555,7 @@ class PosStore extends ChangeNotifier {
       expectedClickMru: _expectedForMethod(PaymentMethod.click),
       karniIssuedMru: _expectedForMethod(PaymentMethod.karni),
       ordersCount: closedOrdersForZ.length,
-      remakesCount: _remakeRecords.length,
+      remakesCount: _unclosedRemakes.length,
     );
     _lastZClosedAt = zTime;
     _closingsZ.insert(0, z);
@@ -3498,7 +3628,7 @@ class PosStore extends ChangeNotifier {
     _syncQueue.insert(
       0,
       SyncQueueItem(
-        id: 'SYNC-${_syncCounter++}',
+        id: 'SYNC-${DateTime.now().millisecondsSinceEpoch}-${_syncCounter++}',
         entityType: entityType,
         summary: summary,
         payload: payload,
@@ -3506,6 +3636,14 @@ class PosStore extends ChangeNotifier {
         createdAt: DateTime.now(),
       ),
     );
+    // In production web mode, automatically push to Cloud API immediately when online
+    if (_enablePersistence &&
+        cloudJwtToken != null &&
+        cloudJwtToken!.isNotEmpty &&
+        !accountOffline &&
+        !isSyncing) {
+      Future.microtask(() => syncPendingToCloud());
+    }
   }
 
   Future<int> syncPendingToCloud() async {
