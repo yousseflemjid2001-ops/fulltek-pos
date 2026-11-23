@@ -127,12 +127,14 @@ class ReceiptFormatter {
             ? order.cashierName!.trim()
             : order.staffName;
     if (hasTableServer) {
-      buf.writeln(_padRow('Date: $dateStr', 'Serveur: $effectiveServer'));
+      buf.writeln('Date: $dateStr');
+      buf.writeln('Serveur: $effectiveServer');
       if (effectiveCashier != effectiveServer) {
         buf.writeln('Caissier: $effectiveCashier');
       }
     } else {
-      buf.writeln(_padRow('Date: $dateStr', 'Caissier: $effectiveCashier'));
+      buf.writeln('Date: $dateStr');
+      buf.writeln('Caissier: $effectiveCashier');
     }
     buf.writeln(_line());
 
@@ -242,8 +244,12 @@ class ReceiptFormatter {
         'LIVRAISON - ${order.deliveryZone?.nameFr ?? 'Nouakchott'}',
     };
     buf.writeln(_padRow(targetLabel, order.ticketNumber));
+    final kitchenServer =
+        (order.serverName != null && order.serverName!.trim().isNotEmpty)
+            ? order.serverName!.trim()
+            : order.staffName;
     buf.writeln(_padRow(
-      'Serveur: ${order.staffName}',
+      'Serveur: $kitchenServer',
       '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
     ));
     buf.writeln(_line());
