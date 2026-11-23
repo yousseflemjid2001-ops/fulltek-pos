@@ -151,4 +151,76 @@ void main() {
     expect(store.verifyBackOfficePin(owner.pinCode), isNotNull);
     expect(store.verifyBackOfficePin(cashier.pinCode), isNull);
   });
+
+  test(
+    'Post-kitchen void blocks direct deletion, enforces reason + manager PIN, prints kitchen cancellation ticket & logs history',
+    () {
+      final store = PosStore(enablePersistence: false);
+      final owner = store.staff.firstWhere((s) => s.role == PosRole.owner);
+      final cashier = store.staff.firstWhere((s) => s.role == PosRole.cashier);
+      final dish = store.menuItems.first;
+
+      // Login as cashier (no voidOrComp permission)
+      expect(store.loginWithPin(cashier.pinCode), isTrue);
+      store.openOrSelectTable(store.tables.first.id);
+      store.addItemToActiveOrder(dish);
+      store.addItemToActiveOrder(dish);
+      final lineId = store.activeOrder!.items.first.lineId;
+
+      // Before sending to kitchen: direct decrement is allowed
+      expect(store.updateLineQuantity(lineId, -1), isTrue);
+      expect(store.activeOrder!.items.first.quantity, 1);
+
+      // Send to kitchen
+      store.sendActiveOrderToKitchen();
+      expect(store.activeOrder!.items.first.sentToKitchen, isTrue);
+
+      // After sending to kitchen: direct decrement & direct remove MUST be blocked
+      expect(store.updateLineQuantity(lineId, -1), isFalse);
+      expect(store.removeLineFromActiveOrder(lineId), isFalse);
+      expect(store.activeOrder!.items.length, 1);
+
+      // Missing reason -> rejected
+      expect(
+        store.voidSentLineWithAuth(
+          lineId: lineId,
+          reason: '   ',
+          managerPin: owner.pinCode,
+        ),
+        isNull,
+      );
+
+      // Missing or wrong manager PIN for cashier -> rejected
+      expect(
+        store.voidSentLineWithAuth(
+          lineId: lineId,
+          reason: 'Client a changé d\'avis',
+          managerPin: cashier.pinCode,
+        ),
+        isNull,
+      );
+
+      // Valid manager PIN + reason -> succeeds, prints cancellation ticket, logs history + KDS + SyncQueue
+      final cancelTicket = store.voidSentLineWithAuth(
+        lineId: lineId,
+        reason: 'Client a changé d\'avis',
+        managerPin: owner.pinCode,
+      );
+      expect(cancelTicket, isNotNull);
+      expect(cancelTicket, contains('ANNULATION CUISINE'));
+      expect(cancelTicket, contains('Client a changé d\'avis'));
+      expect(cancelTicket, contains(owner.name));
+      expect(store.activeOrder!.items, isEmpty);
+      expect(store.remakeRecords.length, 1);
+      expect(store.remakeRecords.first.type, 'void_kitchen');
+      expect(store.remakeRecords.first.approvedBy, owner.name);
+      expect(store.kdsTickets.first.status, 'cancelled');
+      expect(
+        store.syncQueue.any((q) =>
+            q.entityType == 'remake' &&
+            q.payload['type'] == 'VOID_KITCHEN'),
+        isTrue,
+      );
+    },
+  );
 }

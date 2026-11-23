@@ -263,6 +263,99 @@ class _ClosingZViewState extends State<ClosingZView> {
                 );
               }),
             ],
+            if (store.remakeRecords.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Divider(color: p.border),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.history_rounded, size: 17, color: p.danger),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Historique Annulations Cuisine & Retours (${store.remakeRecords.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: p.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ...store.remakeRecords.take(8).map((r) {
+                final typeLabel = switch (r.type) {
+                  'void_kitchen' => 'ANNULATION CUISINE',
+                  'return' => 'RETOUR',
+                  'comp' => 'OFFERT',
+                  _ => 'REMAKE',
+                };
+                final hm =
+                    '${r.createdAt.hour.toString().padLeft(2, '0')}:${r.createdAt.minute.toString().padLeft(2, '0')}';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: p.surfaceAlt,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: r.type == 'void_kitchen'
+                          ? p.danger.withValues(alpha: 0.4)
+                          : p.border,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: p.danger.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              typeLabel,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: p.danger,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${r.quantity}x ${r.itemName} · ${r.orderTicket}',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '-${r.amountMru.toStringAsFixed(0)} MRU',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                              color: p.danger,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Motif : ${r.reason} · 🕒 $hm · Demandé : ${r.staffName} · Validé : ${r.approvedBy}',
+                        style: TextStyle(fontSize: 11, color: p.textMuted),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),

@@ -182,6 +182,20 @@ class PosStore extends ChangeNotifier {
         'syncCounter': _syncCounter,
         'lastZClosedAt': _lastZClosedAt?.toIso8601String(),
         'closingsZ': _closingsZ.map((z) => z.toSyncJson()).toList(),
+        'remakeRecords': _remakeRecords
+            .map((r) => {
+                  'id': r.id,
+                  'type': r.type,
+                  'orderTicket': r.orderTicket,
+                  'itemName': r.itemName,
+                  'quantity': r.quantity,
+                  'amountMru': r.amountMru,
+                  'reason': r.reason,
+                  'staffName': r.staffName,
+                  'approvedBy': r.approvedBy,
+                  'createdAt': r.createdAt.toIso8601String(),
+                })
+            .toList(),
         'licenseExpiresAt': license.expiresAt.toIso8601String(),
         'licenseVerified': license.ed25519Verified,
         'licenseCode': license.code12,
@@ -316,6 +330,28 @@ class PosStore extends ChangeNotifier {
                   ((zm['karni_issued_mru'] ?? 0) as num).toDouble(),
               ordersCount: ((zm['orders_count'] ?? 0) as num).toInt(),
               remakesCount: ((zm['remakes_count'] ?? 0) as num).toInt(),
+            ),
+          );
+        }
+      }
+      final savedRemakes = map['remakeRecords'] as List?;
+      if (savedRemakes != null) {
+        _remakeRecords.clear();
+        for (final rawR in savedRemakes.whereType<Map>()) {
+          final rm = rawR.cast<String, dynamic>();
+          _remakeRecords.add(
+            ReturnRemakeCompRecord(
+              id: '${rm['id'] ?? 'RRC'}',
+              type: '${rm['type'] ?? 'remake'}',
+              orderTicket: '${rm['orderTicket'] ?? ''}',
+              itemName: '${rm['itemName'] ?? ''}',
+              quantity: ((rm['quantity'] ?? 1) as num).toInt(),
+              amountMru: ((rm['amountMru'] ?? 0) as num).toDouble(),
+              reason: '${rm['reason'] ?? ''}',
+              staffName: '${rm['staffName'] ?? 'Staff'}',
+              approvedBy: '${rm['approvedBy'] ?? 'Gérant'}',
+              createdAt:
+                  DateTime.tryParse('${rm['createdAt'] ?? ''}') ?? DateTime.now(),
             ),
           );
         }
@@ -1628,29 +1664,50 @@ class PosStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateLineQuantity(String lineId, int delta) {
+  bool updateLineQuantity(String lineId, int delta) {
     final order = activeOrder;
-    if (order == null) return;
+    if (order == null) return false;
     final items = List<OrderItem>.from(order.items);
     final idx = items.indexWhere((l) => l.lineId == lineId);
-    if (idx == -1) return;
+    if (idx == -1) return false;
+    final currentLine = items[idx];
+
+    // Anti-fraud protection: block silent decrement of lines already sent to kitchen
+    if (delta < 0 && currentLine.sentToKitchen) {
+      lastVoidError =
+          'Article déjà envoyé en cuisine : annulation autorisée uniquement avec motif et validation gérant.';
+      return false;
+    }
+
     if (delta > 0) {
-      final itemId = items[idx].item.id;
+      final itemId = currentLine.item.id;
       final live = menuItems.cast<MenuItem?>().firstWhere(
             (m) => m?.id == itemId,
-            orElse: () => items[idx].item,
+            orElse: () => currentLine.item,
           )!;
-      if (!live.available) return;
+      if (!live.available) return false;
+      // If adding more of a dish already sent to kitchen, add as a fresh unsent line
+      // so the extra unit will be dispatched to the kitchen on the next send.
+      if (currentLine.sentToKitchen) {
+        return addItemToActiveOrder(
+          currentLine.item,
+          note: currentLine.kitchenNote,
+          selectedModifiers: currentLine.selectedModifiers,
+          isTakeaway: currentLine.isTakeaway,
+        );
+      }
     }
-    final nextQty = items[idx].quantity + delta;
+
+    final nextQty = currentLine.quantity + delta;
     if (nextQty <= 0) {
       items.removeAt(idx);
     } else {
-      items[idx] = items[idx].copyWith(quantity: nextQty);
+      items[idx] = currentLine.copyWith(quantity: nextQty);
     }
     _openOrdersById[order.id] =
         _withRecomputedDelivery(order.copyWith(items: items));
     notifyListeners();
+    return true;
   }
 
   void updateLineNote(String lineId, String note) {
@@ -1692,11 +1749,21 @@ class PosStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Removes a line completely from the active order (even if previously sent to kitchen).
-  /// If a table order becomes completely empty, frees the table automatically.
-  void removeLineFromActiveOrder(String lineId) {
+  String? lastVoidError;
+
+  /// Removes an UNSENT line completely from the active order.
+  /// Lines already sent to kitchen are strictly blocked here and MUST go through
+  /// [voidSentLineWithAuth] (reason + manager PIN + kitchen cancellation ticket + audit log).
+  bool removeLineFromActiveOrder(String lineId) {
     final order = activeOrder;
-    if (order == null) return;
+    if (order == null) return false;
+    final idx = order.items.indexWhere((l) => l.lineId == lineId);
+    if (idx == -1) return false;
+    if (order.items[idx].sentToKitchen) {
+      lastVoidError =
+          'Suppression bloquée : article déjà envoyé en cuisine. Utilisez l\'annulation contrôlée (motif + code gérant).';
+      return false;
+    }
     final items = order.items.where((l) => l.lineId != lineId).toList();
     _openOrdersById[order.id] =
         _withRecomputedDelivery(order.copyWith(items: items));
@@ -1705,11 +1772,169 @@ class PosStore extends ChangeNotifier {
       if (tIdx != -1) {
         tables[tIdx] = tables[tIdx].copyWith(
           status: TableStatus.free,
+          clearOrder: true,
           clearOccupied: true,
+          clearServer: true,
         );
       }
     }
     notifyListeners();
+    return true;
+  }
+
+  /// Controlled post-kitchen cancellation (full line or partial quantity).
+  /// Requires:
+  /// 1. Mandatory non-empty [reason].
+  /// 2. Authorization: current user has [PosPermission.voidOrComp] (Gérant/Propriétaire)
+  ///    OR a valid [managerPin] verified via [verifyManagerPin].
+  /// Effects:
+  /// - Removes or decrements the line (frees table if order becomes empty).
+  /// - Logs an immutable [ReturnRemakeCompRecord] (`void_kitchen`) in history + SyncQueue.
+  /// - Creates a KDS cancellation ticket and returns the 80mm printable cancellation ticket text.
+  String? voidSentLineWithAuth({
+    required String lineId,
+    int? cancelQty,
+    required String reason,
+    String? managerPin,
+  }) {
+    lastVoidError = null;
+    final order = activeOrder;
+    if (order == null) {
+      lastVoidError = 'Aucune commande active.';
+      return null;
+    }
+    final cleanReason = reason.trim();
+    if (cleanReason.isEmpty) {
+      lastVoidError = 'Le motif d\'annulation est obligatoire.';
+      return null;
+    }
+
+    String? approver;
+    if (canCurrent(PosPermission.voidOrComp)) {
+      approver = _currentStaff!.name;
+    } else if (managerPin != null && managerPin.trim().isNotEmpty) {
+      final mgr = verifyManagerPin(managerPin.trim());
+      if (mgr == null) {
+        lastVoidError = 'Code PIN gérant invalide.';
+        return null;
+      }
+      approver = mgr.name;
+    } else {
+      lastVoidError =
+          'Code PIN gérant requis pour annuler un article déjà envoyé en cuisine.';
+      return null;
+    }
+
+    final items = List<OrderItem>.from(order.items);
+    final idx = items.indexWhere((l) => l.lineId == lineId);
+    if (idx == -1) {
+      lastVoidError = 'Article introuvable dans la commande.';
+      return null;
+    }
+    final line = items[idx];
+    final qtyToCancel =
+        (cancelQty == null || cancelQty <= 0 || cancelQty >= line.quantity)
+            ? line.quantity
+            : cancelQty;
+
+    if (qtyToCancel >= line.quantity) {
+      items.removeAt(idx);
+    } else {
+      items[idx] = line.copyWith(quantity: line.quantity - qtyToCancel);
+    }
+
+    _openOrdersById[order.id] =
+        _withRecomputedDelivery(order.copyWith(items: items));
+
+    if (items.isEmpty && order.tableId != null) {
+      final tIdx = tables.indexWhere((t) => t.id == order.tableId);
+      if (tIdx != -1) {
+        tables[tIdx] = tables[tIdx].copyWith(
+          status: TableStatus.free,
+          clearOrder: true,
+          clearOccupied: true,
+          clearServer: true,
+        );
+      }
+    }
+
+    final requestedBy = _currentStaff?.name ?? order.staffName;
+    final cancelTicketText = ReceiptFormatter.formatKitchenCancellationTicket(
+      order: order,
+      cancelledLine: line,
+      cancelledQty: qtyToCancel,
+      reason: cleanReason,
+      requestedBy: requestedBy,
+      approvedBy: approver,
+    );
+
+    // Push a cancellation notice onto KDS so the kitchen display sees it immediately
+    _kdsTickets.insert(
+      0,
+      KdsTicket(
+        id: 'KDS-VOID-${_kdsCounter++}',
+        orderId: order.id,
+        orderCode: '${order.ticketNumber} · ANNULATION',
+        tableCode: order.tableCode,
+        serviceMode: order.serviceMode,
+        deliveryZoneName: order.deliveryZone?.nameFr,
+        takeawayNumber: order.takeawayNumber,
+        staffName: '$requestedBy (Validé: $approver)',
+        isTraining: order.isTraining,
+        sentAt: DateTime.now(),
+        status: 'cancelled',
+        items: [
+          KdsTicketItem(
+            lineId: '${line.lineId}-VOID',
+            productId: line.item.id,
+            sku: line.item.sku,
+            nameFr: '❌ ANNULÉ: ${line.item.nameFr}',
+            nameAr: '❌ ملغى: ${line.item.nameAr}',
+            nameEn: '❌ VOID: ${line.item.nameEn}',
+            quantity: qtyToCancel,
+            kitchenStation: line.item.kitchenStation,
+            selectedModifiers: line.selectedModifiers,
+            kitchenNote: 'MOTIF: $cleanReason',
+          ),
+        ],
+      ),
+    );
+
+    if (!order.isTraining) {
+      final rec = ReturnRemakeCompRecord(
+        id: 'VOID-${DateTime.now().millisecondsSinceEpoch}',
+        type: 'void_kitchen',
+        orderTicket: order.ticketNumber,
+        itemName: line.item.nameFr,
+        quantity: qtyToCancel,
+        amountMru: line.unitPriceWithModifiers * qtyToCancel,
+        reason: cleanReason,
+        staffName: requestedBy,
+        approvedBy: approver,
+        createdAt: DateTime.now(),
+      );
+      _remakeRecords.insert(0, rec);
+      _enqueueSync(
+        entityType: 'remake',
+        summary:
+            'ANNULATION CUISINE · ${qtyToCancel}x ${line.item.nameFr} ($cleanReason)',
+        payload: {
+          'id': rec.id,
+          'type': 'VOID_KITCHEN',
+          'ticket': rec.orderTicket,
+          'item': rec.itemName,
+          'sku': line.item.sku,
+          'qty': qtyToCancel,
+          'amount_mru': rec.amountMru,
+          'reason': cleanReason,
+          'staff_name': requestedBy,
+          'approved_by': approver,
+        },
+      );
+    }
+
+    notifyListeners();
+    return cancelTicketText;
   }
 
   /// All open orders that are waiting (sent to kitchen or attached to an occupied table).

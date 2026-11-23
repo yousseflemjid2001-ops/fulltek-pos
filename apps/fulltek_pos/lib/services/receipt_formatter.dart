@@ -261,6 +261,53 @@ class ReceiptFormatter {
     return buf.toString();
   }
 
+  /// 80mm Kitchen Cancellation Ticket ("Ticket d'annulation cuisine")
+  static String formatKitchenCancellationTicket({
+    required PosOrder order,
+    required OrderItem cancelledLine,
+    required int cancelledQty,
+    required String reason,
+    required String requestedBy,
+    required String approvedBy,
+  }) {
+    final buf = StringBuffer();
+    buf.writeln(_line('*'));
+    if (order.isTraining) {
+      buf.writeln(_center('*** FORMATION ***'));
+    }
+    buf.writeln(_center('*** ANNULATION CUISINE / إلغاء طلب ***'));
+    buf.writeln(_line('*'));
+    final targetLabel = switch (order.serviceMode) {
+      ServiceMode.dineIn =>
+        order.tableCode != null ? 'TABLE: ${order.tableCode}' : 'COMPTOIR',
+      ServiceMode.takeaway =>
+        'EMPORTER${order.takeawayNumber != null ? ' N°${order.takeawayNumber}' : ''}',
+      ServiceMode.delivery =>
+        'LIVRAISON - ${order.deliveryZone?.nameFr ?? 'Nouakchott'}',
+    };
+    final now = DateTime.now();
+    final hm =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    buf.writeln(_padRow(targetLabel, order.ticketNumber));
+    buf.writeln(_padRow('Demande par: $requestedBy', hm));
+    buf.writeln(_padRow('Autorise par: $approvedBy', 'ANNULE'));
+    buf.writeln(_line());
+    buf.writeln(
+        '[${cancelledLine.item.kitchenStation}] -${cancelledQty}x ${cancelledLine.item.nameFr} (ANNULE)');
+    if (cancelledLine.item.nameAr.isNotEmpty) {
+      buf.writeln('   ${cancelledLine.item.nameAr}');
+    }
+    for (final m in cancelledLine.selectedModifiers) {
+      buf.writeln('   + ${m.nameFr}');
+    }
+    buf.writeln(_line());
+    for (final l in _wrapLines('MOTIF: $reason')) {
+      buf.writeln(l);
+    }
+    buf.writeln(_line('*'));
+    return buf.toString();
+  }
+
   static String formatClosingZReport(CashClosingZ z) {
     final buf = StringBuffer();
     buf.writeln(_line('='));

@@ -180,6 +180,183 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     );
   }
 
+  Future<void> _openCancelSentLineDialog(
+    OrderItem line, {
+    int? cancelQty,
+  }) async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    final qty =
+        (cancelQty == null || cancelQty >= line.quantity) ? line.quantity : cancelQty;
+    final needsPin = !store.canCurrent(PosPermission.voidOrComp);
+    final reasonCtrl = TextEditingController();
+    final pinCtrl = TextEditingController();
+    const quickReasons = [
+      'Client a changé d\'avis',
+      'Erreur de saisie',
+      'Rupture ingrédient',
+      'Attente trop longue',
+      'Plat retourné',
+    ];
+    String? error;
+
+    final cancelTicket = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.lock_outline_rounded, color: p.danger, size: 22),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Annulation après envoi cuisine',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: p.danger.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: p.danger.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      '🔥 Article déjà envoyé en cuisine : ${qty}x ${line.item.label(store.lang)} (${(line.unitPriceWithModifiers * qty).toStringAsFixed(0)} MRU).\n'
+                      'Un ticket d\'annulation sera imprimé en cuisine et enregistré dans l\'historique.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: p.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: quickReasons
+                        .map(
+                          (r) => ActionChip(
+                            label: Text(r, style: const TextStyle(fontSize: 11)),
+                            onPressed: () {
+                              reasonCtrl.text = r;
+                              setD(() => error = null);
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: const Key('void_kitchen_reason_input'),
+                    controller: reasonCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Motif d\'annulation *',
+                      hintText: 'Ex: Client a changé d\'avis / Erreur saisie',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (needsPin)
+                    TextField(
+                      key: const Key('void_kitchen_pin_input'),
+                      controller: pinCtrl,
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Code PIN Gérant / Propriétaire *',
+                        hintText: 'Saisissez le code PIN autorisé',
+                        prefixIcon: Icon(Icons.vpn_key_outlined),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: p.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: p.success.withValues(alpha: 0.35)),
+                      ),
+                      child: Text(
+                        '✅ Autorisé par ${store.currentStaff?.name ?? 'Gérant'} (profil autorisé)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: p.success,
+                        ),
+                      ),
+                    ),
+                  if (error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: p.danger,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton.icon(
+              key: const Key('confirm_void_kitchen_btn'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: p.danger,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final ticket = store.voidSentLineWithAuth(
+                  lineId: line.lineId,
+                  cancelQty: cancelQty,
+                  reason: reasonCtrl.text,
+                  managerPin: pinCtrl.text,
+                );
+                if (ticket == null) {
+                  setD(() => error =
+                      store.lastVoidError ?? 'Annulation refusée.');
+                  return;
+                }
+                Navigator.of(ctx).pop(ticket);
+              },
+              icon: const Icon(Icons.print_rounded, size: 16),
+              label: const Text('Annuler & Imprimer cuisine'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reasonCtrl.dispose();
+    pinCtrl.dispose();
+
+    if (cancelTicket != null && mounted) {
+      showReceiptPreviewDialog(
+        context,
+        title: '❌ Ticket d\'annulation cuisine',
+        subtitle: 'À remettre en cuisine · Trace enregistrée dans l\'historique',
+        receiptText: cancelTicket,
+      );
+    }
+  }
+
   Future<void> _openWaitingOrdersDialog() async {
     final store = widget.store;
     final waiting = store.waitingOrders;
@@ -1195,6 +1372,29 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                           ),
                                         ),
                                       ),
+                                      if (line.sentToKitchen)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: p.danger
+                                                .withValues(alpha: 0.14),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: p.danger
+                                                  .withValues(alpha: 0.35),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '🔒 En cuisine',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: p.danger,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                   if (line.kitchenNote != null &&
@@ -1216,10 +1416,23 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             ),
                             IconButton(
                               visualDensity: VisualDensity.compact,
-                              onPressed: () =>
-                                  store.updateLineQuantity(line.lineId, -1),
-                              icon: const Icon(Icons.remove_circle_outline,
-                                  size: 19),
+                              tooltip: line.sentToKitchen
+                                  ? 'Annuler 1 unité (code gérant + motif)'
+                                  : 'Diminuer quantité',
+                              onPressed: () {
+                                if (line.sentToKitchen) {
+                                  _openCancelSentLineDialog(line, cancelQty: 1);
+                                } else {
+                                  store.updateLineQuantity(line.lineId, -1);
+                                }
+                              },
+                              icon: Icon(
+                                line.sentToKitchen
+                                    ? Icons.lock_outline_rounded
+                                    : Icons.remove_circle_outline,
+                                size: 18,
+                                color: line.sentToKitchen ? p.warning : null,
+                              ),
                             ),
                             IconButton(
                               visualDensity: VisualDensity.compact,
@@ -1230,11 +1443,23 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             ),
                             IconButton(
                               visualDensity: VisualDensity.compact,
-                              tooltip: 'Supprimer la ligne',
-                              onPressed: () =>
-                                  store.removeLineFromActiveOrder(line.lineId),
-                              icon: Icon(Icons.delete_outline_rounded,
-                                  size: 18, color: p.danger),
+                              tooltip: line.sentToKitchen
+                                  ? 'Annuler après cuisine (code gérant + motif)'
+                                  : 'Supprimer la ligne',
+                              onPressed: () {
+                                if (line.sentToKitchen) {
+                                  _openCancelSentLineDialog(line);
+                                } else {
+                                  store.removeLineFromActiveOrder(line.lineId);
+                                }
+                              },
+                              icon: Icon(
+                                line.sentToKitchen
+                                    ? Icons.cancel_outlined
+                                    : Icons.delete_outline_rounded,
+                                size: 18,
+                                color: p.danger,
+                              ),
                             ),
                           ],
                         ),
