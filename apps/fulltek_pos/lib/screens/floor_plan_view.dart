@@ -624,18 +624,20 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                     ],
                   ),
                   Text(
-                    '👥 ${t.guests > 0 ? t.guests : t.capacity} ${i18n.t('guests')}',
-                    style: TextStyle(fontSize: 12, color: p.textMuted),
+                    '👥 ${t.guests > 0 ? t.guests : t.capacity} ${i18n.t('guests')}${(order?.serverName ?? t.serverName) != null ? ' · 👤 ${order?.serverName ?? t.serverName}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11.5, color: p.textMuted),
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         order != null
-                            ? '${order.netTotal.toStringAsFixed(0)} ${i18n.t('mru')}'
+                            ? '${order.netTotal.toStringAsFixed(0)} ${i18n.t('mru')} (${order.items.length})'
                             : '—',
                         style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w900,
                             color: p.primary),
                       ),

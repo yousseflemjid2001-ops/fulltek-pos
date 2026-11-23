@@ -589,6 +589,7 @@ class MenuCategory {
   final String nameAr;
   final String nameEn;
   final String icon;
+  final String imageUrl;
   final int sortOrder;
   final bool active;
 
@@ -598,6 +599,7 @@ class MenuCategory {
     required this.nameAr,
     required this.nameEn,
     required this.icon,
+    this.imageUrl = '',
     this.sortOrder = 0,
     this.active = true,
   });

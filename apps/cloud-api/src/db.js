@@ -1240,6 +1240,7 @@ function runMigrations(database) {
   ensureColumn(database, 'products', 'manual_price', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'users', 'profile_id', "TEXT DEFAULT ''");
   ensureColumn(database, 'users', 'badge_uid', "TEXT DEFAULT ''");
+  ensureColumn(database, 'categories', 'image_url', "TEXT DEFAULT ''");
   ensureColumn(database, 'products', 'is_top', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'is_out_of_stock', 'INTEGER DEFAULT 0');
   ensureColumn(database, 'products', 'modifiers_json', "TEXT DEFAULT '[]'");

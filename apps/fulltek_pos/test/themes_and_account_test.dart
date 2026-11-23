@@ -117,7 +117,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.loginWithPin('7410'), isTrue);
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('rail_cat_all')), findsNothing);
+      expect(find.byKey(const Key('rail_cat_all')), findsOneWidget);
 
       store.setTheme(FullTekThemeId.nordicMinimal);
       await tester.pumpAndSettle();

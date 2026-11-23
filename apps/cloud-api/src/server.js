@@ -1486,11 +1486,12 @@ function createApp(options = {}) {
         const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : nameFr;
         const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : nameFr;
         const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : '🍽';
+        const imageUrl = typeof b.imageUrl === 'string' ? b.imageUrl.trim() : '';
         const sortOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 99;
         const ins = database.prepare(`
-          INSERT INTO categories (tenant_id, name_fr, name_ar, name_en, icon, sort_order, active, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-        `).run(currentTenant.id, nameFr, nameAr, nameEn, icon, sortOrder, new Date().toISOString());
+          INSERT INTO categories (tenant_id, name_fr, name_ar, name_en, icon, image_url, sort_order, active, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+        `).run(currentTenant.id, nameFr, nameAr, nameEn, icon, imageUrl, sortOrder, new Date().toISOString());
         const created = database.prepare('SELECT * FROM categories WHERE id = ?').get(ins.lastInsertRowid);
         return sendJson(res, 201, { ok: true, category: created });
       }
@@ -1505,8 +1506,9 @@ function createApp(options = {}) {
         const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : cur.name_ar;
         const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : cur.name_en;
         const icon = typeof b.icon === 'string' && b.icon.trim() ? b.icon.trim() : cur.icon;
-        database.prepare('UPDATE categories SET name_fr = ?, name_ar = ?, name_en = ?, icon = ? WHERE id = ? AND tenant_id = ?')
-          .run(nameFr, nameAr, nameEn, icon, catId, currentTenant.id);
+        const imageUrl = typeof b.imageUrl === 'string' ? b.imageUrl.trim() : (cur.image_url || '');
+        database.prepare('UPDATE categories SET name_fr = ?, name_ar = ?, name_en = ?, icon = ?, image_url = ? WHERE id = ? AND tenant_id = ?')
+          .run(nameFr, nameAr, nameEn, icon, imageUrl, catId, currentTenant.id);
         const updated = database.prepare('SELECT * FROM categories WHERE id = ?').get(catId);
         return sendJson(res, 200, { ok: true, category: updated });
       }

@@ -171,13 +171,171 @@ class _PosRegisterViewState extends State<PosRegisterView> {
   }
 
   void _sendToKitchen() {
-    final kdsTicket = widget.store.sendActiveOrderToKitchen();
+    final kdsTicket = widget.store.sendActiveOrderToKitchenAndPark();
     if (kdsTicket == null) return;
     showReceiptPreviewDialog(
       context,
-      title: widget.store.i18n.t('kitchen_sent'),
+      title: '${widget.store.i18n.t('kitchen_sent')} · Mise en attente',
       receiptText: kdsTicket,
     );
+  }
+
+  Future<void> _openWaitingOrdersDialog() async {
+    final store = widget.store;
+    final waiting = store.waitingOrders;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Commandes en attente & Tables (${waiting.length})'),
+        content: SizedBox(
+          width: 440,
+          height: 360,
+          child: waiting.isEmpty
+              ? const Center(
+                  child: Text('Aucune commande en attente.'),
+                )
+              : ListView.separated(
+                  itemCount: waiting.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (_, idx) {
+                    final o = waiting[idx];
+                    final label = o.tableCode != null
+                        ? 'Table ${o.tableCode}'
+                        : '${o.serviceMode.emoji} ${o.serviceMode.label(store.lang)}';
+                    final srv = o.serverName ?? o.staffName;
+                    return ListTile(
+                      leading: const Icon(Icons.hourglass_top_rounded),
+                      title: Text(
+                        '$label · ${o.ticketNumber}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        'Serveur: $srv · ${o.items.length} article(s) · ${o.netTotal.toStringAsFixed(0)} MRU',
+                      ),
+                      trailing: FilledButton.tonal(
+                        onPressed: () {
+                          store.resumeWaitingOrder(o.id);
+                          Navigator.of(ctx).pop();
+                        },
+                        child: const Text('Ouvrir / Modifier'),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openQuickCategoryImageDialog(MenuCategory cat) async {
+    final store = widget.store;
+    final imgCtrl = TextEditingController(text: cat.imageUrl);
+    final nameCtrl = TextEditingController(text: cat.nameFr);
+    final iconCtrl = TextEditingController(text: cat.icon);
+    const presetImages = <String, String>{
+      'Plats': 'assets/images/menu/resto_thieboudienne.jpg',
+      'Grillades': 'assets/images/menu/resto_mechoui.jpg',
+      'Burger/Sandwich': 'assets/images/menu/burger_chameau.jpg',
+      'Poulet': 'assets/images/menu/poulet_braise.jpg',
+      'Pizza/Snack': 'assets/images/menu/chawarma_royal.jpg',
+      'Salades': 'assets/images/menu/salade_fattouch.jpg',
+      'Boissons': 'assets/images/menu/jus_bissap.jpg',
+      'Thé/Café': 'assets/images/menu/resto_atay.jpg',
+      'Desserts': 'assets/images/menu/resto_dattes.jpg',
+    };
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text('Catégorie · ${cat.nameFr}'),
+          content: SizedBox(
+            width: 390,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 64,
+                        child: TextField(
+                          controller: iconCtrl,
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(labelText: 'Icône'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'Nom famille'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: imgCtrl,
+                    onChanged: (_) => setD(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Image de la catégorie (URL ou Galerie)',
+                      suffixIcon: imgCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () => setD(() => imgCtrl.clear()),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: presetImages.entries.map((e) {
+                      return ChoiceChip(
+                        label:
+                            Text(e.key, style: const TextStyle(fontSize: 11)),
+                        selected: imgCtrl.text.trim() == e.value,
+                        onSelected: (_) => setD(() => imgCtrl.text = e.value),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await store.saveCategory(
+                  existingId: cat.id,
+                  nameFr: nameCtrl.text,
+                  icon: iconCtrl.text,
+                  imageUrl: imgCtrl.text,
+                );
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    imgCtrl.dispose();
+    nameCtrl.dispose();
+    iconCtrl.dispose();
   }
 
   Future<void> _editNote(OrderItem line) async {
@@ -246,40 +404,104 @@ class _PosRegisterViewState extends State<PosRegisterView> {
 
   Widget _buildCatalogPane(PosStore store, PosPalette p) {
     final isNarrowPhone = MediaQuery.of(context).size.width < 600;
-    if (!store.themeSpec.categoriesAsRail || isNarrowPhone) {
-      return _catalogInner(store, p);
+    if (isNarrowPhone) {
+      return _catalogInner(store, p, showTopTabs: true);
     }
     final i18n = store.i18n;
-    Widget railItem(String id, String icon, String label) {
+    Widget railItem({
+      required String id,
+      required String icon,
+      required String label,
+      String imageUrl = '',
+      MenuCategory? category,
+    }) {
       final sel = _selectedCategoryId == id;
+      final cleanImg = imageUrl.trim();
+      Widget thumb;
+      if (cleanImg.isNotEmpty) {
+        final isNet = cleanImg.startsWith('http://') ||
+            cleanImg.startsWith('https://') ||
+            cleanImg.startsWith('data:');
+        thumb = ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 46,
+            height: 40,
+            child: isNet
+                ? Image.network(
+                    cleanImg,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        Center(child: Text(icon, style: const TextStyle(fontSize: 20))),
+                  )
+                : Image.asset(
+                    cleanImg,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        Center(child: Text(icon, style: const TextStyle(fontSize: 20))),
+                  ),
+          ),
+        );
+      } else {
+        thumb = Text(icon, style: const TextStyle(fontSize: 22));
+      }
+
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: sel ? p.primary : Colors.transparent,
+          color: sel ? p.primary : p.surfaceAlt.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(p.radius),
           child: InkWell(
             key: Key('rail_cat_$id'),
             borderRadius: BorderRadius.circular(p.radius),
             onTap: () => setState(() => _selectedCategoryId = id),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-              child: Column(
-                children: [
-                  Text(icon, style: const TextStyle(fontSize: 21)),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: sel ? p.onPrimary : p.textMuted,
+            onLongPress: category != null
+                ? () => _openQuickCategoryImageDialog(category)
+                : null,
+            child: Stack(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    child: Column(
+                      children: [
+                        thumb,
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: sel ? p.onPrimary : p.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                if (category != null)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: InkWell(
+                      onTap: () => _openQuickCategoryImageDialog(category),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(Icons.photo_camera_outlined,
+                            size: 11, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -289,7 +511,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     return Row(
       children: [
         Container(
-          width: 84,
+          width: 98,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: p.surface,
@@ -297,21 +519,28 @@ class _PosRegisterViewState extends State<PosRegisterView> {
           ),
           child: ListView(
             children: [
-              railItem('all', '🍽', i18n.t('all_categories')),
-              ...store.categories
-                  .map((c) => railItem(c.id, c.icon, c.label(store.lang))),
+              railItem(
+                  id: 'all', icon: '🍽', label: i18n.t('all_categories')),
+              ...store.categories.map((c) => railItem(
+                    id: c.id,
+                    icon: c.icon,
+                    label: c.label(store.lang),
+                    imageUrl: c.imageUrl,
+                    category: c,
+                  )),
             ],
           ),
         ),
-        Expanded(child: _catalogInner(store, p)),
+        Expanded(child: _catalogInner(store, p, showTopTabs: false)),
       ],
     );
   }
 
-  Widget _catalogInner(PosStore store, PosPalette p) {
+  Widget _catalogInner(PosStore store, PosPalette p,
+      {bool showTopTabs = false}) {
     final i18n = store.i18n;
     final items = _filteredItems;
-    final showTabs = !store.themeSpec.categoriesAsRail;
+    final showTabs = showTopTabs;
     final isDelivery = store.serviceMode == ServiceMode.delivery;
 
     return Padding(
@@ -683,41 +912,126 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Ticket Header
+          // Ticket Header + Waiter Selector + Waiting Orders button
           Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: p.primary.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  order?.tableCode != null
-                      ? '${i18n.t('table_label')} ${order!.tableCode}'
-                      : '${store.serviceMode.emoji} ${store.serviceMode.label(store.lang)}',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: p.primary,
-                      fontSize: 12.5),
+              Flexible(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: p.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    order?.tableCode != null
+                        ? '${i18n.t('table_label')} ${order!.tableCode}'
+                        : '${store.serviceMode.emoji} ${store.serviceMode.label(store.lang)}',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: p.primary,
+                        fontSize: 12),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  order?.ticketNumber ?? '',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: p.textMuted),
+              const SizedBox(width: 6),
+              // Server / Waiter selector dropdown
+              if (store.staff.isNotEmpty)
+                Flexible(
+                  child: PopupMenuButton<String>(
+                    key: const Key('select_server_menu'),
+                    tooltip: 'Sélectionner le serveur qui gère la table',
+                    onSelected: store.setActiveOrderServer,
+                    itemBuilder: (_) => store.staff
+                        .where((s) => s.isActive)
+                        .map((s) => PopupMenuItem<String>(
+                              value: s.name,
+                              child: Text(
+                                  '👤 ${s.name} (${s.role.label(store.lang)})'),
+                            ))
+                        .toList(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: p.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: p.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.person_outline_rounded,
+                              size: 13, color: p.accent),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              order?.serverName ??
+                                  store.currentStaff?.name ??
+                                  'Serveur',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: p.textPrimary),
+                            ),
+                          ),
+                          Icon(Icons.arrow_drop_down_rounded,
+                              size: 15, color: p.textMuted),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              // Waiting Orders button ("En attente")
+              InkWell(
+                key: const Key('waiting_orders_btn'),
+                borderRadius: BorderRadius.circular(8),
+                onTap: _openWaitingOrdersDialog,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: store.waitingOrders.isNotEmpty
+                        ? p.warning.withValues(alpha: 0.18)
+                        : p.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: store.waitingOrders.isNotEmpty
+                            ? p.warning
+                            : p.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.hourglass_top_rounded,
+                          size: 13,
+                          color: store.waitingOrders.isNotEmpty
+                              ? p.warning
+                              : p.textMuted),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${store.waitingOrders.length}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: store.waitingOrders.isNotEmpty
+                              ? p.warning
+                              : p.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               IconButton(
+                visualDensity: VisualDensity.compact,
                 tooltip: i18n.t('counter_sale'),
                 onPressed: store.startCounterOrder,
                 icon: Icon(Icons.add_shopping_cart_rounded,
-                    size: 20, color: p.textMuted),
+                    size: 18, color: p.textMuted),
               ),
             ],
           ),
@@ -901,6 +1215,14 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                   store.updateLineQuantity(line.lineId, 1),
                               icon: const Icon(Icons.add_circle_outline,
                                   size: 19),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Supprimer la ligne',
+                              onPressed: () =>
+                                  store.removeLineFromActiveOrder(line.lineId),
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  size: 18, color: p.danger),
                             ),
                           ],
                         ),

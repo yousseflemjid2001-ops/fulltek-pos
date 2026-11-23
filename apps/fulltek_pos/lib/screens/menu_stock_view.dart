@@ -68,6 +68,18 @@ class _MenuStockViewState extends State<MenuStockView> {
     final frCtrl = TextEditingController(text: existing?.nameFr ?? '');
     final arCtrl = TextEditingController(text: existing?.nameAr ?? '');
     final iconCtrl = TextEditingController(text: existing?.icon ?? '🍽');
+    final imgCtrl = TextEditingController(text: existing?.imageUrl ?? '');
+    const presetImages = <String, String>{
+      'Plats': 'assets/images/menu/resto_thieboudienne.jpg',
+      'Grillades': 'assets/images/menu/resto_mechoui.jpg',
+      'Burger/Sandwich': 'assets/images/menu/burger_chameau.jpg',
+      'Poulet': 'assets/images/menu/poulet_braise.jpg',
+      'Pizza/Snack': 'assets/images/menu/chawarma_royal.jpg',
+      'Salades': 'assets/images/menu/salade_fattouch.jpg',
+      'Boissons': 'assets/images/menu/jus_bissap.jpg',
+      'Thé/Café': 'assets/images/menu/resto_atay.jpg',
+      'Desserts': 'assets/images/menu/resto_dattes.jpg',
+    };
     String? err;
 
     await showDialog<void>(
@@ -76,48 +88,87 @@ class _MenuStockViewState extends State<MenuStockView> {
         builder: (ctx, setD) => AlertDialog(
           title: Text(existing == null
               ? 'Nouvelle famille / catégorie'
-              : 'Renommer la famille'),
+              : 'Modifier la famille & son image'),
           content: SizedBox(
-            width: 360,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (err != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(err!,
-                        style: const TextStyle(color: Colors.redAccent)),
+            width: 410,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (err != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(err!,
+                          style: const TextStyle(color: Colors.redAccent)),
+                    ),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 68,
+                        child: TextField(
+                          controller: iconCtrl,
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(labelText: 'Icône'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          key: const Key('category_name_fr_input'),
+                          controller: frCtrl,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                              labelText: 'Nom (Français) *'),
+                        ),
+                      ),
+                    ],
                   ),
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 68,
-                      child: TextField(
-                        controller: iconCtrl,
-                        textAlign: TextAlign.center,
-                        decoration: const InputDecoration(labelText: 'Icône'),
-                      ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: const Key('category_name_ar_input'),
+                    controller: arCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Nom (Arabe / عربي)'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('category_image_input'),
+                    controller: imgCtrl,
+                    onChanged: (_) => setD(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Image de la catégorie (URL ou Galerie)',
+                      prefixIcon: const Icon(Icons.image_outlined, size: 18),
+                      suffixIcon: imgCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () => setD(() => imgCtrl.clear()),
+                            )
+                          : null,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        key: const Key('category_name_fr_input'),
-                        controller: frCtrl,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                            labelText: 'Nom (Français) *'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  key: const Key('category_name_ar_input'),
-                  controller: arCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Nom (Arabe / عربي)'),
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Galerie d\'images rapides :',
+                    style:
+                        TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: presetImages.entries.map((e) {
+                      final selected = imgCtrl.text.trim() == e.value;
+                      return ChoiceChip(
+                        label:
+                            Text(e.key, style: const TextStyle(fontSize: 11)),
+                        selected: selected,
+                        onSelected: (_) => setD(() => imgCtrl.text = e.value),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -139,6 +190,7 @@ class _MenuStockViewState extends State<MenuStockView> {
                   icon: iconCtrl.text.trim().isEmpty
                       ? '🍽'
                       : iconCtrl.text.trim(),
+                  imageUrl: imgCtrl.text.trim(),
                 );
                 if (res != null) {
                   setD(() => err = res);
@@ -155,6 +207,7 @@ class _MenuStockViewState extends State<MenuStockView> {
     frCtrl.dispose();
     arCtrl.dispose();
     iconCtrl.dispose();
+    imgCtrl.dispose();
   }
 
   Future<void> _openFamiliesManagerDialog() async {

@@ -126,6 +126,7 @@ class CatalogMapper {
             nameAr: '${c['nameAr'] ?? c['name_ar'] ?? nameFr}',
             nameEn: '${c['nameEn'] ?? c['name_en'] ?? nameFr}',
             icon: '${c['icon'] ?? '🍽'}',
+            imageUrl: '${c['imageUrl'] ?? c['image_url'] ?? ''}',
             sortOrder: _asInt(c['sortOrder'] ?? c['sort_order']),
             active: _asBool(c['active'], fallback: true),
           );

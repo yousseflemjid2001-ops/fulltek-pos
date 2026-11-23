@@ -392,8 +392,19 @@ class PosStore extends ChangeNotifier {
     final idx = tables.indexWhere((t) => t.id == tableId);
     if (idx == -1) return null;
     final table = tables[idx];
-    if (table.activeOrderId == null) return null;
-    return _openOrdersById[table.activeOrderId];
+    if (table.activeOrderId != null &&
+        _openOrdersById.containsKey(table.activeOrderId)) {
+      return _openOrdersById[table.activeOrderId];
+    }
+    for (final o in _openOrdersById.values) {
+      if (o.tableId == table.id ||
+          (o.tableCode != null &&
+              o.tableCode!.trim().toLowerCase() ==
+                  table.code.trim().toLowerCase())) {
+        return o;
+      }
+    }
+    return null;
   }
 
   void setTheme(FullTekThemeId id) {
@@ -645,20 +656,44 @@ class PosStore extends ChangeNotifier {
         zones = List<DiningZone>.from(parsed.zones);
       }
       if (parsed.tables.isNotEmpty) {
-        final openByTable = {
-          for (final t in tables)
-            if (t.activeOrderId != null) t.id: t,
+        final prevByIdOrCode = <String, DiningTable>{
+          for (final t in tables) ...{
+            t.id: t,
+            t.code.trim().toLowerCase(): t,
+          }
         };
         tables = parsed.tables.map((t) {
-          final prev = openByTable[t.id];
-          if (prev != null && _openOrdersById.containsKey(prev.activeOrderId)) {
+          final prev =
+              prevByIdOrCode[t.id] ?? prevByIdOrCode[t.code.trim().toLowerCase()];
+          PosOrder? matchedOrder;
+          if (prev?.activeOrderId != null &&
+              _openOrdersById.containsKey(prev!.activeOrderId)) {
+            matchedOrder = _openOrdersById[prev.activeOrderId];
+          } else {
+            for (final o in _openOrdersById.values) {
+              if (o.tableId == t.id ||
+                  (o.tableCode != null &&
+                      o.tableCode!.trim().toLowerCase() ==
+                          t.code.trim().toLowerCase())) {
+                matchedOrder = o;
+                break;
+              }
+            }
+          }
+          if (matchedOrder != null) {
+            _openOrdersById[matchedOrder.id] = matchedOrder.copyWith(
+              tableId: t.id,
+              tableCode: t.code,
+            );
             return t.copyWith(
-              status: prev.status,
-              guests: prev.guests,
-              activeOrderId: prev.activeOrderId,
-              occupiedSince: prev.occupiedSince,
-              serverName: prev.serverName,
-              arbounMru: prev.arbounMru,
+              status: prev?.status == TableStatus.free
+                  ? TableStatus.occupied
+                  : (prev?.status ?? TableStatus.occupied),
+              guests: prev?.guests ?? t.guests,
+              activeOrderId: matchedOrder.id,
+              occupiedSince: prev?.occupiedSince ?? matchedOrder.createdAt,
+              serverName: matchedOrder.serverName ?? prev?.serverName,
+              arbounMru: prev?.arbounMru ?? matchedOrder.arbounDepositMru,
             );
           }
           return t;
@@ -1206,15 +1241,31 @@ class PosStore extends ChangeNotifier {
     String tableId, {
     int? guests,
     double arbounMru = 0,
+    String? serverName,
   }) {
     final idx = tables.indexWhere((t) => t.id == tableId);
     if (idx == -1) return startCounterOrder();
     final table = tables[idx];
 
-    if (table.activeOrderId != null &&
-        _openOrdersById.containsKey(table.activeOrderId)) {
-      _activeOrderId = table.activeOrderId;
+    final existingOrder = orderForTable(table.id);
+    if (existingOrder != null) {
+      _activeOrderId = existingOrder.id;
       _serviceMode = ServiceMode.dineIn;
+      final effectiveServer = (serverName != null && serverName.trim().isNotEmpty)
+          ? serverName.trim()
+          : (existingOrder.serverName ?? table.serverName ?? _currentStaff?.name ?? 'Serveur');
+      _openOrdersById[existingOrder.id] = existingOrder.copyWith(
+        tableId: table.id,
+        tableCode: table.code,
+        serverName: effectiveServer,
+      );
+      tables[idx] = table.copyWith(
+        status: table.status == TableStatus.free
+            ? TableStatus.occupied
+            : table.status,
+        activeOrderId: existingOrder.id,
+        serverName: effectiveServer,
+      );
       notifyListeners();
       return _openOrdersById[_activeOrderId]!;
     }
@@ -1222,7 +1273,9 @@ class PosStore extends ChangeNotifier {
     _serviceMode = ServiceMode.dineIn;
     final id = 'ORD-${++_ticketCounter}';
     final effectiveArboun = arbounMru > 0 ? arbounMru : table.arbounMru;
-    final staffLabel = _currentStaff?.name ?? 'Serveur';
+    final staffLabel = (serverName != null && serverName.trim().isNotEmpty)
+        ? serverName.trim()
+        : (table.serverName ?? _currentStaff?.name ?? 'Serveur');
     final order = PosOrder(
       id: id,
       ticketNumber: 'FT-$_ticketCounter',
@@ -1463,6 +1516,67 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
+  /// Sets or changes the waiter/server managing the active order & its table.
+  void setActiveOrderServer(String serverName) {
+    final clean = serverName.trim();
+    if (clean.isEmpty) return;
+    final order = activeOrder;
+    if (order == null) return;
+    _openOrdersById[order.id] = order.copyWith(serverName: clean);
+    if (order.tableId != null) {
+      final tIdx = tables.indexWhere((t) => t.id == order.tableId);
+      if (tIdx != -1) {
+        tables[tIdx] = tables[tIdx].copyWith(serverName: clean);
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Removes a line completely from the active order (even if previously sent to kitchen).
+  void removeLineFromActiveOrder(String lineId) {
+    final order = activeOrder;
+    if (order == null) return;
+    final items = order.items.where((l) => l.lineId != lineId).toList();
+    _openOrdersById[order.id] =
+        _withRecomputedDelivery(order.copyWith(items: items));
+    notifyListeners();
+  }
+
+  /// All open orders that are waiting (sent to kitchen or attached to an occupied table).
+  List<PosOrder> get waitingOrders {
+    return _openOrdersById.values
+        .where((o) =>
+            o.items.isNotEmpty &&
+            (o.status == 'waiting_kitchen' ||
+                o.tableId != null ||
+                o.items.any((i) => i.sentToKitchen)))
+        .toList();
+  }
+
+  /// Resumes a waiting or table order into the register as the active order.
+  void resumeWaitingOrder(String orderId) {
+    final order = _openOrdersById[orderId];
+    if (order == null) return;
+    _activeOrderId = order.id;
+    _serviceMode = order.serviceMode;
+    notifyListeners();
+  }
+
+  /// Sends unsent lines to Kitchen / KDS and parks the order into 'En attente',
+  /// opening a fresh counter order so the register is ready for the next customer.
+  String? sendActiveOrderToKitchenAndPark() {
+    final order = activeOrder;
+    if (order == null) return null;
+    final kdsText = sendActiveOrderToKitchen();
+    if (kdsText == null) return null;
+    final current = _openOrdersById[order.id];
+    if (current != null) {
+      _openOrdersById[order.id] = current.copyWith(status: 'waiting_kitchen');
+    }
+    startCounterOrder();
+    return kdsText;
+  }
+
   /// Marks unsent items as sent to Kitchen / KDS, creates a persistent [KdsTicket],
   /// and returns formatted KDS ticket text.
   String? sendActiveOrderToKitchen() {
@@ -1618,6 +1732,7 @@ class PosStore extends ChangeNotifier {
     required String nameFr,
     String? nameAr,
     String icon = '🍽',
+    String? imageUrl,
   }) async {
     final trimmed = nameFr.trim();
     if (trimmed.isEmpty) return 'Nom de la famille / catégorie requis.';
@@ -1628,12 +1743,14 @@ class PosStore extends ChangeNotifier {
       final idx = categories.indexWhere((c) => c.id == existingId);
       if (idx == -1) return 'Famille introuvable.';
       final old = categories[idx];
+      final nextImg = imageUrl != null ? imageUrl.trim() : old.imageUrl;
       categories[idx] = MenuCategory(
         id: old.id,
         nameFr: trimmed,
         nameAr: ar,
         nameEn: trimmed,
         icon: icon.trim().isEmpty ? old.icon : icon.trim(),
+        imageUrl: nextImg,
         sortOrder: old.sortOrder,
         active: true,
       );
@@ -1655,6 +1772,7 @@ class PosStore extends ChangeNotifier {
               'nameAr': ar,
               'nameEn': trimmed,
               'icon': icon.trim().isEmpty ? old.icon : icon.trim(),
+              'imageUrl': nextImg,
             }),
           );
         } catch (_) {}
@@ -1662,6 +1780,7 @@ class PosStore extends ChangeNotifier {
       return null;
     }
 
+    final cleanImg = (imageUrl ?? '').trim();
     var newId = 'cat-${DateTime.now().millisecondsSinceEpoch % 1000000}';
     if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty && !accountOffline) {
       try {
@@ -1677,6 +1796,7 @@ class PosStore extends ChangeNotifier {
             'nameAr': ar,
             'nameEn': trimmed,
             'icon': icon.trim().isEmpty ? '🍽' : icon.trim(),
+            'imageUrl': cleanImg,
             'sortOrder': categories.length + 1,
           }),
         );
@@ -1697,6 +1817,7 @@ class PosStore extends ChangeNotifier {
         nameAr: ar,
         nameEn: trimmed,
         icon: icon.trim().isEmpty ? '🍽' : icon.trim(),
+        imageUrl: cleanImg,
         sortOrder: categories.length + 1,
       ),
     );
