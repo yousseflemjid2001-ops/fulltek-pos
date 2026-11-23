@@ -707,6 +707,23 @@ class _PosShellScreenState extends State<PosShellScreen> {
                 child: Icon(Icons.palette_rounded, color: p.primary, size: 22),
               ),
             ),
+            // Fullscreen quick button in top bar
+            IconButton(
+              key: const Key('fullscreen_btn'),
+              tooltip: _isFullscreen ? 'Quitter plein écran' : 'Mode plein écran',
+              visualDensity: VisualDensity.compact,
+              onPressed: () async {
+                final next = await toggleFullscreen();
+                if (mounted) setState(() => _isFullscreen = next);
+              },
+              icon: Icon(
+                _isFullscreen
+                    ? Icons.fullscreen_exit_rounded
+                    : Icons.fullscreen_rounded,
+                color: p.primary,
+                size: 24,
+              ),
+            ),
             // Large Touch Lock / Switch Staff button
             if (staff != null) ...[
               const SizedBox(width: 4),

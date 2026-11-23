@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
+import '../services/fullscreen_helper.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
@@ -347,6 +348,39 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                                 onChanged: (val) {
                                   if (val != null) store.setTheme(val);
                                 },
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            key: const Key('pin_fullscreen_btn'),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: p.surface,
+                              side: BorderSide(color: p.border),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () async {
+                              await toggleFullscreen();
+                              if (mounted) setState(() {});
+                            },
+                            icon: Icon(
+                              isFullscreenActive()
+                                  ? Icons.fullscreen_exit_rounded
+                                  : Icons.fullscreen_rounded,
+                              size: 20,
+                              color: p.primary,
+                            ),
+                            label: Text(
+                              isFullscreenActive()
+                                  ? 'Quitter plein écran'
+                                  : 'Plein écran',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
                               ),
                             ),
                           ),
