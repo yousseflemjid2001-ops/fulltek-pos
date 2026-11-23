@@ -203,14 +203,26 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                         ? 'Table ${o.tableCode}'
                         : '${o.serviceMode.emoji} ${o.serviceMode.label(store.lang)}';
                     final srv = o.serverName ?? o.staffName;
+                    final tbl = o.tableId != null
+                        ? store.tables
+                            .where((t) => t.id == o.tableId)
+                            .firstOrNull
+                        : null;
+                    final since = tbl?.occupiedSince ?? o.createdAt;
+                    final hm =
+                        '${since.hour.toString().padLeft(2, '0')}:${since.minute.toString().padLeft(2, '0')}';
+                    final mins = DateTime.now().difference(since).inMinutes;
+                    final chrono = mins < 60
+                        ? '${mins < 0 ? 0 : mins}m'
+                        : '${mins ~/ 60}h ${(mins % 60).toString().padLeft(2, '0')}m';
                     return ListTile(
                       leading: const Icon(Icons.hourglass_top_rounded),
                       title: Text(
-                        '$label · ${o.ticketNumber}',
+                        '$label · ${o.netTotal.toStringAsFixed(0)} MRU',
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
-                        'Serveur: $srv · ${o.items.length} article(s) · ${o.netTotal.toStringAsFixed(0)} MRU',
+                        '👤 $srv · 🕒 Ouverte à $hm · ⏱ $chrono · ${o.items.length} article(s)',
                       ),
                       trailing: FilledButton.tonal(
                         onPressed: () {

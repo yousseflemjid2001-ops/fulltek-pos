@@ -680,7 +680,7 @@ class PosStore extends ChangeNotifier {
               }
             }
           }
-          if (matchedOrder != null) {
+          if (matchedOrder != null && matchedOrder.items.isNotEmpty) {
             _openOrdersById[matchedOrder.id] = matchedOrder.copyWith(
               tableId: t.id,
               tableCode: t.code,
@@ -694,6 +694,16 @@ class PosStore extends ChangeNotifier {
               occupiedSince: prev?.occupiedSince ?? matchedOrder.createdAt,
               serverName: matchedOrder.serverName ?? prev?.serverName,
               arbounMru: prev?.arbounMru ?? matchedOrder.arbounDepositMru,
+            );
+          }
+          // Never leave a table as "Occupée · 0 MRU" without an active order with items
+          if (t.status == TableStatus.occupied ||
+              t.status == TableStatus.billRequested) {
+            return t.copyWith(
+              status: TableStatus.free,
+              clearOrder: true,
+              clearOccupied: true,
+              clearServer: true,
             );
           }
           return t;
@@ -1210,7 +1220,35 @@ class PosStore extends ChangeNotifier {
 
   // --- Orders & Floor Plan ---
 
+  /// Releases any table that was opened without adding/sending any items,
+  /// so tables never remain stuck in 'Occupée · 0 MRU'.
+  void _cleanupEmptyTableDrafts({String? exceptTableId}) {
+    final emptyIds = <String>[];
+    for (final entry in _openOrdersById.entries) {
+      final o = entry.value;
+      if (o.tableId != null &&
+          o.tableId != exceptTableId &&
+          o.items.isEmpty &&
+          o.arbounDepositMru <= 0) {
+        emptyIds.add(entry.key);
+        final tIdx = tables.indexWhere((t) => t.id == o.tableId);
+        if (tIdx != -1 && tables[tIdx].status == TableStatus.occupied) {
+          tables[tIdx] = tables[tIdx].copyWith(
+            status: TableStatus.free,
+            clearOrder: true,
+            clearOccupied: true,
+            clearServer: true,
+          );
+        }
+      }
+    }
+    for (final id in emptyIds) {
+      _openOrdersById.remove(id);
+    }
+  }
+
   PosOrder startCounterOrder() {
+    _cleanupEmptyTableDrafts();
     final id = 'ORD-${++_ticketCounter}';
     final takeawayNo =
         _serviceMode == ServiceMode.takeaway ? (++_takeawayCounter) : null;
@@ -1243,6 +1281,7 @@ class PosStore extends ChangeNotifier {
     double arbounMru = 0,
     String? serverName,
   }) {
+    _cleanupEmptyTableDrafts(exceptTableId: tableId);
     final idx = tables.indexWhere((t) => t.id == tableId);
     if (idx == -1) return startCounterOrder();
     final table = tables[idx];
@@ -1259,10 +1298,9 @@ class PosStore extends ChangeNotifier {
         tableCode: table.code,
         serverName: effectiveServer,
       );
+      final hasSentItems = existingOrder.items.any((i) => i.sentToKitchen);
       tables[idx] = table.copyWith(
-        status: table.status == TableStatus.free
-            ? TableStatus.occupied
-            : table.status,
+        status: hasSentItems ? TableStatus.occupied : table.status,
         activeOrderId: existingOrder.id,
         serverName: effectiveServer,
       );
@@ -1290,11 +1328,12 @@ class PosStore extends ChangeNotifier {
       isTraining: _trainingMode,
     );
     _openOrdersById[id] = order;
+    // Keep table FREE until order is sent to kitchen (or has seated reservation arboun)
     tables[idx] = table.copyWith(
-      status: TableStatus.occupied,
-      guests: guests ?? (table.guests > 0 ? table.guests : 2),
+      status: effectiveArboun > 0 ? TableStatus.occupied : TableStatus.free,
+      guests: guests ?? (table.guests > 0 ? table.guests : table.capacity),
       activeOrderId: id,
-      occupiedSince: DateTime.now(),
+      occupiedSince: effectiveArboun > 0 ? DateTime.now() : table.occupiedSince,
       serverName: staffLabel,
       arbounMru: effectiveArboun,
     );
@@ -1533,12 +1572,22 @@ class PosStore extends ChangeNotifier {
   }
 
   /// Removes a line completely from the active order (even if previously sent to kitchen).
+  /// If a table order becomes completely empty, frees the table automatically.
   void removeLineFromActiveOrder(String lineId) {
     final order = activeOrder;
     if (order == null) return;
     final items = order.items.where((l) => l.lineId != lineId).toList();
     _openOrdersById[order.id] =
         _withRecomputedDelivery(order.copyWith(items: items));
+    if (items.isEmpty && order.tableId != null) {
+      final tIdx = tables.indexWhere((t) => t.id == order.tableId);
+      if (tIdx != -1) {
+        tables[tIdx] = tables[tIdx].copyWith(
+          status: TableStatus.free,
+          clearOccupied: true,
+        );
+      }
+    }
     notifyListeners();
   }
 
@@ -1587,6 +1636,24 @@ class PosStore extends ChangeNotifier {
     final updated =
         order.items.map((i) => i.copyWith(sentToKitchen: true)).toList();
     _openOrdersById[order.id] = order.copyWith(items: updated);
+
+    // Mark the linked table as OFFICIALLY OCCUPIED with start timestamp when sent to kitchen
+    if (order.tableId != null) {
+      final tIdx = tables.indexWhere((t) =>
+          t.id == order.tableId ||
+          (order.tableCode != null &&
+              t.code.trim().toLowerCase() ==
+                  order.tableCode!.trim().toLowerCase()));
+      if (tIdx != -1) {
+        final tbl = tables[tIdx];
+        tables[tIdx] = tbl.copyWith(
+          status: TableStatus.occupied,
+          activeOrderId: order.id,
+          occupiedSince: tbl.occupiedSince ?? DateTime.now(),
+          serverName: order.serverName ?? tbl.serverName ?? _currentStaff?.name,
+        );
+      }
+    }
 
     final kdsItems = unsent
         .map(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../state/pos_store.dart';
@@ -19,6 +20,33 @@ class FloorPlanView extends StatefulWidget {
 
 class _FloorPlanViewState extends State<FloorPlanView> {
   String _selectedZoneId = 'all';
+  Timer? _chronoTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _chronoTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _chronoTimer?.cancel();
+    super.dispose();
+  }
+
+  String _formatHm(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  String _formatChrono(DateTime since) {
+    final diff = DateTime.now().difference(since);
+    final mins = diff.inMinutes < 0 ? 0 : diff.inMinutes;
+    if (mins < 60) return '${mins}m';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
+  }
 
   Future<void> _openNewReservationDialog() async {
     final nameCtrl = TextEditingController();
@@ -497,7 +525,101 @@ class _FloorPlanViewState extends State<FloorPlanView> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          // Active "Tables en cours" live bar (Montant, Serveur, Heure d'ouverture & Chrono occupé)
+          Builder(
+            builder: (context) {
+              final activeTables = store.tables.where((t) {
+                final o = store.orderForTable(t.id);
+                return o != null && o.items.isNotEmpty;
+              }).toList();
+              if (activeTables.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: p.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: p.warning.withValues(alpha: 0.55), width: 1.2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '🔥 Tables en cours (${activeTables.length}) — Touchez pour consulter ou modifier à la caisse',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: p.warning),
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: activeTables.map((t) {
+                            final o = store.orderForTable(t.id)!;
+                            final since = t.occupiedSince ?? o.createdAt;
+                            final srv =
+                                o.serverName ?? t.serverName ?? o.staffName;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: () {
+                                  store.openOrSelectTable(t.id);
+                                  widget.onTableSelected();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: p.surfaceAlt,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: p.border),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Table ${t.code}',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 12.5,
+                                            color: p.textPrimary),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${o.netTotal.toStringAsFixed(0)} MRU',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 12.5,
+                                            color: p.primary),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '👤 $srv · 🕒 ${_formatHm(since)} · ⏱ ${_formatChrono(since)}',
+                                        style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: p.textMuted),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
 
           Expanded(
             child: LayoutBuilder(
@@ -544,13 +666,21 @@ class _FloorPlanViewState extends State<FloorPlanView> {
       itemBuilder: (context, idx) {
         final t = visibleTables[idx];
         final order = store.orderForTable(t.id);
-        final statusColor = switch (t.status) {
+        final hasActiveOrder =
+            (order != null && order.items.isNotEmpty) || t.arbounMru > 0;
+        final effectiveStatus = (t.status == TableStatus.occupied && !hasActiveOrder)
+            ? TableStatus.free
+            : t.status;
+        final since = t.occupiedSince ?? order?.createdAt;
+        final srv = order?.serverName ?? t.serverName;
+
+        final statusColor = switch (effectiveStatus) {
           TableStatus.free => p.success,
           TableStatus.occupied => p.warning,
           TableStatus.reserved => p.vipGold,
           TableStatus.billRequested => p.primary,
         };
-        final statusText = switch (t.status) {
+        final statusText = switch (effectiveStatus) {
           TableStatus.free => i18n.t('status_free'),
           TableStatus.occupied => i18n.t('status_occupied'),
           TableStatus.reserved => i18n.t('status_reserved'),
@@ -575,14 +705,14 @@ class _FloorPlanViewState extends State<FloorPlanView> {
             },
             borderRadius: BorderRadius.circular(isRound ? 999 : p.radius),
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(isRound ? 999 : p.radius),
                 border: Border.all(
-                  color: t.status == TableStatus.free
+                  color: effectiveStatus == TableStatus.free
                       ? p.border
                       : statusColor.withValues(alpha: 0.75),
-                  width: t.status == TableStatus.free ? 1 : 1.8,
+                  width: effectiveStatus == TableStatus.free ? 1 : 1.8,
                 ),
               ),
               child: Column(
@@ -624,16 +754,27 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                     ],
                   ),
                   Text(
-                    '👥 ${t.guests > 0 ? t.guests : t.capacity} ${i18n.t('guests')}${(order?.serverName ?? t.serverName) != null ? ' · 👤 ${order?.serverName ?? t.serverName}' : ''}',
+                    '👥 ${t.guests > 0 ? t.guests : t.capacity} ${i18n.t('guests')}${hasActiveOrder && srv != null ? ' · 👤 $srv' : ''}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 11.5, color: p.textMuted),
                   ),
+                  if (hasActiveOrder && since != null)
+                    Text(
+                      '🕒 ${_formatHm(since)} · ⏱ ${_formatChrono(since)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: p.warning,
+                      ),
+                    ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        order != null
+                        (order != null && order.items.isNotEmpty)
                             ? '${order.netTotal.toStringAsFixed(0)} ${i18n.t('mru')} (${order.items.length})'
                             : '—',
                         style: TextStyle(
