@@ -223,4 +223,27 @@ void main() {
       );
     },
   );
+
+  test(
+    'requestAdditionForActiveOrder generates 80mm Pre-note and marks table billRequested',
+    () {
+      final store = PosStore(enablePersistence: false);
+      final waiter = store.staff.firstWhere((s) => s.role == PosRole.waiter);
+      expect(store.loginWithPin(waiter.pinCode), isTrue);
+      final tbl = store.tables.first;
+      store.openOrSelectTable(tbl.id);
+      store.addItemToActiveOrder(store.menuItems.first);
+      store.sendActiveOrderToKitchen();
+
+      final addition = store.requestAdditionForActiveOrder();
+      expect(addition, isNotNull);
+      expect(addition, contains('ADDITION'));
+      expect(addition, contains('Serveur: ${waiter.name}'));
+      expect(addition, contains('TOTAL A PAYER:'));
+      expect(
+        store.tables.firstWhere((t) => t.id == tbl.id).status,
+        TableStatus.billRequested,
+      );
+    },
+  );
 }

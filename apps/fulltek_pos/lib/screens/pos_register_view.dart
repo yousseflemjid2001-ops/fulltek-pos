@@ -180,6 +180,17 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     );
   }
 
+  void _printAddition() {
+    final additionTicket = widget.store.requestAdditionForActiveOrder();
+    if (additionTicket == null) return;
+    showReceiptPreviewDialog(
+      context,
+      title: '🧾 Addition / Pré-note (avant encaissement)',
+      subtitle: 'Table marquée « Addition » · Document non encaissé',
+      receiptText: additionTicket,
+    );
+  }
+
   Future<void> _openCancelSentLineDialog(
     OrderItem line, {
     int? cancelQty,
@@ -1694,7 +1705,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
           ),
           const SizedBox(height: 8),
 
-          // Action row: Cuisine | Diviser | Retour/Offert
+          // Action row: Cuisine | Addition | Diviser | Retour/Offert
           Row(
             children: [
               Expanded(
@@ -1702,13 +1713,27 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                   key: const Key('send_kitchen_btn'),
                   onPressed: hasUnsent ? _sendToKitchen : null,
                   style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 9)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 9, horizontal: 4)),
                   child: Text(i18n.t('send_kitchen'),
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11)),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
+              Expanded(
+                child: OutlinedButton(
+                  key: const Key('print_addition_btn'),
+                  onPressed: items.isNotEmpty ? _printAddition : null,
+                  style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 9, horizontal: 4)),
+                  child: const Text('🧾 Addition',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11)),
+                ),
+              ),
+              const SizedBox(width: 5),
               Expanded(
                 child: OutlinedButton(
                   key: const Key('split_bill_btn'),
@@ -1719,13 +1744,14 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                           )
                       : null,
                   style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 9)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 9, horizontal: 4)),
                   child: Text(i18n.t('split_bill'),
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11)),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Expanded(
                 child: OutlinedButton(
                   key: const Key('remake_comp_btn'),
@@ -1736,7 +1762,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                           )
                       : null,
                   style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 9)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 9, horizontal: 4)),
                   child: Text(i18n.t('remake_comp'),
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11)),

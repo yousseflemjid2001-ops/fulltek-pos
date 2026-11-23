@@ -621,6 +621,20 @@ class _FloorPlanViewState extends State<FloorPlanView> {
             },
           ),
 
+          // Color Legend for Floor Plan status clarity
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              children: [
+                _statusLegendChip('Libre', p.success, p),
+                _statusLegendChip('En attente / Occupée', p.warning, p),
+                _statusLegendChip('Addition demandée', p.primary, p),
+                _statusLegendChip('Réservée VIP', p.vipGold, p),
+              ],
+            ),
+          ),
           Expanded(
             child: LayoutBuilder(
               builder: (context, c) {
@@ -670,7 +684,9 @@ class _FloorPlanViewState extends State<FloorPlanView> {
             (order != null && order.items.isNotEmpty) || t.arbounMru > 0;
         final effectiveStatus = (t.status == TableStatus.occupied && !hasActiveOrder)
             ? TableStatus.free
-            : t.status;
+            : ((t.status == TableStatus.free && hasActiveOrder)
+                ? TableStatus.occupied
+                : t.status);
         final since = t.occupiedSince ?? order?.createdAt;
         final srv = order?.serverName ?? t.serverName;
 
@@ -682,9 +698,13 @@ class _FloorPlanViewState extends State<FloorPlanView> {
         };
         final statusText = switch (effectiveStatus) {
           TableStatus.free => i18n.t('status_free'),
-          TableStatus.occupied => i18n.t('status_occupied'),
+          TableStatus.occupied =>
+              (order?.status == 'waiting_kitchen' ||
+                      (order?.items.any((i) => i.sentToKitchen) ?? false))
+                  ? '⏳ En attente'
+                  : i18n.t('status_occupied'),
           TableStatus.reserved => i18n.t('status_reserved'),
-          TableStatus.billRequested => i18n.t('status_bill'),
+          TableStatus.billRequested => '🧾 ${i18n.t('status_bill')}',
         };
 
         final shapeIcon = switch (t.shape) {
@@ -695,7 +715,10 @@ class _FloorPlanViewState extends State<FloorPlanView> {
         final isRound = t.shape == TableShape.round;
 
         return Material(
-          color: p.surface,
+          color: effectiveStatus == TableStatus.free
+              ? p.surface
+              : Color.alphaBlend(
+                  statusColor.withValues(alpha: 0.14), p.surface),
           borderRadius: BorderRadius.circular(isRound ? 999 : p.radius),
           child: InkWell(
             key: Key('table_card_${t.id}'),
@@ -711,8 +734,8 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                 border: Border.all(
                   color: effectiveStatus == TableStatus.free
                       ? p.border
-                      : statusColor.withValues(alpha: 0.75),
-                  width: effectiveStatus == TableStatus.free ? 1 : 1.8,
+                      : statusColor,
+                  width: effectiveStatus == TableStatus.free ? 1 : 2.2,
                 ),
               ),
               child: Column(
@@ -902,6 +925,36 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusLegendChip(String label, Color color, PosPalette p) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.55)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: p.textPrimary,
             ),
           ),
         ],

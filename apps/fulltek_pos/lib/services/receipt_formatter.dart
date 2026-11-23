@@ -225,6 +225,104 @@ class ReceiptFormatter {
     return buf.toString();
   }
 
+  /// 80mm Pre-bill / Addition ticket printed BEFORE checkout ("L'Addition")
+  static String formatAdditionReceipt80mm({
+    required PosOrder order,
+    String restaurantName = 'FULL-TEK RESTO POS',
+    String restaurantNameAr = 'مطعم فل-تك',
+    String address = 'Tevragh-Zeina · Nouakchott',
+    String phone = '+222 45 25 00 00',
+    String nif = '',
+    String rc = '',
+  }) {
+    final buf = StringBuffer();
+    buf.writeln(_line('='));
+    if (order.isTraining) {
+      buf.writeln(_center('*** MODE FORMATION ***'));
+    }
+    buf.writeln(_center('*** ADDITION / الفاتورة المبدئية ***'));
+    buf.writeln(_center('PRE-NOTE AVANT ENCAISSEMENT'));
+    buf.writeln(_center(restaurantName));
+    if (restaurantNameAr.trim().isNotEmpty) {
+      buf.writeln(_center(restaurantNameAr));
+    }
+    if (address.trim().isNotEmpty || phone.trim().isNotEmpty) {
+      buf.writeln(_center([address.trim(), phone.trim()]
+          .where((s) => s.isNotEmpty)
+          .join(' · ')));
+    }
+    if (nif.trim().isNotEmpty || rc.trim().isNotEmpty) {
+      final taxParts = <String>[
+        if (nif.trim().isNotEmpty) 'NIF: ${nif.trim()}',
+        if (rc.trim().isNotEmpty) 'RC: ${rc.trim()}',
+      ];
+      buf.writeln(_center(taxParts.join(' · ')));
+    }
+    buf.writeln(_line('='));
+    buf.writeln(_padRow(
+      'Ticket: ${order.ticketNumber}',
+      order.tableCode != null ? 'Table: ${order.tableCode}' : 'COMPTOIR',
+    ));
+    final dt = DateTime.now();
+    final dateStr =
+        '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} '
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final effectiveServer =
+        (order.serverName != null && order.serverName!.trim().isNotEmpty)
+            ? order.serverName!.trim()
+            : order.staffName;
+    buf.writeln('Date: $dateStr');
+    buf.writeln('Serveur: $effectiveServer');
+    buf.writeln(_line());
+
+    for (final line in order.items) {
+      final takeawayTag =
+          (line.isTakeaway && order.serviceMode != ServiceMode.takeaway)
+              ? ' [EMPORTER]'
+              : '';
+      final qtyName = '${line.quantity}x ${line.item.nameFr}$takeawayTag';
+      final priceStr = line.isComp ? 'OFFERT' : formatMru(line.lineTotal);
+      buf.writeln(_padRow(qtyName, priceStr));
+      if (line.item.nameAr.isNotEmpty) {
+        buf.writeln('   ${line.item.nameAr}');
+      }
+      for (final m in line.selectedModifiers) {
+        final extra =
+            m.extraPriceMru > 0 ? ' (+${formatMru(m.extraPriceMru)})' : '';
+        buf.writeln('   + ${m.nameFr}$extra');
+      }
+    }
+
+    buf.writeln(_line());
+    buf.writeln(_padRow('Sous-total / المجموع:', formatMru(order.subtotal)));
+    if (order.discountAmount > 0) {
+      buf.writeln(_padRow(
+        'Remise (${order.discountPercent.toStringAsFixed(0)}%):',
+        '-${formatMru(order.discountAmount)}',
+      ));
+    }
+    if (order.arbounDepositMru > 0) {
+      buf.writeln(_padRow(
+        'Arboun / عربون:',
+        '-${formatMru(order.arbounDepositMru)}',
+      ));
+    }
+    if (order.deliveryFeeMru > 0) {
+      buf.writeln(_padRow('Frais livraison:', formatMru(order.deliveryFeeMru)));
+    }
+    buf.writeln(_line());
+    buf.writeln(_padRow('Sous-total HT:', formatMru(order.subtotalHtMru)));
+    buf.writeln(
+        _padRow('Dont TVA 16 %:', formatMru(order.tvaAmountMru.toDouble())));
+    buf.writeln(_line('='));
+    buf.writeln(_padRow('TOTAL A PAYER:', formatMru(order.netTotal)));
+    buf.writeln(_line('='));
+    buf.writeln(_center('DOCUMENT NON PAYE - MERCI'));
+    buf.writeln(_center('Propulse par Full-Tek POS (Mauritanie)'));
+    buf.writeln(_line('='));
+    return buf.toString();
+  }
+
   static String formatKitchenTicket({
     required PosOrder order,
     required List<OrderItem> newItems,

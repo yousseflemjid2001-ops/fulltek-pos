@@ -1972,6 +1972,39 @@ class PosStore extends ChangeNotifier {
     return kdsText;
   }
 
+  /// Generates the 80mm Pre-Bill / Addition ("L'Addition") before checkout
+  /// and marks any linked table as [TableStatus.billRequested].
+  String? requestAdditionForActiveOrder() {
+    final order = activeOrder;
+    if (order == null || order.items.isEmpty) return null;
+    if (order.tableId != null) {
+      final tIdx = tables.indexWhere((t) =>
+          t.id == order.tableId ||
+          (order.tableCode != null &&
+              t.code.trim().toLowerCase() ==
+                  order.tableCode!.trim().toLowerCase()));
+      if (tIdx != -1) {
+        final tbl = tables[tIdx];
+        tables[tIdx] = tbl.copyWith(
+          status: TableStatus.billRequested,
+          activeOrderId: order.id,
+          occupiedSince: tbl.occupiedSince ?? DateTime.now(),
+          serverName: order.serverName ?? tbl.serverName ?? _currentStaff?.name,
+        );
+      }
+    }
+    notifyListeners();
+    return ReceiptFormatter.formatAdditionReceipt80mm(
+      order: order,
+      restaurantName: tenantName,
+      restaurantNameAr: storeNameAr,
+      address: storeAddress,
+      phone: storePhone,
+      nif: storeNif,
+      rc: storeRc,
+    );
+  }
+
   /// Marks unsent items as sent to Kitchen / KDS, creates a persistent [KdsTicket],
   /// and returns formatted KDS ticket text.
   String? sendActiveOrderToKitchen() {
