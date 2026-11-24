@@ -1813,8 +1813,114 @@ class _FloorPlanViewState extends State<FloorPlanView> {
         cursor: _editLayoutMode
             ? SystemMouseCursors.grab
             : SystemMouseCursors.click,
-        child: withChairs,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(child: withChairs),
+            if (canManage)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      key: Key('visual_edit_table_${table.id}'),
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: () => _openTableDialog(existing: table),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: p.surface,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: p.primary, width: 1.2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 3,
+                            ),
+                          ],
+                        ),
+                        child: Icon(Icons.edit_outlined,
+                            size: 13, color: p.primary),
+                      ),
+                    ),
+                    if (_editLayoutMode || !hasItems) ...[
+                      const SizedBox(width: 3),
+                      InkWell(
+                        key: Key('visual_delete_table_${table.id}'),
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => _confirmDeleteVisualTable(table),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: p.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: p.danger, width: 1.2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 3,
+                              ),
+                            ],
+                          ),
+                          child: Icon(Icons.delete_outline_rounded,
+                              size: 13, color: p.danger),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<void> _confirmDeleteVisualTable(DiningTable table) async {
+    final store = widget.store;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c2) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Expanded(child: Text('Supprimer la table')),
+          ],
+        ),
+        content: Text(
+          'Voulez-vous vraiment supprimer la table « ${table.code} » ?\nCette action est irréversible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c2).pop(false),
+            child: Text(store.i18n.t('cancel')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(c2).pop(true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final err = await store.deleteDiningTable(table.id);
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err)),
+      );
+      return;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Table « ${table.code} » supprimée.')),
     );
   }
 }
