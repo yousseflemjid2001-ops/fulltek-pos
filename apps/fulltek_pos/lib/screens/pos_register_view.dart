@@ -417,111 +417,174 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     }
 
     // Mandatory table selection before sending to kitchen in Sur place (dineIn) mode
-    if (order.serviceMode == ServiceMode.dineIn &&
-        order.tableId == null &&
-        store.tables.isNotEmpty) {
+    // Strictly enforced even if 0 tables are configured yet (never sends without a table!)
+    final isDineIn = order.serviceMode == ServiceMode.dineIn ||
+        store.serviceMode == ServiceMode.dineIn;
+    final hasTable = (order.tableId ?? '').trim().isNotEmpty &&
+        (order.tableCode ?? '').trim().isNotEmpty;
+    if (isDineIn && !hasTable) {
       final p = FullTekThemes.paletteOf(context);
-      final chosenTableId = await showDialog<String>(
-        context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: p.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: p.border),
+      if (store.tables.isEmpty) {
+        final action = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: p.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: p.border),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.table_restaurant_rounded,
+                    color: p.warning, size: 24),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'N° de table obligatoire',
+                    style:
+                        TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Impossible d\'envoyer une commande « Sur place » en cuisine sans numéro de table.\n\n'
+              'Aucune table n\'est encore créée dans votre Plan de salle. Créez vos tables dans le Plan de salle ou passez cette commande en mode « Emporter ».',
+              style: TextStyle(fontSize: 13, color: p.textPrimary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(store.i18n.t('cancel')),
+              ),
+              OutlinedButton.icon(
+                key: const Key('switch_takeaway_from_table_guard_btn'),
+                onPressed: () => Navigator.of(ctx).pop('takeaway'),
+                icon: const Icon(Icons.takeout_dining_rounded, size: 17),
+                label: const Text('Passer en Emporter'),
+              ),
+              ElevatedButton.icon(
+                key: const Key('goto_floor_from_table_guard_btn'),
+                onPressed: () => Navigator.of(ctx).pop('floor'),
+                icon: const Icon(Icons.table_restaurant_rounded, size: 17),
+                label: const Text('Créer une table'),
+              ),
+            ],
           ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520, maxHeight: 500),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.table_restaurant_rounded,
-                          color: p.warning, size: 24),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Table obligatoire avant envoi cuisine',
-                          style: TextStyle(
-                              fontSize: 16.5, fontWeight: FontWeight.w900),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Sélectionnez la table du client pour envoyer la commande en cuisine et la retrouver facilement à l\'encaissement :',
-                    style: TextStyle(fontSize: 12.5, color: p.textMuted),
-                  ),
-                  const SizedBox(height: 12),
-                  Flexible(
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        childAspectRatio: 1.7,
-                      ),
-                      itemCount: store.tables.length,
-                      itemBuilder: (_, idx) {
-                        final t = store.tables[idx];
-                        final occ = t.status != TableStatus.free;
-                        final col = occ ? p.warning : p.success;
-                        return InkWell(
-                          key: Key('pick_table_kitchen_${t.id}'),
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => Navigator.of(ctx).pop(t.id),
-                          child: Container(
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: col.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: col, width: 1.6),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Table ${t.code}',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: p.textPrimary,
-                                  ),
-                                ),
-                                Text(
-                                  occ ? 'Occupée (ajouter)' : 'Libre',
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: col,
-                                  ),
-                                ),
-                              ],
-                            ),
+        );
+        if (!mounted) return;
+        if (action == 'floor') {
+          widget.onOpenFloorPlan();
+          return;
+        }
+        if (action == 'takeaway') {
+          store.setServiceMode(ServiceMode.takeaway);
+        } else {
+          return;
+        }
+      } else {
+        final chosenTableId = await showDialog<String>(
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: p.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: p.border),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520, maxHeight: 500),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.table_restaurant_rounded,
+                            color: p.warning, size: 24),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Table obligatoire avant envoi cuisine',
+                            style: TextStyle(
+                                fontSize: 16.5, fontWeight: FontWeight.w900),
                           ),
-                        );
-                      },
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      'Sélectionnez la table du client pour envoyer la commande en cuisine et la retrouver facilement à l\'encaissement :',
+                      style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 1.7,
+                        ),
+                        itemCount: store.tables.length,
+                        itemBuilder: (_, idx) {
+                          final t = store.tables[idx];
+                          final occ = t.status != TableStatus.free;
+                          final col = occ ? p.warning : p.success;
+                          return InkWell(
+                            key: Key('pick_table_kitchen_${t.id}'),
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.of(ctx).pop(t.id),
+                            child: Container(
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: col.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: col, width: 1.6),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Table ${t.code}',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    occ ? 'Occupée (ajouter)' : 'Libre',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: col,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-      if (chosenTableId == null || !mounted) return;
-      store.assignTableToActiveOrder(chosenTableId);
+        );
+        if (chosenTableId == null || !mounted) return;
+        store.assignTableToActiveOrder(chosenTableId);
+      }
     }
 
     final kdsTicket = store.sendActiveOrderToKitchenAndPark();

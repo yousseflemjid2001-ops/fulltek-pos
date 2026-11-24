@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/touch_numpad.dart';
