@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
+import '../widgets/touch_numpad.dart';
 import 'checkout_dialog.dart';
 
 /// Opens the "Transfert Service (Passation Caissier / Serveur)" dialog:
@@ -31,6 +33,8 @@ Future<void> showShiftHandoverDialog(
   String toName = activeStaff
       .firstWhere((s) => s.name != fromName, orElse: () => activeStaff.last)
       .name;
+  final pinCtrl = TextEditingController();
+  String? pinError;
 
   await showDialog<void>(
     context: context,
@@ -165,6 +169,28 @@ Future<void> showShiftHandoverDialog(
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('shift_receiver_pin_input'),
+                  controller: pinCtrl,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  onTap: () => showTouchNumpad(
+                    context: ctx,
+                    controller: pinCtrl,
+                    title: 'Code PIN de $toName (validation)',
+                    suffix: '',
+                    obscure: true,
+                    onChanged: () => setD(() => pinError = null),
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Code PIN de $toName (ou Gérant) *',
+                    hintText: 'Validation obligatoire du destinataire',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: const Icon(Icons.dialpad_rounded, size: 20),
+                    errorText: pinError,
+                  ),
+                ),
               ],
             ),
           ),
@@ -178,6 +204,20 @@ Future<void> showShiftHandoverDialog(
               onPressed: waitingForFrom == 0
                   ? null
                   : () {
+                      final enteredPin = pinCtrl.text.trim();
+                      final receiver = activeStaff
+                          .where((s) => s.name == toName)
+                          .firstOrNull;
+                      final validReceiverPin = receiver != null &&
+                          enteredPin.isNotEmpty &&
+                          receiver.pinCode == enteredPin;
+                      final validManagerPin = enteredPin.isNotEmpty &&
+                          store.verifyManagerPin(enteredPin) != null;
+                      if (!validReceiverPin && !validManagerPin) {
+                        setD(() => pinError =
+                            'Code PIN invalide : saisissez le PIN de $toName ou d\'un gérant.');
+                        return;
+                      }
                       final moved = mode == 0
                           ? store.transferShiftCashier(fromName, toName)
                           : store.transferShiftServer(fromName, toName);
@@ -186,20 +226,21 @@ Future<void> showShiftHandoverDialog(
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              '✅ $moved table(s)/commande(s) transférée(s) de $fromName vers $toName.',
+                              '✅ $moved table(s)/commande(s) transférée(s) de $fromName vers $toName (validé par PIN).',
                             ),
                           ),
                         );
                       }
                     },
               icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-              label: Text('Transférer ($waitingForFrom)'),
+              label: Text('Valider & Transférer ($waitingForFrom)'),
             ),
           ],
         );
       },
     ),
   );
+  pinCtrl.dispose();
 }
 
 /// Opens the "Rapport X (X Caissier / X Général)" selector & 80mm preview.

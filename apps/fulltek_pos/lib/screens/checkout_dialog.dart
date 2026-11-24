@@ -108,6 +108,13 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
   Widget build(BuildContext context) {
     final i18n = widget.store.i18n;
     final p = FullTekThemes.paletteOf(context);
+    final typedAmt =
+        double.tryParse(_amountCtrl.text.trim().replaceAll(',', '.')) ?? 0.0;
+    final liveTotalPaid = _entries.isNotEmpty ? _paidSoFar : typedAmt;
+    final liveRemaining =
+        (_orderTotal - liveTotalPaid).clamp(0.0, double.infinity);
+    final liveChange =
+        (liveTotalPaid - _orderTotal).clamp(0.0, double.infinity);
     final canComplete =
         _entries.isNotEmpty ? _paidSoFar + 0.01 >= _orderTotal : true;
 
@@ -163,11 +170,41 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                         _metric(i18n.t('total_to_pay'),
                             '${_orderTotal.toStringAsFixed(0)} ${i18n.t('mru')}', p.textPrimary, p),
                         _metric(i18n.t('remaining'),
-                            '${_remaining.toStringAsFixed(0)} ${i18n.t('mru')}', _remaining > 0 ? p.warning : p.success, p),
+                            '${liveRemaining.toStringAsFixed(0)} ${i18n.t('mru')}', liveRemaining > 0 ? p.warning : p.success, p),
                         _metric(i18n.t('change_due'),
-                            '${_changeDue.toStringAsFixed(0)} ${i18n.t('mru')}', p.primary, p),
+                            '${liveChange.toStringAsFixed(0)} ${i18n.t('mru')}', liveChange > 0 ? p.success : p.primary, p),
                       ],
                     ),
+                    if (liveChange > 0) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        key: const Key('live_change_due_banner'),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: p.success.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: p.success, width: 1.5),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.currency_exchange_rounded,
+                                color: p.success, size: 22),
+                            const SizedBox(width: 8),
+                            Text(
+                              'MONNAIE À RENDRE : ${liveChange.toStringAsFixed(0)} ${i18n.t('mru')}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: p.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -219,7 +256,9 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                       backgroundColor: p.surfaceAlt,
                       side: BorderSide(color: p.border),
                       onPressed: () {
-                        _amountCtrl.text = bill.toString();
+                        setState(() {
+                          _amountCtrl.text = bill.toString();
+                        });
                       },
                     );
                   }).toList(),
@@ -275,6 +314,7 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                       key: const Key('payment_amount_input'),
                       controller: _amountCtrl,
                       keyboardType: TextInputType.number,
+                      onChanged: (_) => setState(() {}),
                       onTap: () => showTouchNumpad(
                         context: context,
                         controller: _amountCtrl,

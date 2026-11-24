@@ -881,6 +881,16 @@ class _FloorPlanViewState extends State<FloorPlanView> {
 
   Widget _buildReservationsPanel(PosStore store, PosPalette p) {
     final i18n = store.i18n;
+    // Hide completed/cancelled reservations and seated ones whose table is already free
+    final visibleReservations = store.reservations.where((r) {
+      if (r.status == 'completed' || r.status == 'cancelled') return false;
+      if (r.status == 'seated') {
+        final tbl = store.tables.where((t) => t.id == r.tableId).firstOrNull;
+        return tbl != null && tbl.status != TableStatus.free;
+      }
+      return true;
+    }).toList();
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -897,7 +907,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  i18n.t('vip_reservations'),
+                  '${i18n.t('vip_reservations')} (${visibleReservations.length})',
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -908,12 +918,22 @@ class _FloorPlanViewState extends State<FloorPlanView> {
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: ListView.separated(
-              itemCount: store.reservations.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, idx) {
-                final r = store.reservations[idx];
-                final table = store.tables.firstWhere((t) => t.id == r.tableId);
+            child: visibleReservations.isEmpty
+                ? Center(
+                    child: Text(
+                      'Aucune réservation en attente.',
+                      style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: visibleReservations.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, idx) {
+                      final r = visibleReservations[idx];
+                      final table = store.tables.firstWhere(
+                        (t) => t.id == r.tableId,
+                        orElse: () => store.tables.first,
+                      );
                 return Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(

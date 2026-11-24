@@ -2064,6 +2064,13 @@ class PosStore extends ChangeNotifier {
           arbounMru: 0,
         );
       }
+      // Mark any seated VIP reservation on this table as completed so it disappears from active list
+      for (var i = 0; i < reservations.length; i++) {
+        if (reservations[i].tableId == order.tableId &&
+            reservations[i].status == 'seated') {
+          reservations[i] = reservations[i].copyWith(status: 'completed');
+        }
+      }
     }
     startCounterOrder();
     return tickets.join('\n');
@@ -2087,6 +2094,41 @@ class PosStore extends ChangeNotifier {
     _activeOrderId = order.id;
     _serviceMode = order.serviceMode;
     notifyListeners();
+  }
+
+  /// Attaches the current active order (e.g. a draft Sur place cart) to [tableId]
+  /// before sending to kitchen so the order is linked to that table.
+  bool assignTableToActiveOrder(String tableId) {
+    final order = activeOrder;
+    if (order == null) return false;
+    final tIdx = tables.indexWhere((t) => t.id == tableId);
+    if (tIdx == -1) return false;
+    final tbl = tables[tIdx];
+    final existingOrderId = tbl.activeOrderId;
+    if (existingOrderId != null &&
+        existingOrderId != order.id &&
+        _openOrdersById.containsKey(existingOrderId)) {
+      // Merge draft items into existing table order
+      final existing = _openOrdersById[existingOrderId]!;
+      final merged = List<OrderItem>.from(existing.items)..addAll(order.items);
+      _openOrdersById[existingOrderId] =
+          _withRecomputedDelivery(existing.copyWith(items: merged));
+      _openOrdersById.remove(order.id);
+      _activeOrderId = existingOrderId;
+    } else {
+      _openOrdersById[order.id] = order.copyWith(
+        tableId: tbl.id,
+        tableCode: tbl.code,
+        serviceMode: ServiceMode.dineIn,
+      );
+      tables[tIdx] = tbl.copyWith(
+        activeOrderId: order.id,
+        serverName: order.serverName ?? tbl.serverName ?? _currentStaff?.name,
+      );
+    }
+    _serviceMode = ServiceMode.dineIn;
+    notifyListeners();
+    return true;
   }
 
   /// Sends unsent lines to Kitchen / KDS and parks the order into 'En attente',
@@ -3843,6 +3885,13 @@ class PosStore extends ChangeNotifier {
           waitAlert: false,
           arbounMru: 0,
         );
+      }
+      // Mark any seated VIP reservation on this table as completed so it disappears from active list
+      for (var i = 0; i < reservations.length; i++) {
+        if (reservations[i].tableId == order.tableId &&
+            reservations[i].status == 'seated') {
+          reservations[i] = reservations[i].copyWith(status: 'completed');
+        }
       }
     }
 

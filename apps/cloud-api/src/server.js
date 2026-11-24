@@ -1231,6 +1231,7 @@ function createApp(options = {}) {
             nameAr: c.name_ar || '',
             nameEn: c.name_en || '',
             icon: c.icon || '🍽️',
+            imageUrl: c.image_url || '',
             sortOrder: Number(c.sort_order ?? 0),
             active: Boolean(c.active),
           }));

@@ -156,11 +156,14 @@ class _PosRegisterViewState extends State<PosRegisterView> {
 
   void _handlePostCheckoutReceipt(PosOrder closed) {
     final receipt = buildReceiptForClosedOrder(closed, store: widget.store);
+    final changeBanner = closed.changeDue > 0
+        ? '💰 MONNAIE À RENDRE : ${closed.changeDue.toStringAsFixed(0)} MRU'
+        : widget.store.i18n.t('open_drawer');
     if (widget.store.shouldAutoPrintLastReceipt) {
       showReceiptPreviewDialog(
         context,
         title: 'Ticket Final · ${widget.store.i18n.t('receipt_preview')}',
-        subtitle: widget.store.i18n.t('open_drawer'),
+        subtitle: changeBanner,
         receiptText: receipt,
       );
       return;
@@ -168,7 +171,9 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '✅ Encaissé (${closed.netTotal.toStringAsFixed(0)} MRU) · Note déjà sortie (ticket non réimprimé)',
+          closed.changeDue > 0
+              ? '✅ Encaissé · 💰 MONNAIE À RENDRE : ${closed.changeDue.toStringAsFixed(0)} MRU (Note déjà sortie)'
+              : '✅ Encaissé (${closed.netTotal.toStringAsFixed(0)} MRU) · Note déjà sortie (ticket non réimprimé)',
         ),
         action: SnackBarAction(
           label: 'Imprimer Ticket Final',
@@ -177,7 +182,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             showReceiptPreviewDialog(
               context,
               title: 'Ticket Final · ${widget.store.i18n.t('receipt_preview')}',
-              subtitle: widget.store.i18n.t('open_drawer'),
+              subtitle: changeBanner,
               receiptText: receipt,
             );
           },
@@ -207,12 +212,124 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     }
   }
 
-  void _sendToKitchen() {
-    final kdsTicket = widget.store.sendActiveOrderToKitchenAndPark();
-    if (kdsTicket == null) return;
+  Future<void> _sendToKitchen() async {
+    final store = widget.store;
+    final order = store.activeOrder;
+    if (order == null || order.items.isEmpty) return;
+
+    // Mandatory table selection before sending to kitchen in Sur place (dineIn) mode
+    if (order.serviceMode == ServiceMode.dineIn &&
+        order.tableId == null &&
+        store.tables.isNotEmpty) {
+      final p = FullTekThemes.paletteOf(context);
+      final chosenTableId = await showDialog<String>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: p.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: p.border),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520, maxHeight: 500),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.table_restaurant_rounded,
+                          color: p.warning, size: 24),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Table obligatoire avant envoi cuisine',
+                          style: TextStyle(
+                              fontSize: 16.5, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Sélectionnez la table du client pour envoyer la commande en cuisine et la retrouver facilement à l\'encaissement :',
+                    style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 1.7,
+                      ),
+                      itemCount: store.tables.length,
+                      itemBuilder: (_, idx) {
+                        final t = store.tables[idx];
+                        final occ = t.status != TableStatus.free;
+                        final col = occ ? p.warning : p.success;
+                        return InkWell(
+                          key: Key('pick_table_kitchen_${t.id}'),
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => Navigator.of(ctx).pop(t.id),
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: col.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: col, width: 1.6),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Table ${t.code}',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: p.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  occ ? 'Occupée (ajouter)' : 'Libre',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: col,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      if (chosenTableId == null || !mounted) return;
+      store.assignTableToActiveOrder(chosenTableId);
+    }
+
+    final kdsTicket = store.sendActiveOrderToKitchenAndPark();
+    if (kdsTicket == null || !mounted) return;
     showReceiptPreviewDialog(
       context,
-      title: '${widget.store.i18n.t('kitchen_sent')} · Mise en attente',
+      title: '${store.i18n.t('kitchen_sent')} · Mise en attente',
       receiptText: kdsTicket,
     );
   }
@@ -961,10 +1078,30 @@ class _PosRegisterViewState extends State<PosRegisterView> {
         thumb = Text(icon, style: const TextStyle(fontSize: 22));
       }
 
+      const catPalette = <Color>[
+        Color(0xFF10B981),
+        Color(0xFFF59E0B),
+        Color(0xFF3B82F6),
+        Color(0xFFEC4899),
+        Color(0xFF8B5CF6),
+        Color(0xFF06B6D4),
+        Color(0xFFEF4444),
+        Color(0xFF14B8A6),
+        Color(0xFFF97316),
+        Color(0xFF6366F1),
+      ];
+      final catIndex = category == null
+          ? 0
+          : store.categories.indexWhere((c) => c.id == category.id);
+      final accentCol = id == 'all'
+          ? p.primary
+          : catPalette[(catIndex < 0 ? id.hashCode.abs() : catIndex) %
+              catPalette.length];
+
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: sel ? p.primary : p.surfaceAlt.withValues(alpha: 0.45),
+          color: sel ? accentCol : accentCol.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(p.radius),
           child: InkWell(
             key: Key('rail_cat_$id'),
@@ -973,50 +1110,59 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             onLongPress: category != null
                 ? () => _openQuickCategoryImageDialog(category)
                 : null,
-            child: Stack(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: Column(
-                      children: [
-                        thumb,
-                        const SizedBox(height: 4),
-                        Text(
-                          label,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: sel ? p.onPrimary : p.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(p.radius),
+                border: Border.all(
+                  color: sel ? accentCol : accentCol.withValues(alpha: 0.45),
+                  width: sel ? 2 : 1.2,
                 ),
-                if (category != null)
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: InkWell(
-                      onTap: () => _openQuickCategoryImageDialog(category),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(Icons.photo_camera_outlined,
-                            size: 11, color: Colors.white),
+              ),
+              child: Stack(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Column(
+                        children: [
+                          thumb,
+                          const SizedBox(height: 4),
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: sel ? Colors.white : p.textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-              ],
+                  if (category != null)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: InkWell(
+                        onTap: () => _openQuickCategoryImageDialog(category),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(Icons.photo_camera_outlined,
+                              size: 11, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
