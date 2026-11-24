@@ -211,24 +211,32 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${i18n.t('tva_included')}: ${widget.store.activeOrder?.tvaAmountMru ?? 0} MRU',
-                          style: TextStyle(fontSize: 11.5, color: p.textMuted),
-                        ),
-                        if ((widget.store.activeOrder?.deliveryFeeMru ?? 0) > 0)
-                          Text(
-                            '${i18n.t('delivery_fee')}: ${widget.store.activeOrder!.deliveryFeeMru.toStringAsFixed(0)} MRU',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: p.accent),
-                          ),
-                      ],
-                    ),
+                    if (widget.store.tvaEnabled ||
+                        (widget.store.activeOrder?.deliveryFeeMru ?? 0) > 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (widget.store.tvaEnabled)
+                            Text(
+                              'Dont TVA ${widget.store.tvaRatePercent.toStringAsFixed(0)} %: ${((widget.store.activeOrder?.grossTotal ?? 0) * widget.store.tvaRatePercent / (100.0 + widget.store.tvaRatePercent)).round()} MRU',
+                              style:
+                                  TextStyle(fontSize: 11.5, color: p.textMuted),
+                            )
+                          else
+                            const SizedBox.shrink(),
+                          if ((widget.store.activeOrder?.deliveryFeeMru ?? 0) >
+                              0)
+                            Text(
+                              '${i18n.t('delivery_fee')}: ${widget.store.activeOrder!.deliveryFeeMru.toStringAsFixed(0)} MRU',
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.accent),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -620,6 +628,8 @@ String buildReceiptForClosedOrder(PosOrder order, {PosStore? store}) {
     nif: store.storeNif,
     rc: store.storeRc,
     footer: store.receiptFooter,
+    showTva: store.tvaEnabled,
+    tvaRatePercent: store.tvaRatePercent,
   );
 }
 

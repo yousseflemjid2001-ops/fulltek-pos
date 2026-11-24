@@ -231,6 +231,18 @@ class _PosShellScreenState extends State<PosShellScreen> {
                         ),
                       _buildFunctionTile(
                         p: p,
+                        icon: Icons.chat_bubble_outline_rounded,
+                        title: 'Commentaires cuisine',
+                        subtitle:
+                            '${store.quickComments.length} rapides · Ajouter / Supprimer',
+                        color: p.warning,
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _openQuickCommentsDialog();
+                        },
+                      ),
+                      _buildFunctionTile(
+                        p: p,
                         icon: Icons.cloud_sync_rounded,
                         title: 'Synchroniser Cloud',
                         subtitle: store.pendingSyncCount > 0
@@ -291,6 +303,86 @@ class _PosShellScreenState extends State<PosShellScreen> {
                           onChanged: (v) {
                             store.setPrintReceiptAfterNote(v);
                             setOpt(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Option "TVA (%)" configurable (ON/OFF + taux %)
+                StatefulBuilder(
+                  builder: (ctx, setTva) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: p.surfaceAlt,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.percent_rounded,
+                            color: store.tvaEnabled ? p.primary : p.textMuted,
+                            size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TVA (${store.tvaRatePercent.toStringAsFixed(0)} %)',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                store.tvaEnabled
+                                    ? 'Activée : affiche HT et TVA ${store.tvaRatePercent.toStringAsFixed(0)} % sur caisse et tickets.'
+                                    : 'Désactivée : aucune ligne TVA affichée sur caisse ni tickets.',
+                                style: TextStyle(
+                                    fontSize: 11.5, color: p.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (store.tvaEnabled)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: DropdownButton<double>(
+                              key: const Key('tva_rate_dropdown'),
+                              isDense: true,
+                              underline: const SizedBox.shrink(),
+                              value: const [14.0, 16.0, 18.0, 20.0]
+                                      .contains(store.tvaRatePercent)
+                                  ? store.tvaRatePercent
+                                  : 16.0,
+                              items: const [14.0, 16.0, 18.0, 20.0]
+                                  .map(
+                                    (r) => DropdownMenuItem(
+                                      value: r,
+                                      child: Text('${r.toStringAsFixed(0)} %',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 12.5)),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (r) {
+                                if (r == null) return;
+                                store.setTvaSettings(ratePercent: r);
+                                setTva(() {});
+                              },
+                            ),
+                          ),
+                        Switch(
+                          key: const Key('tva_enabled_switch'),
+                          value: store.tvaEnabled,
+                          onChanged: (v) {
+                            store.setTvaSettings(enabled: v);
+                            setTva(() {});
                           },
                         ),
                       ],
@@ -375,6 +467,129 @@ class _PosShellScreenState extends State<PosShellScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openQuickCommentsDialog() async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    final ctrl = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: p.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: p.border),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.chat_bubble_outline_rounded, color: p.warning),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Paramétrer les commentaires cuisine',
+                  style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Ajoutez ou supprimez les commentaires rapides affichés lors de la prise de commande et de l\'envoi en cuisine :',
+                    style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('new_quick_comment_input'),
+                          controller: ctrl,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            labelText: 'Nouveau commentaire rapide',
+                            hintText: 'Ex: Sans ail, Bien doré, Sans fromage...',
+                            prefixIcon: Icon(Icons.add_comment_outlined),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        key: const Key('add_quick_comment_btn'),
+                        onPressed: () {
+                          final txt = ctrl.text.trim();
+                          if (txt.isEmpty) return;
+                          store.addQuickComment(txt);
+                          ctrl.clear();
+                          setD(() {});
+                        },
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('Ajouter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (store.quickComments.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        'Aucun commentaire rapide enregistré.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: p.textMuted),
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: store.quickComments.map((c) {
+                        return Chip(
+                          key: Key('quick_comment_chip_$c'),
+                          backgroundColor: p.surfaceAlt,
+                          side: BorderSide(color: p.border),
+                          label: Text(
+                            c,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: p.textPrimary,
+                            ),
+                          ),
+                          deleteIcon: Icon(Icons.close_rounded,
+                              size: 16, color: p.danger),
+                          onDeleted: () {
+                            store.removeQuickComment(c);
+                            setD(() {});
+                          },
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Terminé'),
+            ),
+          ],
+        ),
+      ),
+    );
+    ctrl.dispose();
   }
 
   Widget _buildFunctionTile({

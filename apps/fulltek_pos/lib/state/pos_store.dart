@@ -184,6 +184,8 @@ class PosStore extends ChangeNotifier {
         'ticketCounter': _ticketCounter,
         'syncCounter': _syncCounter,
         'printReceiptAfterNote': printReceiptAfterNote,
+        'tvaEnabled': tvaEnabled,
+        'tvaRatePercent': tvaRatePercent,
         'lastZClosedAt': _lastZClosedAt?.toIso8601String(),
         'closingsZ': _closingsZ.map((z) => z.toSyncJson()).toList(),
         'remakeRecords': _remakeRecords
@@ -325,6 +327,13 @@ class PosStore extends ChangeNotifier {
       }
       if (map['printReceiptAfterNote'] is bool) {
         printReceiptAfterNote = map['printReceiptAfterNote'] as bool;
+      }
+      if (map['tvaEnabled'] is bool) {
+        tvaEnabled = map['tvaEnabled'] as bool;
+      }
+      if (map['tvaRatePercent'] is num) {
+        final rate = (map['tvaRatePercent'] as num).toDouble();
+        if (rate >= 0 && rate <= 50) tvaRatePercent = rate;
       }
       final savedZ = map['closingsZ'] as List?;
       if (savedZ != null) {
@@ -2414,6 +2423,8 @@ class PosStore extends ChangeNotifier {
   /// Option « Impression après Note » (ON by default; when OFF, skips auto-printing
   /// the Final Ticket at checkout if a Note was already printed for the order to save paper).
   bool printReceiptAfterNote = true;
+  bool tvaEnabled = false;
+  double tvaRatePercent = 16.0;
   final Set<String> _notePrintedOrderIds = {};
   bool lastCheckoutHadNote = false;
 
@@ -2424,6 +2435,14 @@ class PosStore extends ChangeNotifier {
 
   void setPrintReceiptAfterNote(bool value) {
     printReceiptAfterNote = value;
+    notifyListeners();
+  }
+
+  void setTvaSettings({bool? enabled, double? ratePercent}) {
+    if (enabled != null) tvaEnabled = enabled;
+    if (ratePercent != null && ratePercent >= 0 && ratePercent <= 50) {
+      tvaRatePercent = ratePercent;
+    }
     notifyListeners();
   }
 
@@ -2458,6 +2477,8 @@ class PosStore extends ChangeNotifier {
       phone: storePhone,
       nif: storeNif,
       rc: storeRc,
+      showTva: tvaEnabled,
+      tvaRatePercent: tvaRatePercent,
     );
   }
 

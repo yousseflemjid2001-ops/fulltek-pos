@@ -2670,12 +2670,13 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     p,
                     color: p.vipGold,
                   ),
-                _totalRow(
-                  i18n.t('tva_included'),
-                  '${order?.tvaAmountMru ?? 0} MRU',
-                  p,
-                  key: const Key('cart_tva_16_text'),
-                ),
+                if (store.tvaEnabled && store.tvaRatePercent > 0)
+                  _totalRow(
+                    'Dont TVA ${store.tvaRatePercent.toStringAsFixed(0)} %',
+                    '${((order?.grossTotal ?? 0) <= 0 ? 0 : ((order!.grossTotal * store.tvaRatePercent) / (100.0 + store.tvaRatePercent)).round())} MRU',
+                    p,
+                    key: const Key('cart_tva_16_text'),
+                  ),
                 const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -405,10 +405,13 @@ class _OwnerDashboardViewState extends State<OwnerDashboardView> {
                 children: [
                   _modernKpiCard(
                     key: const Key('kpi_revenue_card'),
-                    title: 'Chiffre d\'Affaires TTC (${_periodLabel(_period)})',
+                    title: store.tvaEnabled
+                        ? 'Chiffre d\'Affaires TTC (${_periodLabel(_period)})'
+                        : 'Chiffre d\'Affaires (${_periodLabel(_period)})',
                     value: _fmtMru(revenueTtc),
-                    subtitle:
-                        'HT : ${_fmtMru(revenueHt)}  ·  TVA 16% : ${_fmtMru(totalTva)}',
+                    subtitle: store.tvaEnabled
+                        ? 'HT : ${_fmtMru(revenueHt)}  ·  TVA ${store.tvaRatePercent.toStringAsFixed(0)}% : ${_fmtMru(totalTva)}'
+                        : '$ticketsCount ticket(s) encaissé(s)',
                     badge: '$ticketsCount ticket(s)',
                     icon: Icons.payments_rounded,
                     color: p.primary,

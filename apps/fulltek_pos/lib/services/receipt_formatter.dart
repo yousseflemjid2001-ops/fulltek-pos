@@ -54,6 +54,8 @@ class ReceiptFormatter {
     String nif = '',
     String rc = '',
     String footer = 'Merci de votre visite ! شكراً لزيارتكم',
+    bool showTva = true,
+    double tvaRatePercent = 16.0,
   }) {
     final buf = StringBuffer();
     if (order.isTraining) {
@@ -197,10 +199,19 @@ class ReceiptFormatter {
         }
       }
     }
-    buf.writeln(_line());
-    buf.writeln(_padRow('Sous-total HT:', formatMru(order.subtotalHtMru)));
-    buf.writeln(
-        _padRow('Dont TVA 16 %:', formatMru(order.tvaAmountMru.toDouble())));
+    if (showTva && tvaRatePercent > 0) {
+      final tvaAmt = order.grossTotal <= 0
+          ? 0
+          : (order.grossTotal * tvaRatePercent / (100.0 + tvaRatePercent))
+              .round();
+      final htAmt = order.grossTotal - tvaAmt;
+      final rateLabel = tvaRatePercent == tvaRatePercent.roundToDouble()
+          ? tvaRatePercent.toStringAsFixed(0)
+          : tvaRatePercent.toStringAsFixed(1);
+      buf.writeln(_line());
+      buf.writeln(_padRow('Sous-total HT:', formatMru(htAmt)));
+      buf.writeln(_padRow('Dont TVA $rateLabel %:', formatMru(tvaAmt.toDouble())));
+    }
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL TTC / الإجمالي:', formatMru(order.netTotal)));
     buf.writeln(_line('='));
@@ -253,6 +264,8 @@ class ReceiptFormatter {
     String phone = '+222 45 25 00 00',
     String nif = '',
     String rc = '',
+    bool showTva = true,
+    double tvaRatePercent = 16.0,
   }) {
     final buf = StringBuffer();
     buf.writeln(_line('='));
@@ -336,10 +349,19 @@ class ReceiptFormatter {
     if (order.deliveryFeeMru > 0) {
       buf.writeln(_padRow('Frais livraison:', formatMru(order.deliveryFeeMru)));
     }
-    buf.writeln(_line());
-    buf.writeln(_padRow('Sous-total HT:', formatMru(order.subtotalHtMru)));
-    buf.writeln(
-        _padRow('Dont TVA 16 %:', formatMru(order.tvaAmountMru.toDouble())));
+    if (showTva && tvaRatePercent > 0) {
+      final tvaAmt = order.grossTotal <= 0
+          ? 0
+          : (order.grossTotal * tvaRatePercent / (100.0 + tvaRatePercent))
+              .round();
+      final htAmt = order.grossTotal - tvaAmt;
+      final rateLabel = tvaRatePercent == tvaRatePercent.roundToDouble()
+          ? tvaRatePercent.toStringAsFixed(0)
+          : tvaRatePercent.toStringAsFixed(1);
+      buf.writeln(_line());
+      buf.writeln(_padRow('Sous-total HT:', formatMru(htAmt)));
+      buf.writeln(_padRow('Dont TVA $rateLabel %:', formatMru(tvaAmt.toDouble())));
+    }
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL A PAYER:', formatMru(order.netTotal)));
     buf.writeln(_line('='));

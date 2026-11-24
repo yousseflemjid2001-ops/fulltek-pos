@@ -537,4 +537,37 @@ void main() {
       expect(await store.removeCustomWallet('BCI-Test'), isNull);
     },
   );
+
+  test(
+    'Configurable TVA (ON/OFF + rate) and Quick Comments add/remove & KDS/80mm print',
+    () {
+      final store = PosStore(enablePersistence: false);
+      final dish = store.menuItems.first;
+
+      // By default TVA is disabled -> 80mm Note & Receipt omit TVA lines
+      expect(store.tvaEnabled, isFalse);
+      store.addItemToActiveOrder(dish);
+      store.addQuickComment('Sans ail');
+      expect(store.quickComments, contains('Sans ail'));
+      store.setActiveOrderComment('Sans ail, client pressé');
+
+      final noteNoTva = store.requestAdditionForActiveOrder()!;
+      expect(noteNoTva, isNot(contains('TVA')));
+      expect(noteNoTva, contains('COMMENTAIRE: Sans ail'));
+
+      // Enable TVA 16% -> Note & Receipt include TVA 16 %
+      store.setTvaSettings(enabled: true, ratePercent: 16.0);
+      final noteWithTva = store.requestAdditionForActiveOrder()!;
+      expect(noteWithTva, contains('Dont TVA 16 %:'));
+
+      // Kitchen ticket shows order comment
+      final kds = store.sendActiveOrderToKitchen()!;
+      expect(kds, contains('COMMENTAIRE: Sans ail, client pressé'));
+      expect(store.kdsTickets.first.orderComment, 'Sans ail, client pressé');
+
+      // Remove quick comment
+      store.removeQuickComment('Sans ail');
+      expect(store.quickComments, isNot(contains('Sans ail')));
+    },
+  );
 }
