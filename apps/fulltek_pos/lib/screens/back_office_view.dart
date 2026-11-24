@@ -1580,7 +1580,9 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
     for (final o in store.completedOrders) {
       for (final pe in o.payments) {
         if (pe.method == PaymentMethod.karni) continue;
-        final k = normMethod(pe.method.name);
+        final k = pe.method == PaymentMethod.otherWallet
+            ? pe.displayLabel
+            : normMethod(pe.method.name);
         balances[k] = (balances[k] ?? 0) + pe.amountMru;
       }
     }

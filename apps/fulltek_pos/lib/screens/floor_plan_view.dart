@@ -260,6 +260,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
     final frCtrl = TextEditingController();
     final arCtrl = TextEditingController();
     bool isVip = false;
+    bool isSaving = false;
     String? err;
 
     await showDialog<void>(
@@ -279,6 +280,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
               TextField(
                 key: const Key('new_zone_name_input'),
                 controller: frCtrl,
+                enabled: !isSaving,
                 decoration: const InputDecoration(
                     labelText: 'Nom de la zone (Français) *',
                     hintText: 'Ex: Étage, Jardin, Salon VIP...'),
@@ -286,6 +288,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
               const SizedBox(height: 10),
               TextField(
                 controller: arCtrl,
+                enabled: !isSaving,
                 decoration:
                     const InputDecoration(labelText: 'Nom (Arabe / عربي)'),
               ),
@@ -294,29 +297,137 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Zone VIP / Khaima'),
                 value: isVip,
-                onChanged: (v) => setD(() => isVip = v),
+                onChanged: isSaving ? null : (v) => setD(() => isVip = v),
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
+              onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
               child: Text(store.i18n.t('cancel')),
             ),
             ElevatedButton(
               key: const Key('save_zone_btn'),
-              onPressed: () async {
-                final res = await store.addDiningZone(
-                  nameFr: frCtrl.text,
-                  nameAr: arCtrl.text,
-                  isVip: isVip,
-                );
-                if (res != null) {
-                  setD(() => err = res);
-                  return;
-                }
-                if (ctx.mounted) Navigator.of(ctx).pop();
-              },
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      setD(() {
+                        isSaving = true;
+                        err = null;
+                      });
+                      final res = await store.addDiningZone(
+                        nameFr: frCtrl.text,
+                        nameAr: arCtrl.text,
+                        isVip: isVip,
+                      );
+                      if (res != null) {
+                        if (ctx.mounted) {
+                          setD(() {
+                            isSaving = false;
+                            err = res;
+                          });
+                        }
+                        return;
+                      }
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(store.i18n.t('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+    frCtrl.dispose();
+    arCtrl.dispose();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _openEditZoneDialog(DiningZone zone) async {
+    final store = widget.store;
+    final frCtrl = TextEditingController(text: zone.nameFr);
+    final arCtrl = TextEditingController(text: zone.nameAr);
+    bool isVip = zone.isVip;
+    bool isSaving = false;
+    String? err;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text('Modifier la zone « ${zone.nameFr} »'),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (err != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(err!,
+                        style: const TextStyle(color: Colors.redAccent)),
+                  ),
+                TextField(
+                  key: const Key('edit_zone_name_input'),
+                  controller: frCtrl,
+                  enabled: !isSaving,
+                  decoration: const InputDecoration(
+                    labelText: 'Nom de la zone (Français) *',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: arCtrl,
+                  enabled: !isSaving,
+                  decoration:
+                      const InputDecoration(labelText: 'Nom (Arabe / عربي)'),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Zone VIP / Khaima'),
+                  value: isVip,
+                  onChanged: isSaving ? null : (v) => setD(() => isVip = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton(
+              key: const Key('confirm_edit_zone_btn'),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      setD(() {
+                        isSaving = true;
+                        err = null;
+                      });
+                      final res = await store.renameDiningZone(
+                        zoneId: zone.id,
+                        nameFr: frCtrl.text,
+                        nameAr: arCtrl.text,
+                        isVip: isVip,
+                      );
+                      if (res != null) {
+                        if (ctx.mounted) {
+                          setD(() {
+                            isSaving = false;
+                            err = res;
+                          });
+                        }
+                        return;
+                      }
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                    },
               child: Text(store.i18n.t('confirm')),
             ),
           ],
@@ -325,6 +436,260 @@ class _FloorPlanViewState extends State<FloorPlanView> {
     );
     frCtrl.dispose();
     arCtrl.dispose();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _openManageZonesDialog() async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    String? feedbackErr;
+    String? feedbackOk;
+    bool busy = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          final seen = <String>{};
+          int duplicateEmptyCount = 0;
+          for (final z in store.zones) {
+            if (!seen.add(z.nameFr.trim().toLowerCase())) {
+              if (!store.tables.any((t) => t.zoneId == z.id)) {
+                duplicateEmptyCount++;
+              }
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: p.surface,
+            title: Row(
+              children: [
+                Icon(Icons.layers_outlined, color: p.primary),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Gérer les zones de salle',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (feedbackErr != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: p.danger.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: p.danger),
+                        ),
+                        child: Text(
+                          feedbackErr!,
+                          style: TextStyle(
+                              color: p.danger,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    if (feedbackOk != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: p.success.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: p.success),
+                        ),
+                        child: Text(
+                          feedbackOk!,
+                          style: TextStyle(
+                              color: p.success,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    if (duplicateEmptyCount > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ElevatedButton.icon(
+                          key: const Key('cleanup_duplicate_zones_btn'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: p.warning,
+                            foregroundColor: Colors.black,
+                          ),
+                          onPressed: busy
+                              ? null
+                              : () async {
+                                  setD(() {
+                                    busy = true;
+                                    feedbackErr = null;
+                                    feedbackOk = null;
+                                  });
+                                  final removed =
+                                      await store.cleanupDuplicateEmptyZones();
+                                  if (!store.zones
+                                      .any((z) => z.id == _selectedZoneId)) {
+                                    _selectedZoneId = 'all';
+                                  }
+                                  if (ctx.mounted) {
+                                    setD(() {
+                                      busy = false;
+                                      feedbackOk =
+                                          '$removed zone(s) doublon(s) vide(s) supprimée(s).';
+                                    });
+                                  }
+                                },
+                          icon: const Icon(Icons.cleaning_services_rounded,
+                              size: 18),
+                          label: Text(
+                            'Nettoyer $duplicateEmptyCount doublon(s) vide(s) en 1 clic',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ...store.zones.map((z) {
+                      final tableCount =
+                          store.tables.where((t) => t.zoneId == z.id).length;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: p.surfaceAlt,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: p.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${z.isVip ? '👑 ' : ''}${z.nameFr}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$tableCount table(s) · ID ${z.id}',
+                                    style: TextStyle(
+                                        fontSize: 11.5, color: p.textMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              key: Key('rename_zone_btn_${z.id}'),
+                              tooltip: 'Renommer / Modifier',
+                              onPressed: busy
+                                  ? null
+                                  : () async {
+                                      await _openEditZoneDialog(z);
+                                      if (ctx.mounted) setD(() {});
+                                    },
+                              icon: Icon(Icons.edit_outlined,
+                                  color: p.primary, size: 20),
+                            ),
+                            IconButton(
+                              key: Key('delete_zone_btn_${z.id}'),
+                              tooltip: 'Supprimer cette zone',
+                              onPressed: busy
+                                  ? null
+                                  : () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: ctx,
+                                        builder: (c2) => AlertDialog(
+                                          title: const Text(
+                                              'Supprimer la zone ?'),
+                                          content: Text(
+                                            'Confirmez-vous la suppression de la zone « ${z.nameFr} » ($tableCount table(s)) ?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(c2).pop(false),
+                                              child: Text(
+                                                  store.i18n.t('cancel')),
+                                            ),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.redAccent,
+                                                foregroundColor: Colors.white,
+                                              ),
+                                              onPressed: () =>
+                                                  Navigator.of(c2).pop(true),
+                                              child: const Text('Supprimer'),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirm != true) return;
+                                      setD(() {
+                                        busy = true;
+                                        feedbackErr = null;
+                                        feedbackOk = null;
+                                      });
+                                      final err =
+                                          await store.deleteDiningZone(z.id);
+                                      if (_selectedZoneId == z.id) {
+                                        _selectedZoneId = 'all';
+                                      }
+                                      if (ctx.mounted) {
+                                        setD(() {
+                                          busy = false;
+                                          feedbackErr = err;
+                                          if (err == null) {
+                                            feedbackOk =
+                                                'Zone « ${z.nameFr} » supprimée.';
+                                          }
+                                        });
+                                      }
+                                    },
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  color: p.danger, size: 20),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await _openNewZoneDialog();
+                },
+                icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                label: const Text('+ Nouvelle zone'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Fermer'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _openTableDialog({DiningTable? existing}) async {
@@ -541,6 +906,12 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                       icon: const Icon(Icons.add_location_alt_outlined,
                           size: 17),
                       label: const Text('+ Zone'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('manage_zones_btn'),
+                      onPressed: _openManageZonesDialog,
+                      icon: const Icon(Icons.layers_outlined, size: 17),
+                      label: const Text('⚙ Zones'),
                     ),
                     OutlinedButton.icon(
                       key: const Key('add_table_btn'),

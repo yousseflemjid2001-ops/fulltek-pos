@@ -933,17 +933,88 @@ enum PaymentMethod {
   sedad,
   bimbank,
   click,
+  otherWallet,
   karni;
 
   static PaymentMethod fromString(String? raw) {
-    return switch ((raw ?? '').trim().toUpperCase()) {
+    final norm = (raw ?? '').trim().toUpperCase();
+    return switch (norm) {
+      'CASH' || 'ESPECES' || 'ESPÈCES' || '' => PaymentMethod.cash,
       'BANKILY' => PaymentMethod.bankily,
-      'MASRIVI' => PaymentMethod.masrivi,
+      'MASRIVI' || 'MASRVI' => PaymentMethod.masrivi,
       'SEDAD' => PaymentMethod.sedad,
-      'BIMBANK' => PaymentMethod.bimbank,
+      'BIMBANK' || 'BIM-BANK' => PaymentMethod.bimbank,
       'CLICK' => PaymentMethod.click,
-      'KARNI' => PaymentMethod.karni,
-      _ => PaymentMethod.cash,
+      'KARNI' || 'CREDIT' || 'CRÉDIT' => PaymentMethod.karni,
+      _ => PaymentMethod.otherWallet,
+    };
+  }
+}
+
+/// Official catalog of Mauritanian electronic wallets + helpers for custom wallets.
+class MauritanianWallets {
+  static const List<String> official16 = [
+    'Bankily',
+    'Masrvi',
+    'Sedad',
+    'BIM-Bank',
+    'BCI-Pay',
+    'Click',
+    'Amanty',
+    'BAMIS Digital',
+    'Moov Money',
+    'GazaPay',
+    'Mattel Money',
+    'BaridCash',
+    'Rassidy',
+    'Chinguitty Mobile',
+    'Cashily',
+    'Attijari ePAY',
+  ];
+
+  static const Map<String, String> arabicNames = {
+    'Bankily': 'بنكيلي',
+    'Masrvi': 'مصرفي',
+    'Masrivi': 'مصرفي',
+    'Sedad': 'سداد',
+    'BIM-Bank': 'بيم بنك',
+    'Bimbank': 'بيم بنك',
+    'BCI-Pay': 'بي سي آي باي',
+    'Click': 'كليك',
+    'Amanty': 'أمانتي',
+    'BAMIS Digital': 'باميس ديجيتال',
+    'Moov Money': 'موف موني',
+    'GazaPay': 'غازا باي',
+    'Mattel Money': 'ماتيل موني',
+    'BaridCash': 'بريد كاش',
+    'Rassidy': 'رصيدي',
+    'Chinguitty Mobile': 'شنقيطي موبايل',
+    'Cashily': 'كاشيلي',
+    'Attijari ePAY': 'التجاري إي باي',
+  };
+
+  static String canonicalName(String raw) {
+    final clean = raw.trim();
+    final low = clean.toLowerCase();
+    if (low == 'masrivi' || low == 'masrvi') return 'Masrvi';
+    if (low == 'bimbank' || low == 'bim-bank') return 'BIM-Bank';
+    for (final w in official16) {
+      if (w.toLowerCase() == low) return w;
+    }
+    return clean;
+  }
+
+  static PaymentMethod methodForWallet(String raw) {
+    final low = raw.trim().toLowerCase();
+    return switch (low) {
+      'cash' || 'especes' || 'espèces' => PaymentMethod.cash,
+      'bankily' => PaymentMethod.bankily,
+      'masrvi' || 'masrivi' => PaymentMethod.masrivi,
+      'sedad' => PaymentMethod.sedad,
+      'bim-bank' || 'bimbank' => PaymentMethod.bimbank,
+      'click' => PaymentMethod.click,
+      'karni' => PaymentMethod.karni,
+      _ => PaymentMethod.otherWallet,
     };
   }
 }
@@ -953,16 +1024,40 @@ class PaymentEntry {
   final double amountMru;
   final String? reference;
   final String? karniCustomerId;
+  final String? walletLabel;
 
   const PaymentEntry({
     required this.method,
     required this.amountMru,
     this.reference,
     this.karniCustomerId,
+    this.walletLabel,
   });
 
+  String get displayLabel {
+    if (walletLabel != null && walletLabel!.trim().isNotEmpty) {
+      return walletLabel!.trim();
+    }
+    return switch (method) {
+      PaymentMethod.cash => 'Cash',
+      PaymentMethod.bankily => 'Bankily',
+      PaymentMethod.masrivi => 'Masrvi',
+      PaymentMethod.sedad => 'Sedad',
+      PaymentMethod.bimbank => 'BIM-Bank',
+      PaymentMethod.click => 'Click',
+      PaymentMethod.otherWallet => 'Portefeuille',
+      PaymentMethod.karni => 'Karni',
+    };
+  }
+
   Map<String, dynamic> toJson() => {
-        'method': method.name.toUpperCase(),
+        'method': (method == PaymentMethod.otherWallet &&
+                walletLabel != null &&
+                walletLabel!.trim().isNotEmpty)
+            ? walletLabel!.trim()
+            : method.name.toUpperCase(),
+        if (walletLabel != null && walletLabel!.trim().isNotEmpty)
+          'wallet_label': walletLabel!.trim(),
         'amount_mru': amountMru,
         if (reference != null && reference!.isNotEmpty) 'reference': reference,
         if (karniCustomerId != null) 'karni_customer_id': karniCustomerId,
@@ -990,6 +1085,7 @@ class PosOrder {
   final String? customerName;
   final String? customerPhone;
   final String? deliveryAddress;
+  final String? deliveryDriverName;
   final bool isTraining;
   final int? takeawayNumber;
 
@@ -1014,6 +1110,7 @@ class PosOrder {
     this.customerName,
     this.customerPhone,
     this.deliveryAddress,
+    this.deliveryDriverName,
     this.isTraining = false,
     this.takeawayNumber,
   });
@@ -1062,6 +1159,8 @@ class PosOrder {
     String? customerName,
     String? customerPhone,
     String? deliveryAddress,
+    String? deliveryDriverName,
+    bool clearDeliveryDriver = false,
     bool? isTraining,
     int? takeawayNumber,
   }) {
@@ -1087,6 +1186,9 @@ class PosOrder {
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      deliveryDriverName: clearDeliveryDriver
+          ? null
+          : (deliveryDriverName ?? this.deliveryDriverName),
       isTraining: isTraining ?? this.isTraining,
       takeawayNumber: takeawayNumber ?? this.takeawayNumber,
     );
@@ -1107,6 +1209,8 @@ class PosOrder {
       if (customerName != null) 'customer_name': customerName,
       if (customerPhone != null) 'customer_phone': customerPhone,
       if (deliveryAddress != null) 'delivery_address': deliveryAddress,
+      if (deliveryDriverName != null && deliveryDriverName!.isNotEmpty)
+        'delivery_driver': deliveryDriverName,
       if (takeawayNumber != null) 'takeaway_number': takeawayNumber,
       'is_training': isTraining,
       'subtotal_mru': subtotal,
@@ -1196,6 +1300,8 @@ class CashClosingZ {
   final double expectedBimbankMru;
   final double countedClickMru;
   final double expectedClickMru;
+  final Map<String, double> otherWalletsCounted;
+  final Map<String, double> otherWalletsExpected;
   final double karniIssuedMru;
   final int ordersCount;
   final int remakesCount;
@@ -1216,12 +1322,20 @@ class CashClosingZ {
     this.expectedBimbankMru = 0,
     this.countedClickMru = 0,
     this.expectedClickMru = 0,
+    this.otherWalletsCounted = const {},
+    this.otherWalletsExpected = const {},
     required this.karniIssuedMru,
     required this.ordersCount,
     required this.remakesCount,
   });
 
   double get cashVarianceMru => countedCashMru - expectedCashMru;
+
+  double get expectedOtherWalletsMru =>
+      otherWalletsExpected.values.fold(0.0, (s, v) => s + v);
+
+  double get countedOtherWalletsMru =>
+      otherWalletsCounted.values.fold(0.0, (s, v) => s + v);
 
   double get totalExpectedMru =>
       expectedCashMru +
@@ -1230,6 +1344,7 @@ class CashClosingZ {
       expectedSedadMru +
       expectedBimbankMru +
       expectedClickMru +
+      expectedOtherWalletsMru +
       karniIssuedMru;
 
   Map<String, dynamic> toSyncJson() => {
@@ -1249,6 +1364,12 @@ class CashClosingZ {
         'expected_bimbank_mru': expectedBimbankMru,
         'counted_click_mru': countedClickMru,
         'expected_click_mru': expectedClickMru,
+        'counted_other_wallets_mru': countedOtherWalletsMru,
+        'expected_other_wallets_mru': expectedOtherWalletsMru,
+        if (otherWalletsCounted.isNotEmpty)
+          'other_wallets_counted': otherWalletsCounted,
+        if (otherWalletsExpected.isNotEmpty)
+          'other_wallets_expected': otherWalletsExpected,
         'karni_issued_mru': karniIssuedMru,
         'total_expected_mru': totalExpectedMru,
         'orders_count': ordersCount,

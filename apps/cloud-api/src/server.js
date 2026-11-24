@@ -244,9 +244,22 @@ function normalizePayMethod(raw) {
   if (s === 'cash' || s === 'especes' || s === 'espèces') return 'Cash';
   if (s === 'bankily') return 'Bankily';
   if (s === 'masrivi') return 'Masrivi';
+  if (s === 'masrvi') return 'Masrvi';
   if (s === 'sedad') return 'Sedad';
   if (s === 'bimbank') return 'Bimbank';
+  if (s === 'bim-bank') return 'BIM-Bank';
+  if (s === 'bci-pay' || s === 'bcipay' || s === 'bci pay') return 'BCI-Pay';
   if (s === 'click') return 'Click';
+  if (s === 'amanty') return 'Amanty';
+  if (s === 'bamis digital' || s === 'bamis') return 'BAMIS Digital';
+  if (s === 'moov money' || s === 'moov') return 'Moov Money';
+  if (s === 'gazapay' || s === 'gaza pay') return 'GazaPay';
+  if (s === 'mattel money' || s === 'mattel') return 'Mattel Money';
+  if (s === 'baridcash' || s === 'barid cash') return 'BaridCash';
+  if (s === 'rassidy') return 'Rassidy';
+  if (s === 'chinguitty mobile' || s === 'chinguitty') return 'Chinguitty Mobile';
+  if (s === 'cashily') return 'Cashily';
+  if (s === 'attijari epay' || s === 'attijari') return 'Attijari ePAY';
   if (s === 'karni' || s === 'credit' || s === 'crédit') return 'Karni';
   if (s === 'mixte' || s === 'mixed' || s === 'split') return 'Mixte';
   if (s === 'gimtel' || s === 'carte gimtel') return 'Gimtel';
@@ -257,9 +270,9 @@ function normalizePayKey(raw) {
   const s = String(raw || '').trim().toLowerCase();
   if (s === 'cash' || s === 'especes' || s === 'espèces') return 'cash';
   if (s === 'bankily') return 'bankily';
-  if (s === 'masrivi') return 'masrivi';
+  if (s === 'masrivi' || s === 'masrvi') return 'masrivi';
   if (s === 'sedad') return 'sedad';
-  if (s === 'bimbank') return 'bimbank';
+  if (s === 'bimbank' || s === 'bim-bank') return 'bimbank';
   if (s === 'click') return 'click';
   if (s === 'karni' || s === 'credit' || s === 'crédit') return 'karni';
   return null;
@@ -553,8 +566,11 @@ function handlePosSyncItem(database, tenantId, item, nowIso, insertAudit) {
       .filter((pe) => pe && typeof pe === 'object')
       .map((pe) => {
         const refVal = pick(pe, 'reference', 'ref');
+        const walletRaw = pick(pe, 'wallet_label', 'walletLabel');
+        const effectiveMethod = normalizePayMethod(walletRaw || pe.method);
         return {
-          method: normalizePayMethod(pe.method),
+          method: effectiveMethod,
+          ...(walletRaw ? { wallet_label: String(walletRaw).trim() } : {}),
           amount_mru: Math.round(Number(pick(pe, 'amount_mru', 'amountMru', 'amount') ?? 0)) || 0,
           reference: refVal !== undefined && String(refVal).trim() !== '' ? String(refVal).trim() : undefined,
           karni_customer_id: pick(pe, 'karni_customer_id', 'karniCustomerId', 'customer_id', 'customerId'),
@@ -829,7 +845,8 @@ function handlePosSyncItem(database, tenantId, item, nowIso, insertAudit) {
           Number(pick(p, 'expected_masrivi_mru', 'expectedMasriviMru') ?? 0) +
           Number(pick(p, 'expected_sedad_mru', 'expectedSedadMru') ?? 0) +
           Number(pick(p, 'expected_bimbank_mru', 'expectedBimbankMru') ?? 0) +
-          Number(pick(p, 'expected_click_mru', 'expectedClickMru') ?? 0)
+          Number(pick(p, 'expected_click_mru', 'expectedClickMru') ?? 0) +
+          Number(pick(p, 'expected_other_wallets_mru', 'expectedOtherWalletsMru') ?? 0)
         ),
     )) || 0;
     const varianceMru = Math.round(Number(
@@ -1823,12 +1840,18 @@ function createApp(options = {}) {
         return sendJson(res, 200, { ok: true, ingredient: updated });
       }
 
-      // 2d-7. POST /api/pos/zones — Create dining zone
+      // 2d-7. POST /api/pos/zones — Create dining zone (blocks duplicate zone names)
       if (req.method === 'POST' && p === '/api/pos/zones') {
         const parsed = await readJsonBody(req, standardLimit);
         const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
         const nameFr = typeof b.nameFr === 'string' ? b.nameFr.trim() : '';
         if (!nameFr) return sendJson(res, 400, { error: 'nameFr is required' });
+        const existingDup = database.prepare(
+          'SELECT * FROM dining_zones WHERE tenant_id = ? AND active = 1 AND LOWER(name_fr) = LOWER(?) LIMIT 1',
+        ).get(currentTenant.id, nameFr);
+        if (existingDup) {
+          return sendJson(res, 409, { error: `Une zone « ${nameFr} » existe déjà.` });
+        }
         const nameAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : nameFr;
         const nameEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : nameFr;
         const isVip = b.isVip === true ? 1 : 0;
@@ -1839,6 +1862,71 @@ function createApp(options = {}) {
         `).run(currentTenant.id, nameFr, nameAr, nameEn, zoneType, isVip);
         const created = database.prepare('SELECT * FROM dining_zones WHERE id = ?').get(ins.lastInsertRowid);
         return sendJson(res, 201, { ok: true, zone: created });
+      }
+
+      // 2d-7b. PATCH /api/pos/zones/:id — Rename / update dining zone
+      if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/zones\/(\d+)$/))) {
+        const zid = Number(m[1]);
+        const cur = database.prepare(
+          'SELECT * FROM dining_zones WHERE id = ? AND tenant_id = ? AND active = 1',
+        ).get(zid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Zone introuvable' });
+        const parsed = await readJsonBody(req, standardLimit);
+        const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const nextFr = typeof b.nameFr === 'string' && b.nameFr.trim() ? b.nameFr.trim() : cur.name_fr;
+        const dup = database.prepare(
+          'SELECT id FROM dining_zones WHERE tenant_id = ? AND active = 1 AND id != ? AND LOWER(name_fr) = LOWER(?) LIMIT 1',
+        ).get(currentTenant.id, zid, nextFr);
+        if (dup) {
+          return sendJson(res, 409, { error: `Une zone « ${nextFr} » existe déjà.` });
+        }
+        const nextAr = typeof b.nameAr === 'string' && b.nameAr.trim() ? b.nameAr.trim() : (b.nameFr ? nextFr : cur.name_ar);
+        const nextEn = typeof b.nameEn === 'string' && b.nameEn.trim() ? b.nameEn.trim() : (b.nameFr ? nextFr : cur.name_en);
+        const nextVip = b.isVip !== undefined ? (b.isVip === true ? 1 : 0) : cur.is_vip;
+        const nextType = nextVip ? 'VIP' : 'SALLE';
+        database.prepare(`
+          UPDATE dining_zones SET name_fr = ?, name_ar = ?, name_en = ?, is_vip = ?, zone_type = ?
+          WHERE id = ? AND tenant_id = ?
+        `).run(nextFr, nextAr, nextEn, nextVip, nextType, zid, currentTenant.id);
+        const updated = database.prepare('SELECT * FROM dining_zones WHERE id = ?').get(zid);
+        return sendJson(res, 200, { ok: true, zone: updated });
+      }
+
+      // 2d-7c. DELETE /api/pos/zones/:id — Delete empty/unmoved dining zone
+      if (req.method === 'DELETE' && (m = p.match(/^\/api\/pos\/zones\/(\d+)$/))) {
+        const zid = Number(m[1]);
+        const cur = database.prepare(
+          'SELECT * FROM dining_zones WHERE id = ? AND tenant_id = ? AND active = 1',
+        ).get(zid, currentTenant.id);
+        if (!cur) return sendJson(res, 404, { error: 'Zone introuvable' });
+
+        const { cnt: activeZonesCount } = database.prepare(
+          'SELECT COUNT(*) AS cnt FROM dining_zones WHERE tenant_id = ? AND active = 1',
+        ).get(currentTenant.id);
+        if (activeZonesCount <= 1) {
+          return sendJson(res, 409, { error: 'Suppression refusée : impossible de supprimer la dernière zone de salle.' });
+        }
+
+        const rawTables = parseJson(cur.tables_json, []);
+        const currentTables = rawTables.length > 0 ? rawTables : synthesizeTablesForZone(cur);
+        if (currentTables.length > 0) {
+          return sendJson(res, 409, {
+            error: `Suppression refusée : la zone « ${cur.name_fr} » contient encore ${currentTables.length} table(s). Déplacez ou supprimez ses tables d'abord.`,
+          });
+        }
+
+        const { cnt: movedOrders } = database.prepare(
+          'SELECT COUNT(*) AS cnt FROM orders WHERE tenant_id = ? AND COALESCE(is_training, 0) = 0 AND zone_id = ?',
+        ).get(currentTenant.id, zid);
+        if (movedOrders > 0) {
+          return sendJson(res, 409, {
+            error: `Suppression refusée : la zone « ${cur.name_fr} » est déjà mouvementée (${movedOrders} commande(s) enregistrée(s)).`,
+          });
+        }
+
+        database.prepare('UPDATE dining_zones SET active = 0 WHERE id = ? AND tenant_id = ?')
+          .run(zid, currentTenant.id);
+        return sendJson(res, 200, { ok: true, zoneId: zid });
       }
 
       // 2d-8. POST /api/pos/tables — Add dining table to zone
@@ -1886,7 +1974,7 @@ function createApp(options = {}) {
         return sendJson(res, 201, { ok: true, table: { ...newTable, zoneId: zone.id } });
       }
 
-      // 2d-9. PATCH /api/pos/tables/:id — Update table
+      // 2d-9. PATCH /api/pos/tables/:id — Update table (including optional zoneId move)
       if (req.method === 'PATCH' && (m = p.match(/^\/api\/pos\/tables\/([^/]+)$/))) {
         let targetId;
         try { targetId = decodeURIComponent(m[1]).trim(); } catch { return sendJson(res, 400, { error: 'Invalid table id' }); }
@@ -1899,15 +1987,29 @@ function createApp(options = {}) {
           const idx = currentTables.findIndex((t) => String(t.id) === targetId || String(t.code) === targetId);
           if (idx !== -1) {
             const cur = currentTables[idx];
-            currentTables[idx] = {
+            const updatedTable = {
               ...cur,
               code: typeof b.code === 'string' && b.code.trim() ? b.code.trim() : cur.code,
               capacity: b.capacity != null ? Math.max(1, Math.round(Number(b.capacity))) : cur.capacity,
               shape: typeof b.shape === 'string' && b.shape.trim() ? b.shape.trim().toLowerCase() : (cur.shape || 'square'),
             };
-            database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
-              .run(JSON.stringify(currentTables), currentTables.length, z.id, currentTenant.id);
-            return sendJson(res, 200, { ok: true, table: currentTables[idx] });
+            const destZoneId = b.zoneId != null && /^\d+$/.test(String(b.zoneId)) ? Number(b.zoneId) : z.id;
+            const destZone = zonesList.find((dz) => dz.id === destZoneId) || z;
+            if (destZone.id !== z.id) {
+              currentTables.splice(idx, 1);
+              database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
+                .run(JSON.stringify(currentTables), currentTables.length, z.id, currentTenant.id);
+              const destRaw = parseJson(destZone.tables_json, []);
+              const destTables = destRaw.length > 0 ? destRaw : synthesizeTablesForZone(destZone);
+              destTables.push(updatedTable);
+              database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
+                .run(JSON.stringify(destTables), destTables.length, destZone.id, currentTenant.id);
+            } else {
+              currentTables[idx] = updatedTable;
+              database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
+                .run(JSON.stringify(currentTables), currentTables.length, z.id, currentTenant.id);
+            }
+            return sendJson(res, 200, { ok: true, table: { ...updatedTable, zoneId: destZone.id } });
           }
         }
         return sendJson(res, 404, { error: 'Table not found' });
@@ -1931,7 +2033,7 @@ function createApp(options = {}) {
         return sendJson(res, 404, { error: 'Table not found' });
       }
 
-      // 2d-11. PATCH /api/pos/tenant-profile — Update restaurant basic info & receipt header
+      // 2d-11. PATCH /api/pos/tenant-profile — Update restaurant basic info, receipt header & enabled payMethods/wallets
       if (req.method === 'PATCH' && p === '/api/pos/tenant-profile') {
         const parsed = await readJsonBody(req, standardLimit);
         const b = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
@@ -1941,10 +2043,19 @@ function createApp(options = {}) {
         const phone = typeof b.phone === 'string' && b.phone.trim() ? b.phone.trim() : (currentTenant.phone || '');
         const nif = typeof b.nif === 'string' ? b.nif.trim() : (currentTenant.nif || '');
         const rc = typeof b.rc === 'string' ? b.rc.trim() : (currentTenant.rc || '');
+        let nextPayMethodsJson = currentTenant.pay_methods;
+        if (Array.isArray(b.payMethods)) {
+          const clean = b.payMethods
+            .map((x) => String(x || '').trim())
+            .filter((x) => x.length > 0);
+          if (clean.length > 0) {
+            nextPayMethodsJson = JSON.stringify([...new Set(clean)]);
+          }
+        }
         database.prepare(`
-          UPDATE tenants SET name = ?, address = ?, city = ?, phone = ?, nif = ?, rc = ?
+          UPDATE tenants SET name = ?, address = ?, city = ?, phone = ?, nif = ?, rc = ?, pay_methods = ?
           WHERE id = ?
-        `).run(name, address, city, phone, nif, rc, currentTenant.id);
+        `).run(name, address, city, phone, nif, rc, nextPayMethodsJson, currentTenant.id);
         const updated = database.prepare('SELECT * FROM tenants WHERE id = ?').get(currentTenant.id);
         return sendJson(res, 200, { ok: true, tenant: serializeTenant(updated) });
       }

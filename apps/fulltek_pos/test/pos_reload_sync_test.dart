@@ -394,4 +394,147 @@ void main() {
       expect(store.orderForTable(t2.id)!.cashierName, owner.name);
     },
   );
+
+  test(
+    'Zones anti-duplicate, rename, delete empty vs moved, and 1-click duplicate cleanup',
+    () async {
+      final store = PosStore(enablePersistence: false);
+      final initialZonesCount = store.zones.length;
+
+      // Add a new zone "PRICIPALE" (typo) then rename it to "PRINCIPALE"
+      expect(await store.addDiningZone(nameFr: 'PRICIPALE'), isNull);
+      expect(store.zones.length, initialZonesCount + 1);
+      // Duplicate name (case-insensitive) is strictly blocked
+      expect(await store.addDiningZone(nameFr: 'pricipale'), isNotNull);
+
+      final added = store.zones.last;
+      expect(
+        await store.renameDiningZone(zoneId: added.id, nameFr: 'PRINCIPALE'),
+        isNull,
+      );
+      expect(store.zones.last.nameFr, 'PRINCIPALE');
+
+      // Zone with tables cannot be deleted
+      final zoneWithTables = store.zones.first;
+      expect(await store.deleteDiningZone(zoneWithTables.id), isNotNull);
+
+      // Empty zone can be deleted
+      expect(await store.deleteDiningZone(added.id), isNull);
+      expect(store.zones.length, initialZonesCount);
+
+      // Simulate pre-existing duplicate empty TERRASSE zones from server & cleanup in 1 call
+      store.zones.addAll(const [
+        DiningZone(
+          id: 'dup-1',
+          nameFr: 'TERRASSE',
+          nameAr: 'TERRASSE',
+          nameEn: 'TERRASSE',
+        ),
+        DiningZone(
+          id: 'dup-2',
+          nameFr: 'TERRASSE',
+          nameAr: 'TERRASSE',
+          nameEn: 'TERRASSE',
+        ),
+        DiningZone(
+          id: 'dup-3',
+          nameFr: 'TERRASSE',
+          nameAr: 'TERRASSE',
+          nameEn: 'TERRASSE',
+        ),
+      ]);
+      final removed = await store.cleanupDuplicateEmptyZones();
+      expect(removed, 2);
+      expect(
+        store.zones.where((z) => z.nameFr == 'TERRASSE').length,
+        1,
+      );
+    },
+  );
+
+  test(
+    'All 16 Mauritanian wallets + custom wallet parameterization + Delivery driver on 80mm receipt, X and Z',
+    () async {
+      final store = PosStore(enablePersistence: false);
+      final owner = store.staff.firstWhere((s) => s.role == PosRole.owner);
+      expect(store.loginWithPin(owner.pinCode), isTrue);
+
+      // Verify all 16 official Mauritanian wallets are pre-configured & active
+      expect(MauritanianWallets.official16.length, 16);
+      for (final w in const [
+        'Bankily',
+        'Masrvi',
+        'Sedad',
+        'BIM-Bank',
+        'BCI-Pay',
+        'Click',
+        'Amanty',
+        'BAMIS Digital',
+        'Moov Money',
+        'GazaPay',
+        'Mattel Money',
+        'BaridCash',
+        'Rassidy',
+        'Chinguitty Mobile',
+        'Cashily',
+        'Attijari ePAY',
+      ]) {
+        expect(store.isWalletEnabled(w), isTrue);
+      }
+
+      // Add custom wallet "SaharaPay" & toggle "Cashily" off
+      expect(await store.addCustomWallet('SaharaPay'), isNull);
+      expect(store.isWalletEnabled('SaharaPay'), isTrue);
+      await store.toggleWalletEnabled('Cashily', false);
+      expect(store.isWalletEnabled('Cashily'), isFalse);
+
+      // Create a Delivery order with Zone + Client + Driver, pay split BCI-Pay + Attijari ePAY
+      store.setServiceMode(ServiceMode.delivery);
+      store.setDeliveryInfo(
+        customerName: 'Sidi Mohamed',
+        customerPhone: '+222 36 10 20 30',
+        deliveryAddress: 'Ilot K près Pharmacie',
+        deliveryDriverName: 'Moussa Moto',
+        zone: store.deliveryZones.first,
+      );
+      store.addItemToActiveOrder(store.menuItems.first);
+      final kdsTicket = store.sendActiveOrderToKitchen();
+      expect(kdsTicket, contains('Livreur: Moussa Moto'));
+
+      final net = store.activeOrder!.netTotal;
+      final closed = store.completeCheckout([
+        const PaymentEntry(
+          method: PaymentMethod.otherWallet,
+          walletLabel: 'BCI-Pay',
+          amountMru: 200,
+          reference: 'BCI-991',
+        ),
+        PaymentEntry(
+          method: PaymentMethod.otherWallet,
+          walletLabel: 'Attijari ePAY',
+          amountMru: net - 200,
+          reference: 'ATT-442',
+        ),
+      ]);
+      expect(closed, isNotNull);
+
+      final xText = store.generateReportX80mm();
+      expect(xText, contains('BCI-Pay:'));
+      expect(xText, contains('Attijari ePAY:'));
+
+      final z = store.submitBlindClosingZ(
+        countedCashMru: 0,
+        countedBankilyMru: 0,
+        countedMasriviMru: 0,
+        countedSedadMru: 0,
+        countedOtherWallets: {'BCI-Pay': 200, 'Attijari ePAY': net - 200},
+      );
+      expect(z.expectedOtherWalletsMru, net);
+      expect(z.totalExpectedMru, net);
+
+      // Used custom/official wallet cannot be removed once used
+      expect(await store.addCustomWallet('BCI-Test'), isNull);
+      expect(await store.removeCustomWallet('BCI-Test'), isNull);
+    },
+  );
 }

@@ -24,16 +24,18 @@ class _OwnerDashboardViewState extends State<OwnerDashboardView> {
     PaymentMethod.sedad: Color(0xFF8B5CF6),
     PaymentMethod.bimbank: Color(0xFF06B6D4),
     PaymentMethod.click: Color(0xFFEC4899),
+    PaymentMethod.otherWallet: Color(0xFF14B8A6),
     PaymentMethod.karni: Color(0xFFEF4444),
   };
 
   static const _paymentLabels = <PaymentMethod, String>{
     PaymentMethod.cash: 'Espèces (Cash)',
     PaymentMethod.bankily: 'Bankily',
-    PaymentMethod.masrivi: 'Masrivi',
+    PaymentMethod.masrivi: 'Masrvi',
     PaymentMethod.sedad: 'Sedad',
-    PaymentMethod.bimbank: 'Bimbank',
+    PaymentMethod.bimbank: 'BIM-Bank',
     PaymentMethod.click: 'Click',
+    PaymentMethod.otherWallet: 'Autres Portefeuilles (BCI, Amanty, GazaPay...)',
     PaymentMethod.karni: 'Crédit Karni',
   };
 

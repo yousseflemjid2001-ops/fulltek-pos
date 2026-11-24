@@ -178,6 +178,8 @@ class PosStore extends ChangeNotifier {
         'cloudJwtToken': cloudJwtToken,
         'enabledThemeCodes': enabledThemeCodes,
         'enabledPayMethods': enabledPayMethods,
+        'customWallets': customWallets,
+        'walletCustomConfigured': walletCustomConfigured,
         'ticketCounter': _ticketCounter,
         'syncCounter': _syncCounter,
         'printReceiptAfterNote': printReceiptAfterNote,
@@ -284,6 +286,26 @@ class PosStore extends ChangeNotifier {
         if (pays != null && pays.isNotEmpty) {
           enabledPayMethods = pays.map((e) => '$e').toList();
         }
+        final savedCustomWallets = map['customWallets'] as List?;
+        if (savedCustomWallets != null) {
+          customWallets = savedCustomWallets
+              .map((e) => '$e'.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+        if (map['walletCustomConfigured'] is bool) {
+          walletCustomConfigured = map['walletCustomConfigured'] as bool;
+        }
+      }
+      final savedCustomTop = map['customWallets'] as List?;
+      if (savedCustomTop != null && customWallets.isEmpty) {
+        customWallets = savedCustomTop
+            .map((e) => '$e'.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+      if (map['walletCustomConfigured'] is bool) {
+        walletCustomConfigured = map['walletCustomConfigured'] as bool;
       }
       final zAt = map['lastZClosedAt'] as String?;
       if (zAt != null) _lastZClosedAt = DateTime.tryParse(zAt);
@@ -301,6 +323,8 @@ class PosStore extends ChangeNotifier {
         _closingsZ.clear();
         for (final rawZ in savedZ.whereType<Map>()) {
           final zm = rawZ.cast<String, dynamic>();
+          final rawOtherCnt = zm['other_wallets_counted'] as Map?;
+          final rawOtherExp = zm['other_wallets_expected'] as Map?;
           _closingsZ.add(
             CashClosingZ(
               id: '${zm['id'] ?? 'Z'}',
@@ -330,6 +354,18 @@ class PosStore extends ChangeNotifier {
                   ((zm['counted_click_mru'] ?? 0) as num).toDouble(),
               expectedClickMru:
                   ((zm['expected_click_mru'] ?? 0) as num).toDouble(),
+              otherWalletsCounted: rawOtherCnt == null
+                  ? const {}
+                  : {
+                      for (final e in rawOtherCnt.entries)
+                        '${e.key}': ((e.value ?? 0) as num).toDouble(),
+                    },
+              otherWalletsExpected: rawOtherExp == null
+                  ? const {}
+                  : {
+                      for (final e in rawOtherExp.entries)
+                        '${e.key}': ((e.value ?? 0) as num).toDouble(),
+                    },
               karniIssuedMru:
                   ((zm['karni_issued_mru'] ?? 0) as num).toDouble(),
               ordersCount: ((zm['orders_count'] ?? 0) as num).toInt(),
@@ -400,13 +436,14 @@ class PosStore extends ChangeNotifier {
             if (!_completedOrders.any((o) => o.id == orderId)) {
               final rawPays = (p['payments'] as List?) ?? const [];
               final restoredPays = rawPays.whereType<Map>().map((pm) {
-                final mStr = '${pm['method'] ?? 'cash'}'.toLowerCase();
-                final method = PaymentMethod.values.firstWhere(
-                  (e) => e.name.toLowerCase() == mStr,
-                  orElse: () => PaymentMethod.cash,
-                );
+                final rawMethod = '${pm['method'] ?? 'cash'}';
+                final rawWallet = pm['wallet_label'] as String?;
+                final method = MauritanianWallets.methodForWallet(
+                    rawWallet ?? rawMethod);
                 return PaymentEntry(
                   method: method,
+                  walletLabel: rawWallet ??
+                      (method == PaymentMethod.otherWallet ? rawMethod : null),
                   amountMru: ((pm['amount_mru'] ?? 0) as num).toDouble(),
                   reference: pm['reference'] as String?,
                   karniCustomerId: pm['karni_customer_id'] as String?,
@@ -450,6 +487,10 @@ class PosStore extends ChangeNotifier {
                       ((p['arboun_deposit_mru'] ?? 0) as num).toDouble(),
                   deliveryFeeMru:
                       ((p['delivery_fee_mru'] ?? 0) as num).toDouble(),
+                  customerName: p['customer_name'] as String?,
+                  customerPhone: p['customer_phone'] as String?,
+                  deliveryAddress: p['delivery_address'] as String?,
+                  deliveryDriverName: p['delivery_driver'] as String?,
                   payments: restoredPays,
                   status: 'paid',
                   createdAt:
@@ -590,14 +631,184 @@ class PosStore extends ChangeNotifier {
   List<String> enabledThemeCodes = const ['01', '04', '06', '07', '11'];
   List<String> enabledPayMethods = const [
     'Cash',
-    'Bankily',
-    'Masrivi',
-    'Sedad',
-    'Bimbank',
-    'Click',
+    ...MauritanianWallets.official16,
     'Karni',
   ];
+  List<String> customWallets = [];
+  bool walletCustomConfigured = false;
   bool accountOffline = false;
+
+  static bool _isLegacyDefaultPayList(List<String> list) {
+    final norm = list
+        .map((s) => s.trim().toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    const legacy = {
+      'cash',
+      'bankily',
+      'masrivi',
+      'sedad',
+      'bimbank',
+      'click',
+      'karni',
+    };
+    return norm.length <= legacy.length && legacy.containsAll(norm);
+  }
+
+  void _applyCloudPayMethods(List<String> cloudPays) {
+    if (cloudPays.isEmpty) return;
+    // Extract any custom non-preset wallets saved on the tenant profile
+    final presetLower = {
+      'cash',
+      'karni',
+      'masrivi',
+      'bimbank',
+      for (final w in MauritanianWallets.official16) w.toLowerCase(),
+    };
+    for (final w in cloudPays) {
+      final clean = w.trim();
+      if (clean.isNotEmpty &&
+          !presetLower.contains(clean.toLowerCase()) &&
+          !customWallets.any((c) => c.toLowerCase() == clean.toLowerCase())) {
+        customWallets = [...customWallets, clean];
+      }
+    }
+    if (!walletCustomConfigured && _isLegacyDefaultPayList(cloudPays)) {
+      enabledPayMethods = [
+        'Cash',
+        ...MauritanianWallets.official16,
+        ...customWallets,
+        'Karni',
+      ];
+      return;
+    }
+    enabledPayMethods = cloudPays;
+  }
+
+  List<String> get allAvailableWallets {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final w in [...MauritanianWallets.official16, ...customWallets]) {
+      final c = MauritanianWallets.canonicalName(w);
+      if (c.isNotEmpty && seen.add(c.toLowerCase())) {
+        out.add(c);
+      }
+    }
+    return out;
+  }
+
+  bool isWalletEnabled(String walletName) {
+    final target = MauritanianWallets.canonicalName(walletName).toLowerCase();
+    return enabledPayMethods.any(
+      (m) => MauritanianWallets.canonicalName(m).toLowerCase() == target,
+    );
+  }
+
+  List<String> get activeWallets =>
+      allAvailableWallets.where(isWalletEnabled).toList(growable: false);
+
+  Future<void> _syncPayMethodsToCloud() async {
+    if (cloudJwtToken == null || cloudJwtToken!.isEmpty || accountOffline) {
+      return;
+    }
+    try {
+      await _httpRequest(
+        'PATCH',
+        '$apiBaseUrl/api/pos/tenant-profile',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $cloudJwtToken',
+        },
+        body: jsonEncode({
+          'name': tenantName,
+          'address': storeAddress,
+          'phone': storePhone,
+          'nif': storeNif,
+          'rc': storeRc,
+          'payMethods': enabledPayMethods,
+        }),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> toggleWalletEnabled(String walletName, bool enabled) async {
+    final canon = MauritanianWallets.canonicalName(walletName);
+    if (canon.isEmpty) return;
+    walletCustomConfigured = true;
+    final next = <String>[];
+    for (final m in enabledPayMethods) {
+      if (MauritanianWallets.canonicalName(m).toLowerCase() !=
+          canon.toLowerCase()) {
+        next.add(m);
+      }
+    }
+    if (enabled) {
+      final karniIdx =
+          next.indexWhere((m) => m.trim().toLowerCase() == 'karni');
+      if (karniIdx != -1) {
+        next.insert(karniIdx, canon);
+      } else {
+        next.add(canon);
+      }
+    }
+    if (!next.any((m) => m.trim().toLowerCase() == 'cash')) {
+      next.insert(0, 'Cash');
+    }
+    enabledPayMethods = next;
+    notifyListeners();
+    await _syncPayMethodsToCloud();
+  }
+
+  Future<void> setAllWalletsEnabled(bool enabled) async {
+    walletCustomConfigured = true;
+    final keepCash =
+        enabledPayMethods.any((m) => m.trim().toLowerCase() == 'cash') || true;
+    final keepKarni =
+        enabledPayMethods.any((m) => m.trim().toLowerCase() == 'karni');
+    enabledPayMethods = [
+      if (keepCash) 'Cash',
+      if (enabled) ...allAvailableWallets else 'Bankily',
+      if (keepKarni) 'Karni',
+    ];
+    notifyListeners();
+    await _syncPayMethodsToCloud();
+  }
+
+  Future<String?> addCustomWallet(String rawName) async {
+    final clean = rawName.trim();
+    if (clean.isEmpty) return 'Nom du portefeuille requis.';
+    if (clean.toLowerCase() == 'cash' || clean.toLowerCase() == 'karni') {
+      return 'Ce mode existe déjà.';
+    }
+    if (allAvailableWallets
+        .any((w) => w.toLowerCase() == clean.toLowerCase())) {
+      await toggleWalletEnabled(clean, true);
+      return null;
+    }
+    customWallets = [...customWallets, clean];
+    await toggleWalletEnabled(clean, true);
+    return null;
+  }
+
+  Future<String?> removeCustomWallet(String rawName) async {
+    final clean = rawName.trim();
+    if (MauritanianWallets.official16
+        .any((w) => w.toLowerCase() == clean.toLowerCase())) {
+      return 'Les 16 portefeuilles mauritaniens officiels ne se suppriment pas (désactivez-les simplement).';
+    }
+    final used = [..._completedOrders, ..._openOrdersById.values].any(
+      (o) => o.payments
+          .any((p) => p.displayLabel.toLowerCase() == clean.toLowerCase()),
+    );
+    if (used) {
+      return 'Suppression impossible : le portefeuille « $clean » a déjà des encaissements enregistrés. Désactivez-le à la place.';
+    }
+    customWallets = customWallets
+        .where((w) => w.toLowerCase() != clean.toLowerCase())
+        .toList();
+    await toggleWalletEnabled(clean, false);
+    return null;
+  }
 
   List<FullTekThemeSpec> get availableThemes => FullTekThemes.all.values
       .where((s) => enabledThemeCodes.contains(s.code))
@@ -690,7 +901,7 @@ class PosStore extends ChangeNotifier {
           (tenant['enabledThemes'] as List?)?.map((e) => '$e').toList();
       if (themes != null && themes.isNotEmpty) enabledThemeCodes = themes;
       final pays = (tenant['payMethods'] as List?)?.map((e) => '$e').toList();
-      if (pays != null && pays.isNotEmpty) enabledPayMethods = pays;
+      if (pays != null && pays.isNotEmpty) _applyCloudPayMethods(pays);
       final days = tenant['daysLeft'];
       if (days is int) {
         license = OfflineLicenseInfo(
@@ -772,7 +983,7 @@ class PosStore extends ChangeNotifier {
         }
       }
       if (parsed.payMethods.isNotEmpty) {
-        enabledPayMethods = parsed.payMethods;
+        _applyCloudPayMethods(parsed.payMethods);
       }
       if (parsed.defaultLang != null &&
           ['fr', 'ar', 'en'].contains(parsed.defaultLang)) {
@@ -1355,6 +1566,8 @@ class PosStore extends ChangeNotifier {
     String? customerName,
     String? customerPhone,
     String? deliveryAddress,
+    String? deliveryDriverName,
+    bool clearDeliveryDriver = false,
     DeliveryZone? zone,
   }) {
     if (zone != null) {
@@ -1372,6 +1585,8 @@ class PosStore extends ChangeNotifier {
         customerName: customerName,
         customerPhone: customerPhone,
         deliveryAddress: deliveryAddress,
+        deliveryDriverName: deliveryDriverName,
+        clearDeliveryDriver: clearDeliveryDriver,
         deliveryZone: order.serviceMode == ServiceMode.delivery ? nextZone : null,
         deliveryFeeMru: fee,
       );
@@ -2844,7 +3059,7 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
-  // --- Dining Zones & Tables Management (Add / Edit / Delete) ---
+  // --- Dining Zones & Tables Management (Add / Edit / Delete / Dedup) ---
 
   Future<String?> addDiningZone({
     required String nameFr,
@@ -2853,6 +3068,12 @@ class PosStore extends ChangeNotifier {
   }) async {
     final clean = nameFr.trim();
     if (clean.isEmpty) return 'Nom de zone requis.';
+    final dup = zones.any(
+      (z) => z.nameFr.trim().toLowerCase() == clean.toLowerCase(),
+    );
+    if (dup) {
+      return 'Une zone « $clean » existe déjà.';
+    }
     final ar = (nameAr != null && nameAr.trim().isNotEmpty)
         ? nameAr.trim()
         : clean;
@@ -2879,6 +3100,14 @@ class PosStore extends ChangeNotifier {
           if (z != null && z['id'] != null) {
             zoneId = '${z['id']}';
           }
+        } else if (res.statusCode == 409 || res.statusCode >= 400) {
+          try {
+            final map = jsonDecode(res.body);
+            if (map is Map && map['error'] != null) {
+              return '${map['error']}';
+            }
+          } catch (_) {}
+          return 'Erreur serveur (HTTP ${res.statusCode}).';
         }
       } catch (_) {}
     }
@@ -2895,6 +3124,139 @@ class PosStore extends ChangeNotifier {
     );
     notifyListeners();
     return null;
+  }
+
+  Future<String?> renameDiningZone({
+    required String zoneId,
+    required String nameFr,
+    String? nameAr,
+    bool? isVip,
+  }) async {
+    final clean = nameFr.trim();
+    if (clean.isEmpty) return 'Nom de zone requis.';
+    final idx = zones.indexWhere((z) => z.id == zoneId);
+    if (idx == -1) return 'Zone introuvable.';
+    final old = zones[idx];
+    final dup = zones.any(
+      (z) =>
+          z.id != zoneId &&
+          z.nameFr.trim().toLowerCase() == clean.toLowerCase(),
+    );
+    if (dup) return 'Une zone « $clean » existe déjà.';
+
+    final nextAr = (nameAr != null && nameAr.trim().isNotEmpty)
+        ? nameAr.trim()
+        : (clean != old.nameFr ? clean : old.nameAr);
+    final nextVip = isVip ?? old.isVip;
+
+    if (cloudJwtToken != null &&
+        cloudJwtToken!.isNotEmpty &&
+        !accountOffline &&
+        RegExp(r'^\d+$').hasMatch(zoneId)) {
+      try {
+        final res = await _httpRequest(
+          'PATCH',
+          '$apiBaseUrl/api/pos/zones/$zoneId',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'nameFr': clean,
+            'nameAr': nextAr,
+            'isVip': nextVip,
+          }),
+        );
+        if (res.statusCode == 409 || res.statusCode >= 400) {
+          try {
+            final map = jsonDecode(res.body);
+            if (map is Map && map['error'] != null) {
+              return '${map['error']}';
+            }
+          } catch (_) {}
+          return 'Erreur serveur (HTTP ${res.statusCode}).';
+        }
+      } catch (_) {}
+    }
+
+    zones[idx] = DiningZone(
+      id: old.id,
+      nameFr: clean,
+      nameAr: nextAr,
+      nameEn: clean,
+      isVip: nextVip,
+      zoneType: nextVip ? 'VIP' : 'SALLE',
+      minSpendMru: old.minSpendMru,
+    );
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> deleteDiningZone(String zoneId) async {
+    lastDeleteError = null;
+    if (zones.length <= 1) {
+      lastDeleteError = 'Impossible de supprimer la dernière zone de salle.';
+      return lastDeleteError;
+    }
+    final idx = zones.indexWhere((z) => z.id == zoneId);
+    if (idx == -1) return 'Zone introuvable.';
+    final z = zones[idx];
+    final zoneTables = tables.where((t) => t.zoneId == zoneId).toList();
+    if (zoneTables.isNotEmpty) {
+      lastDeleteError =
+          'Suppression refusée : la zone « ${z.nameFr} » contient ${zoneTables.length} table(s). Déplacez ou supprimez ses tables d\'abord.';
+      return lastDeleteError;
+    }
+
+    if (cloudJwtToken != null &&
+        cloudJwtToken!.isNotEmpty &&
+        !accountOffline &&
+        RegExp(r'^\d+$').hasMatch(zoneId)) {
+      try {
+        final res = await _httpRequest(
+          'DELETE',
+          '$apiBaseUrl/api/pos/zones/$zoneId',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+        if (res.statusCode == 409 || res.statusCode >= 400) {
+          try {
+            final map = jsonDecode(res.body);
+            if (map is Map && map['error'] != null) {
+              lastDeleteError = '${map['error']}';
+              return lastDeleteError;
+            }
+          } catch (_) {}
+          lastDeleteError =
+              'Suppression refusée par le serveur (HTTP ${res.statusCode}).';
+          return lastDeleteError;
+        }
+      } catch (_) {}
+    }
+
+    zones.removeAt(idx);
+    notifyListeners();
+    return null;
+  }
+
+  /// Removes all duplicate zones (same name case-insensitively) that have 0 tables.
+  Future<int> cleanupDuplicateEmptyZones() async {
+    final seenNames = <String>{};
+    final toDeleteIds = <String>[];
+    for (final z in zones) {
+      final key = z.nameFr.trim().toLowerCase();
+      if (!seenNames.add(key)) {
+        final hasTables = tables.any((t) => t.zoneId == z.id);
+        if (!hasTables) {
+          toDeleteIds.add(z.id);
+        }
+      }
+    }
+    int removed = 0;
+    for (final id in toDeleteIds) {
+      final err = await deleteDiningZone(id);
+      if (err == null) removed++;
+    }
+    return removed;
   }
 
   Future<String?> saveDiningTable({
@@ -2946,6 +3308,7 @@ class PosStore extends ChangeNotifier {
               'code': cleanCode,
               'capacity': capacity,
               'shape': shape.name,
+              if (int.tryParse(zoneId) != null) 'zoneId': int.parse(zoneId),
             }),
           );
         } catch (_) {}
@@ -4142,6 +4505,35 @@ class PosStore extends ChangeNotifier {
   double _expectedForMethod(PaymentMethod method) =>
       _expectedForMethodInOrders(_unclosedRealOrders, method);
 
+  Map<String, double> _expectedOtherWalletsInOrders(List<PosOrder> orders) {
+    final out = <String, double>{};
+    for (final o in orders) {
+      for (final p in o.payments) {
+        if (p.method == PaymentMethod.otherWallet) {
+          final label = p.displayLabel;
+          out[label] = (out[label] ?? 0.0) + p.amountMru;
+        }
+      }
+    }
+    return out;
+  }
+
+  /// Non-enum electronic wallets that are either enabled or used in the current shift.
+  List<String> get activeAdditionalWalletsForZ {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final w in activeWallets) {
+      if (MauritanianWallets.methodForWallet(w) == PaymentMethod.otherWallet &&
+          seen.add(w.toLowerCase())) {
+        out.add(w);
+      }
+    }
+    for (final k in _expectedOtherWalletsInOrders(_unclosedRealOrders).keys) {
+      if (seen.add(k.toLowerCase())) out.add(k);
+    }
+    return out;
+  }
+
   /// Generates an 80mm intermediate X-Report ("Rapport X Caissier" or "X Général")
   /// WITHOUT closing the shift or resetting counters.
   String generateReportX80mm({String? staffName}) {
@@ -4180,6 +4572,7 @@ class PosStore extends ChangeNotifier {
       sedadMru: _expectedForMethodInOrders(orders, PaymentMethod.sedad),
       bimbankMru: _expectedForMethodInOrders(orders, PaymentMethod.bimbank),
       clickMru: _expectedForMethodInOrders(orders, PaymentMethod.click),
+      otherWallets: _expectedOtherWalletsInOrders(orders),
       karniMru: _expectedForMethodInOrders(orders, PaymentMethod.karni),
       restaurantName: tenantName,
     );
@@ -4249,6 +4642,7 @@ class PosStore extends ChangeNotifier {
     required double countedSedadMru,
     double countedBimbankMru = 0,
     double countedClickMru = 0,
+    Map<String, double> countedOtherWallets = const {},
   }) {
     final closedOrdersForZ = _unclosedRealOrders;
     final zTime = DateTime.now();
@@ -4268,6 +4662,8 @@ class PosStore extends ChangeNotifier {
       expectedBimbankMru: _expectedForMethod(PaymentMethod.bimbank),
       countedClickMru: countedClickMru,
       expectedClickMru: _expectedForMethod(PaymentMethod.click),
+      otherWalletsCounted: countedOtherWallets,
+      otherWalletsExpected: _expectedOtherWalletsInOrders(closedOrdersForZ),
       karniIssuedMru: _expectedForMethod(PaymentMethod.karni),
       ordersCount: closedOrdersForZ.length,
       remakesCount: _unclosedRemakes.length,

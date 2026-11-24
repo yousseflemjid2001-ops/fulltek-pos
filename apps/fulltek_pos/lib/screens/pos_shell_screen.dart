@@ -5,6 +5,7 @@ import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
 import 'back_office_view.dart';
+import 'checkout_dialog.dart';
 import 'closing_z_view.dart';
 import 'floor_plan_view.dart';
 import 'karni_view.dart';
@@ -211,6 +212,21 @@ class _PosShellScreenState extends State<PosShellScreen> {
                                 ),
                               ),
                             );
+                          },
+                        ),
+                      if (canBackOffice ||
+                          store.canCurrent(PosPermission.voidOrComp) ||
+                          store.canCurrent(PosPermission.manageMenuStock))
+                        _buildFunctionTile(
+                          p: p,
+                          icon: Icons.account_balance_wallet_rounded,
+                          title: 'Portefeuilles (16+)',
+                          subtitle:
+                              '${store.activeWallets.length} actifs · Bankily, Masrvi, BCI-Pay...',
+                          color: const Color(0xFF059669),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            showWalletsConfigDialog(context, store);
                           },
                         ),
                       _buildFunctionTile(

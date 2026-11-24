@@ -212,10 +212,209 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     }
   }
 
+  Future<bool> _openDeliveryClientDriverDialog({
+    bool isBeforeKitchen = false,
+  }) async {
+    final store = widget.store;
+    final i18n = store.i18n;
+    final p = FullTekThemes.paletteOf(context);
+    final order = store.activeOrder;
+    final nameCtrl = TextEditingController(text: order?.customerName ?? '');
+    final phoneCtrl =
+        TextEditingController(text: order?.customerPhone ?? '+222 ');
+    final addrCtrl = TextEditingController(text: order?.deliveryAddress ?? '');
+    final driverCtrl =
+        TextEditingController(text: order?.deliveryDriverName ?? '');
+    DeliveryZone? selectedZone = order?.deliveryZone ??
+        store.selectedDeliveryZone ??
+        (store.deliveryZones.isNotEmpty ? store.deliveryZones.first : null);
+
+    final driverSuggestions = <String>{
+      for (final s in store.staff.where((s) => s.isActive)) s.name,
+      'Livreur Moto 1',
+      'Livreur Moto 2',
+    }.toList();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: p.surface,
+          title: Row(
+            children: [
+              Icon(Icons.delivery_dining_rounded, color: p.primary, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isBeforeKitchen
+                      ? 'Informations Livraison avant cuisine'
+                      : 'Livraison : Client, Zone & Livreur',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (store.deliveryZones.isNotEmpty && selectedZone != null) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedZone!.id,
+                      decoration: const InputDecoration(
+                        labelText: 'Zone de livraison (Nouakchott)',
+                        prefixIcon: Icon(Icons.map_outlined),
+                      ),
+                      items: store.deliveryZones
+                          .map(
+                            (z) => DropdownMenuItem(
+                              value: z.id,
+                              child: Text(
+                                '${z.label(store.lang)} (+${z.feeMru.toStringAsFixed(0)} MRU)',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (id) {
+                        if (id == null) return;
+                        setD(() {
+                          selectedZone = store.deliveryZones
+                              .firstWhere((e) => e.id == id);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  TextField(
+                    key: const Key('delivery_name_input'),
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nom du client',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('delivery_phone_input'),
+                    controller: phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Téléphone (+222...)',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      suffixIcon: IconButton(
+                        tooltip: 'Pavé tactile',
+                        icon: const Icon(Icons.dialpad_rounded, size: 19),
+                        onPressed: () => showTouchNumpad(
+                          context: ctx,
+                          controller: phoneCtrl,
+                          title: 'Téléphone client',
+                          allowDecimal: false,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('delivery_address_input'),
+                    controller: addrCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Quartier / Point de repère',
+                      prefixIcon: Icon(Icons.place_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    key: const Key('delivery_driver_input'),
+                    controller: driverCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Livreur assigné',
+                      hintText: 'Ex: Moussa, Livreur Moto 1...',
+                      prefixIcon: Icon(Icons.two_wheeler_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: driverSuggestions.take(6).map((d) {
+                      final sel = driverCtrl.text.trim() == d;
+                      return ActionChip(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: sel
+                            ? p.primary.withValues(alpha: 0.2)
+                            : p.surfaceAlt,
+                        side: BorderSide(color: sel ? p.primary : p.border),
+                        label: Text(
+                          '🏍️ $d',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                        onPressed: () => setD(() => driverCtrl.text = d),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(i18n.t('cancel')),
+            ),
+            ElevatedButton.icon(
+              key: const Key('save_delivery_info_btn'),
+              onPressed: () {
+                final drv = driverCtrl.text.trim();
+                store.setDeliveryInfo(
+                  customerName: nameCtrl.text.trim(),
+                  customerPhone: phoneCtrl.text.trim(),
+                  deliveryAddress: addrCtrl.text.trim(),
+                  deliveryDriverName: drv.isEmpty ? null : drv,
+                  clearDeliveryDriver: drv.isEmpty,
+                  zone: selectedZone,
+                );
+                Navigator.of(ctx).pop(true);
+              },
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text(isBeforeKitchen
+                  ? 'Valider & Envoyer Cuisine'
+                  : i18n.t('confirm')),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    phoneCtrl.dispose();
+    addrCtrl.dispose();
+    driverCtrl.dispose();
+    return saved == true;
+  }
+
   Future<void> _sendToKitchen() async {
     final store = widget.store;
     final order = store.activeOrder;
     if (order == null || order.items.isEmpty) return;
+
+    // Prompt Delivery info (Client / Phone / Zone / Driver) if missing in Delivery mode
+    if (order.serviceMode == ServiceMode.delivery) {
+      final cleanPhone =
+          (order.customerPhone ?? '').replaceAll('+222', '').trim();
+      final cleanName = (order.customerName ?? '').trim();
+      if (cleanPhone.isEmpty && cleanName.isEmpty) {
+        final ok = await _openDeliveryClientDriverDialog(isBeforeKitchen: true);
+        if (!ok || !mounted) return;
+      }
+    }
 
     // Mandatory table selection before sending to kitchen in Sur place (dineIn) mode
     if (order.serviceMode == ServiceMode.dineIn &&
@@ -835,14 +1034,33 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     final chrono = mins < 60
                         ? '${mins < 0 ? 0 : mins}m'
                         : '${mins ~/ 60}h ${(mins % 60).toString().padLeft(2, '0')}m';
+                    final deliverySummary =
+                        o.serviceMode == ServiceMode.delivery
+                            ? [
+                                if (o.deliveryZone != null)
+                                  '📍 ${o.deliveryZone!.nameFr}',
+                                if ((o.customerName ?? '').trim().isNotEmpty)
+                                  '🧑 ${o.customerName!.trim()}',
+                                if ((o.customerPhone ?? '').trim().isNotEmpty)
+                                  '📞 ${o.customerPhone!.trim()}',
+                                if ((o.deliveryDriverName ?? '')
+                                    .trim()
+                                    .isNotEmpty)
+                                  '🏍️ ${o.deliveryDriverName!.trim()}',
+                              ].join(' · ')
+                            : '';
                     return ListTile(
-                      leading: const Icon(Icons.hourglass_top_rounded),
+                      leading: Icon(
+                        o.serviceMode == ServiceMode.delivery
+                            ? Icons.delivery_dining_rounded
+                            : Icons.hourglass_top_rounded,
+                      ),
                       title: Text(
                         '$label · ${o.netTotal.toStringAsFixed(0)} MRU',
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
-                        '👤 $srv · 🕒 Ouverte à $hm · ⏱ $chrono · ${o.items.length} article(s)',
+                        '${deliverySummary.isNotEmpty ? '$deliverySummary\n' : ''}👤 $srv · 🕒 Ouverte à $hm · ⏱ $chrono · ${o.items.length} article(s)',
                       ),
                       trailing: FilledButton.tonal(
                         onPressed: () {
@@ -1202,7 +1420,19 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     final i18n = store.i18n;
     final items = _filteredItems;
     final showTabs = showTopTabs;
-    final isDelivery = store.serviceMode == ServiceMode.delivery;
+
+    const catPalette = <Color>[
+      Color(0xFF10B981),
+      Color(0xFFF59E0B),
+      Color(0xFF3B82F6),
+      Color(0xFFEC4899),
+      Color(0xFF8B5CF6),
+      Color(0xFF06B6D4),
+      Color(0xFFEF4444),
+      Color(0xFF14B8A6),
+      Color(0xFFF97316),
+      Color(0xFF6366F1),
+    ];
 
     return Padding(
       padding: const EdgeInsets.all(14),
@@ -1231,141 +1461,11 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             ],
           ),
 
-          // Nouakchott Delivery Zone Bar when in Delivery Mode
-          if (isDelivery && store.deliveryZones.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: p.surface,
-                borderRadius: BorderRadius.circular(p.radius),
-                border: Border.all(color: p.primary.withValues(alpha: 0.5)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.delivery_dining_rounded,
-                      size: 18, color: p.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        key: const Key('delivery_zone_dropdown'),
-                        isDense: true,
-                        value: (store.selectedDeliveryZone ??
-                                store.deliveryZones.first)
-                            .id,
-                        items: store.deliveryZones.map((z) {
-                          return DropdownMenuItem(
-                            value: z.id,
-                            child: Text(
-                              '${z.label(store.lang)} (+${z.feeMru.toStringAsFixed(0)} MRU)',
-                              style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: p.textPrimary),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (id) {
-                          if (id == null) return;
-                          final z = store.deliveryZones
-                              .firstWhere((e) => e.id == id);
-                          store.setDeliveryZone(z);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    key: const Key('delivery_client_btn'),
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                    ),
-                    onPressed: () async {
-                      final order = store.activeOrder;
-                      final nameCtrl = TextEditingController(
-                          text: order?.customerName ?? '');
-                      final phoneCtrl = TextEditingController(
-                          text: order?.customerPhone ?? '+222 ');
-                      final addrCtrl = TextEditingController(
-                          text: order?.deliveryAddress ?? '');
-                      await showDialog<void>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Client & Adresse de livraison'),
-                          content: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextField(
-                                  key: const Key('delivery_name_input'),
-                                  controller: nameCtrl,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Nom du client'),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  key: const Key('delivery_phone_input'),
-                                  controller: phoneCtrl,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Téléphone (+222...)'),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  key: const Key('delivery_address_input'),
-                                  controller: addrCtrl,
-                                  maxLines: 2,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Quartier / Point de repère'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: Text(i18n.t('cancel')),
-                            ),
-                            ElevatedButton(
-                              key: const Key('save_delivery_info_btn'),
-                              onPressed: () {
-                                store.setDeliveryInfo(
-                                  customerName: nameCtrl.text.trim(),
-                                  customerPhone: phoneCtrl.text.trim(),
-                                  deliveryAddress: addrCtrl.text.trim(),
-                                );
-                                Navigator.of(ctx).pop();
-                              },
-                              child: Text(i18n.t('confirm')),
-                            ),
-                          ],
-                        ),
-                      );
-                      nameCtrl.dispose();
-                      phoneCtrl.dispose();
-                      addrCtrl.dispose();
-                    },
-                    icon: const Icon(Icons.person_pin_circle_rounded, size: 16),
-                    label: Text(
-                      (store.activeOrder?.customerName?.isNotEmpty == true)
-                          ? store.activeOrder!.customerName!
-                          : 'Client / Adresse',
-                      style: const TextStyle(fontSize: 11.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
           const SizedBox(height: 10),
 
           if (showTabs)
             SizedBox(
-              height: 40,
+              height: 42,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
@@ -1378,15 +1478,29 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                       label: Text(i18n.t('all_categories')),
                     ),
                   ),
-                  ...store.categories.map((cat) {
+                  ...store.categories.asMap().entries.map((entry) {
+                    final cat = entry.value;
+                    final col = catPalette[entry.key % catPalette.length];
                     final sel = _selectedCategoryId == cat.id;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
                         selected: sel,
+                        selectedColor: col,
+                        backgroundColor: col.withValues(alpha: 0.14),
+                        side: BorderSide(
+                          color: sel ? col : col.withValues(alpha: 0.45),
+                          width: sel ? 1.8 : 1,
+                        ),
                         onSelected: (_) =>
                             setState(() => _selectedCategoryId = cat.id),
-                        label: Text('${cat.icon} ${cat.label(store.lang)}'),
+                        label: Text(
+                          '${cat.icon} ${cat.label(store.lang)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: sel ? Colors.white : p.textPrimary,
+                          ),
+                        ),
                       ),
                     );
                   }),
@@ -1779,6 +1893,172 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               }).toList(),
             ),
           ),
+          if (store.serviceMode == ServiceMode.delivery) ...[
+            const SizedBox(height: 8),
+            Container(
+              key: const Key('cart_delivery_card'),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: p.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: p.primary.withValues(alpha: 0.55),
+                  width: 1.2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (store.deliveryZones.isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.delivery_dining_rounded,
+                            size: 18, color: p.primary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              key: const Key('delivery_zone_dropdown'),
+                              isDense: true,
+                              isExpanded: true,
+                              value: (order?.deliveryZone ??
+                                      store.selectedDeliveryZone ??
+                                      store.deliveryZones.first)
+                                  .id,
+                              items: store.deliveryZones.map((z) {
+                                return DropdownMenuItem(
+                                  value: z.id,
+                                  child: Text(
+                                    '${z.label(store.lang)} (+${z.feeMru.toStringAsFixed(0)} MRU)',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (id) {
+                                if (id == null) return;
+                                final z = store.deliveryZones
+                                    .firstWhere((e) => e.id == id);
+                                store.setDeliveryZone(z);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          key: const Key('delivery_client_btn'),
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: _openDeliveryClientDriverDialog,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: ((order?.customerName ?? '')
+                                            .trim()
+                                            .isNotEmpty ||
+                                        (order?.customerPhone ?? '')
+                                            .replaceAll('+222', '')
+                                            .trim()
+                                            .isNotEmpty)
+                                    ? p.success
+                                    : p.warning,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.person_pin_circle_rounded,
+                                  size: 16,
+                                  color: ((order?.customerName ?? '')
+                                              .trim()
+                                              .isNotEmpty ||
+                                          (order?.customerPhone ?? '')
+                                              .replaceAll('+222', '')
+                                              .trim()
+                                              .isNotEmpty)
+                                      ? p.success
+                                      : p.warning,
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    (order?.customerName ?? '')
+                                            .trim()
+                                            .isNotEmpty
+                                        ? '${order!.customerName!.trim()}${(order.customerPhone ?? '').trim().isNotEmpty ? ' · ${order.customerPhone!.trim()}' : ''}'
+                                        : 'Client & Tél',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: InkWell(
+                          key: const Key('delivery_driver_btn'),
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: _openDeliveryClientDriverDialog,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(color: p.border),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.two_wheeler_rounded,
+                                    size: 16, color: p.accent),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    (order?.deliveryDriverName ?? '')
+                                            .trim()
+                                            .isNotEmpty
+                                        ? order!.deliveryDriverName!.trim()
+                                        : 'Livreur',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Divider(height: 1, color: p.border),
 

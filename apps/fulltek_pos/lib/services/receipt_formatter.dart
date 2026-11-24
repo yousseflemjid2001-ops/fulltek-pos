@@ -109,6 +109,10 @@ class ReceiptFormatter {
           buf.writeln(l);
         }
       }
+      if (order.deliveryDriverName != null &&
+          order.deliveryDriverName!.trim().isNotEmpty) {
+        buf.writeln('Livreur: ${order.deliveryDriverName!.trim()}');
+      }
     }
 
     final dt = order.paidAt ?? order.createdAt;
@@ -195,15 +199,23 @@ class ReceiptFormatter {
     buf.writeln(_line('='));
 
     for (final p in order.payments) {
-      final label = switch (p.method) {
-        PaymentMethod.cash => 'Cash / نقداً',
-        PaymentMethod.bankily => 'Bankily / بنكيلي',
-        PaymentMethod.masrivi => 'Masrivi / مصرفي',
-        PaymentMethod.sedad => 'Sedad / سداد',
-        PaymentMethod.bimbank => 'Bimbank / بيم بنك',
-        PaymentMethod.click => 'Click / كليك',
-        PaymentMethod.karni => 'Credit Karni / كارني',
-      };
+      final String label;
+      if (p.method == PaymentMethod.otherWallet) {
+        final w = p.displayLabel;
+        final ar = MauritanianWallets.arabicNames[w];
+        label = ar != null ? '$w / $ar' : w;
+      } else {
+        label = switch (p.method) {
+          PaymentMethod.cash => 'Cash / نقداً',
+          PaymentMethod.bankily => 'Bankily / بنكيلي',
+          PaymentMethod.masrivi => 'Masrivi / مصرفي',
+          PaymentMethod.sedad => 'Sedad / سداد',
+          PaymentMethod.bimbank => 'Bimbank / بيم بنك',
+          PaymentMethod.click => 'Click / كليك',
+          PaymentMethod.otherWallet => p.displayLabel,
+          PaymentMethod.karni => 'Credit Karni / كارني',
+        };
+      }
       buf.writeln(_padRow(label, formatMru(p.amountMru)));
       if (p.reference != null && p.reference!.isNotEmpty) {
         buf.writeln('   Ref: ${p.reference}');
@@ -350,6 +362,19 @@ class ReceiptFormatter {
       'Serveur: $kitchenServer',
       '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
     ));
+    if (order.serviceMode == ServiceMode.delivery) {
+      if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
+        buf.writeln('Client: ${order.customerName!.trim()}');
+      }
+      if (order.customerPhone != null &&
+          order.customerPhone!.trim().isNotEmpty) {
+        buf.writeln('Tel: ${order.customerPhone!.trim()}');
+      }
+      if (order.deliveryDriverName != null &&
+          order.deliveryDriverName!.trim().isNotEmpty) {
+        buf.writeln('Livreur: ${order.deliveryDriverName!.trim()}');
+      }
+    }
     buf.writeln(_line());
     for (final i in newItems) {
       buf.writeln('[${i.item.kitchenStation}] ${i.quantity}x ${i.item.nameFr}');
@@ -423,6 +448,7 @@ class ReceiptFormatter {
     required double sedadMru,
     required double bimbankMru,
     required double clickMru,
+    Map<String, double> otherWallets = const {},
     required double karniMru,
     String restaurantName = 'FULL-TEK RESTO POS',
   }) {
@@ -430,12 +456,14 @@ class ReceiptFormatter {
     final dateStr =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final otherSum = otherWallets.values.fold(0.0, (s, v) => s + v);
     final total = cashMru +
         bankilyMru +
         masriviMru +
         sedadMru +
         bimbankMru +
         clickMru +
+        otherSum +
         karniMru;
     final buf = StringBuffer();
     buf.writeln(_line('='));
@@ -455,6 +483,9 @@ class ReceiptFormatter {
     buf.writeln(_padRow('Sedad:', formatMru(sedadMru)));
     buf.writeln(_padRow('Bimbank:', formatMru(bimbankMru)));
     buf.writeln(_padRow('Click:', formatMru(clickMru)));
+    for (final e in otherWallets.entries) {
+      buf.writeln(_padRow('${e.key}:', formatMru(e.value)));
+    }
     buf.writeln(_padRow('Karni emis:', formatMru(karniMru)));
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL ENCAISSE (X):', formatMru(total)));
@@ -485,6 +516,14 @@ class ReceiptFormatter {
     buf.writeln(_padRow('Sedad:', formatMru(z.expectedSedadMru)));
     buf.writeln(_padRow('Bimbank:', formatMru(z.expectedBimbankMru)));
     buf.writeln(_padRow('Click:', formatMru(z.expectedClickMru)));
+    final allOtherKeys = <String>{
+      ...z.otherWalletsExpected.keys,
+      ...z.otherWalletsCounted.keys,
+    };
+    for (final k in allOtherKeys) {
+      final exp = z.otherWalletsExpected[k] ?? 0.0;
+      buf.writeln(_padRow('$k:', formatMru(exp)));
+    }
     buf.writeln(_padRow('Karni emis:', formatMru(z.karniIssuedMru)));
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL CA JOUR:', formatMru(z.totalExpectedMru)));

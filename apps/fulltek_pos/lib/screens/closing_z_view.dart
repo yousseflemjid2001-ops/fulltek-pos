@@ -22,6 +22,14 @@ class _ClosingZViewState extends State<ClosingZView> {
   final _sedadCtrl = TextEditingController(text: '0');
   final _bimbankCtrl = TextEditingController(text: '0');
   final _clickCtrl = TextEditingController(text: '0');
+  final Map<String, TextEditingController> _otherWalletCtrls = {};
+
+  TextEditingController _ctrlForOtherWallet(String wallet) {
+    return _otherWalletCtrls.putIfAbsent(
+      wallet,
+      () => TextEditingController(text: '0'),
+    );
+  }
 
   Widget _zNumericField({
     Key? fieldKey,
@@ -58,10 +66,18 @@ class _ClosingZViewState extends State<ClosingZView> {
     _sedadCtrl.dispose();
     _bimbankCtrl.dispose();
     _clickCtrl.dispose();
+    for (final c in _otherWalletCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   void _submitZ() {
+    final otherCounted = <String, double>{};
+    for (final w in widget.store.activeAdditionalWalletsForZ) {
+      final v = double.tryParse(_ctrlForOtherWallet(w).text.trim()) ?? 0;
+      if (v > 0) otherCounted[w] = v;
+    }
     final z = widget.store.submitBlindClosingZ(
       countedCashMru: double.tryParse(_cashCtrl.text.trim()) ?? 0,
       countedBankilyMru: double.tryParse(_bankilyCtrl.text.trim()) ?? 0,
@@ -69,6 +85,7 @@ class _ClosingZViewState extends State<ClosingZView> {
       countedSedadMru: double.tryParse(_sedadCtrl.text.trim()) ?? 0,
       countedBimbankMru: double.tryParse(_bimbankCtrl.text.trim()) ?? 0,
       countedClickMru: double.tryParse(_clickCtrl.text.trim()) ?? 0,
+      countedOtherWallets: otherCounted,
     );
     _cashCtrl.text = '0';
     _bankilyCtrl.text = '0';
@@ -76,6 +93,9 @@ class _ClosingZViewState extends State<ClosingZView> {
     _sedadCtrl.text = '0';
     _bimbankCtrl.text = '0';
     _clickCtrl.text = '0';
+    for (final c in _otherWalletCtrls.values) {
+      c.text = '0';
+    }
     showReceiptPreviewDialog(
       context,
       title: widget.store.i18n.t('closing_z_report'),
@@ -272,6 +292,44 @@ class _ClosingZViewState extends State<ClosingZView> {
                 ),
               ],
             ),
+            if (store.activeAdditionalWalletsForZ.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Theme(
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  key: const Key('z_more_wallets_tile'),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                  childrenPadding: const EdgeInsets.only(top: 6, bottom: 4),
+                  leading: Icon(Icons.account_balance_wallet_outlined,
+                      size: 18, color: p.accent),
+                  title: Text(
+                    'Autres portefeuilles (${store.activeAdditionalWalletsForZ.length} actifs : BCI-Pay, Amanty, GazaPay...)',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: p.textPrimary,
+                    ),
+                  ),
+                  children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: store.activeAdditionalWalletsForZ.map((w) {
+                        return SizedBox(
+                          width: 210,
+                          child: _zNumericField(
+                            fieldKey: Key('z_counted_wallet_$w'),
+                            ctrl: _ctrlForOtherWallet(w),
+                            label: '$w compté (MRU)',
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             ElevatedButton.icon(
               key: const Key('submit_closing_z_btn'),
