@@ -209,12 +209,17 @@ void main() {
             theme: FullTekThemes.all[FullTekThemeId.emeraldNight]!.toThemeData(),
             builder: (ctx, child) => TouchKeyboardHost(child: child!),
             home: Scaffold(
-              body: Padding(
-                padding: const EdgeInsets.all(24),
-                child: TextField(
-                  key: const Key('kb_test_input'),
-                  controller: ctrl,
-                ),
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: TextField(
+                      key: const Key('kb_test_input'),
+                      controller: ctrl,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -249,6 +254,16 @@ void main() {
         await tester.tap(find.byKey(const Key('touch_kb_num_5')));
         await tester.pumpAndSettle();
         expect(ctrl.text, 'Azض75');
+
+        // Tap anywhere outside the input and keyboard -> keyboard hides automatically
+        await tester.tapAt(const Offset(1100, 200));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('global_touch_keyboard')), findsNothing);
+
+        // Tap back into the input -> keyboard re-opens automatically
+        await tester.tap(find.byKey(const Key('kb_test_input')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('global_touch_keyboard')), findsOneWidget);
 
         ctrl.dispose();
       },

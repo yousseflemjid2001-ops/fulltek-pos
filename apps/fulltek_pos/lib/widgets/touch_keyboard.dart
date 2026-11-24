@@ -28,11 +28,21 @@ class TouchKeyboardController extends ChangeNotifier {
   bool get shift => _shift;
   bool get capsLock => _capsLock;
   bool get isUppercase => _shift || _capsLock;
-  EditableTextState? get activeEditable => _activeEditable;
+  EditableTextState? get activeEditable {
+    final e = _activeEditable;
+    if (e == null || !e.mounted) {
+      _activeEditable = null;
+      return null;
+    }
+    return e;
+  }
 
   void setAutoOpen(bool enabled) {
     autoOpenEnabled = enabled;
-    if (!enabled) _visible = false;
+    if (!enabled) {
+      _visible = false;
+      _activeEditable = null;
+    }
     notifyListeners();
   }
 
@@ -118,8 +128,9 @@ class TouchKeyboardController extends ChangeNotifier {
 
   EditableTextState? _findFocusedEditable() {
     final node = FocusManager.instance.primaryFocus;
-    final ctx = node?.context;
-    if (ctx == null) return null;
+    if (node == null || node is FocusScopeNode) return null;
+    final ctx = node.context;
+    if (ctx == null || !ctx.mounted) return null;
     if (ctx is StatefulElement && ctx.state is EditableTextState) {
       return ctx.state as EditableTextState;
     }
@@ -129,7 +140,10 @@ class TouchKeyboardController extends ChangeNotifier {
     void visitor(Element el) {
       if (found != null) return;
       if (el is StatefulElement && el.state is EditableTextState) {
-        found = el.state as EditableTextState;
+        final st = el.state as EditableTextState;
+        if (st.widget.focusNode == node) {
+          found = st;
+        }
         return;
       }
       el.visitChildren(visitor);
@@ -230,6 +244,7 @@ class TouchKeyboardHost extends StatefulWidget {
 
 class _TouchKeyboardHostState extends State<TouchKeyboardHost> {
   final _kb = TouchKeyboardController.instance;
+  final GlobalKey _keyboardPanelKey = GlobalKey();
 
   @override
   void initState() {
@@ -250,40 +265,75 @@ class _TouchKeyboardHostState extends State<TouchKeyboardHost> {
     });
   }
 
+  bool _isPointInsideContext(BuildContext? ctx, Offset globalPos) {
+    if (ctx == null || !ctx.mounted) return false;
+    final ro = ctx.findRenderObject();
+    if (ro is! RenderBox || !ro.hasSize || !ro.attached) return false;
+    final topLeft = ro.localToGlobal(Offset.zero);
+    final rect = topLeft & ro.size;
+    // Small 10px tolerance around input field borders
+    return rect.inflate(10).contains(globalPos);
+  }
+
+  void _handleGlobalPointerDown(PointerDownEvent event) {
+    final pos = event.position;
+    if (_kb.visible) {
+      // Keep keyboard open when tapping inside the keyboard itself or the active text field
+      if (_isPointInsideContext(_keyboardPanelKey.currentContext, pos)) return;
+      if (_isPointInsideContext(_kb.activeEditable?.context, pos)) return;
+      // Tapped anywhere else -> hide keyboard & unfocus seamlessly (iOS/Android UX)
+      FocusManager.instance.primaryFocus?.unfocus();
+      _kb.hide();
+      return;
+    }
+    // If keyboard was dismissed while a TextField still holds focus, tapping it re-opens keyboard
+    if (_kb.autoOpenEnabled &&
+        _isPointInsideContext(_kb.activeEditable?.context, pos)) {
+      _kb.openForCurrentFocus();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _kb,
-      builder: (context, _) {
-        final show = _kb.visible;
-        final align = switch (_kb.dock) {
-          TouchKeyboardDock.left => Alignment.bottomLeft,
-          TouchKeyboardDock.center => Alignment.bottomCenter,
-          TouchKeyboardDock.right => Alignment.bottomRight,
-        };
-        return Stack(
-          children: [
-            Positioned.fill(child: widget.child),
-            if (show)
-              Positioned(
-                left: 10,
-                right: 10,
-                bottom: 8,
-                child: Align(
-                  alignment: align,
-                  child: _DockedTouchKeyboardPanel(kb: _kb),
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _handleGlobalPointerDown,
+      child: AnimatedBuilder(
+        animation: _kb,
+        builder: (context, _) {
+          final show = _kb.visible;
+          final align = switch (_kb.dock) {
+            TouchKeyboardDock.left => Alignment.bottomLeft,
+            TouchKeyboardDock.center => Alignment.bottomCenter,
+            TouchKeyboardDock.right => Alignment.bottomRight,
+          };
+          return Stack(
+            children: [
+              Positioned.fill(child: widget.child),
+              if (show)
+                Positioned(
+                  left: 10,
+                  right: 10,
+                  bottom: 8,
+                  child: Align(
+                    alignment: align,
+                    child: _DockedTouchKeyboardPanel(
+                      key: _keyboardPanelKey,
+                      kb: _kb,
+                    ),
+                  ),
                 ),
-              ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }
 
 class _DockedTouchKeyboardPanel extends StatelessWidget {
   final TouchKeyboardController kb;
-  const _DockedTouchKeyboardPanel({required this.kb});
+  const _DockedTouchKeyboardPanel({super.key, required this.kb});
 
   static const _azertyRows = <List<String>>[
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
