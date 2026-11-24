@@ -4,6 +4,8 @@ import '../theme/fulltek_themes.dart';
 
 enum TouchKeyboardMode { azerty, arabic, numeric }
 
+enum TouchKeyboardDock { left, center, right }
+
 /// Global controller for the built-in visual touch keyboard (AZERTY / Arabic / Numeric).
 /// Automatically pops up whenever ANY [EditableText] receives focus on touch POS screens.
 class TouchKeyboardController extends ChangeNotifier {
@@ -14,12 +16,18 @@ class TouchKeyboardController extends ChangeNotifier {
   bool autoOpenEnabled = kIsWeb;
   bool _visible = false;
   TouchKeyboardMode _mode = TouchKeyboardMode.azerty;
+  TouchKeyboardDock _dock = TouchKeyboardDock.left;
   bool _shift = false;
+  bool _capsLock = false;
   EditableTextState? _activeEditable;
 
-  bool get visible => _visible && _activeEditable != null && _activeEditable!.mounted;
+  bool get visible =>
+      _visible && _activeEditable != null && _activeEditable!.mounted;
   TouchKeyboardMode get mode => _mode;
+  TouchKeyboardDock get dock => _dock;
   bool get shift => _shift;
+  bool get capsLock => _capsLock;
+  bool get isUppercase => _shift || _capsLock;
   EditableTextState? get activeEditable => _activeEditable;
 
   void setAutoOpen(bool enabled) {
@@ -34,8 +42,24 @@ class TouchKeyboardController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setDock(TouchKeyboardDock next) {
+    if (_dock == next) return;
+    _dock = next;
+    notifyListeners();
+  }
+
+  /// Cycles: lowercase -> Shift (1 letter) -> CAPS LOCK (permanent) -> lowercase
   void toggleShift() {
-    _shift = !_shift;
+    if (!_shift && !_capsLock) {
+      _shift = true;
+      _capsLock = false;
+    } else if (_shift && !_capsLock) {
+      _shift = false;
+      _capsLock = true;
+    } else {
+      _shift = false;
+      _capsLock = false;
+    }
     notifyListeners();
   }
 
@@ -71,6 +95,7 @@ class TouchKeyboardController extends ChangeNotifier {
       if (changedTarget || !_visible) {
         _mode = _detectModeFor(editable);
         _shift = false;
+        _capsLock = false;
         _visible = true;
       }
       notifyListeners();
@@ -82,7 +107,9 @@ class TouchKeyboardController extends ChangeNotifier {
     if (kt == TextInputType.number ||
         kt == const TextInputType.numberWithOptions(decimal: true) ||
         kt == const TextInputType.numberWithOptions(signed: true) ||
-        kt == const TextInputType.numberWithOptions(decimal: true, signed: true) ||
+        kt ==
+            const TextInputType.numberWithOptions(
+                decimal: true, signed: true) ||
         kt == TextInputType.phone) {
       return TouchKeyboardMode.numeric;
     }
@@ -107,6 +134,7 @@ class TouchKeyboardController extends ChangeNotifier {
       }
       el.visitChildren(visitor);
     }
+
     ctx.visitChildElements(visitor);
     return found;
   }
@@ -118,7 +146,7 @@ class TouchKeyboardController extends ChangeNotifier {
     final sel = val.selection;
     final start = sel.isValid ? sel.start : val.text.length;
     final end = sel.isValid ? sel.end : val.text.length;
-    final outText = (_mode == TouchKeyboardMode.azerty && _shift)
+    final outText = (_mode == TouchKeyboardMode.azerty && isUppercase)
         ? text.toUpperCase()
         : text;
     final nextText = val.text.replaceRange(start, end, outText);
@@ -131,7 +159,7 @@ class TouchKeyboardController extends ChangeNotifier {
       ),
       SelectionChangedCause.keyboard,
     );
-    if (_shift) {
+    if (_shift && !_capsLock) {
       _shift = false;
     }
     notifyListeners();
@@ -190,8 +218,8 @@ class TouchKeyboardController extends ChangeNotifier {
   }
 }
 
-/// Root wrapper mounted inside [MaterialApp.builder] that docks the visual
-/// Touch Keyboard at the bottom of the screen whenever any text/number field is focused.
+/// Root wrapper mounted inside [MaterialApp.builder] that floats the visual
+/// Touch Keyboard at the bottom-left (leaving the right Cart/Checkout pane visible!).
 class TouchKeyboardHost extends StatefulWidget {
   final Widget child;
   const TouchKeyboardHost({super.key, required this.child});
@@ -228,10 +256,24 @@ class _TouchKeyboardHostState extends State<TouchKeyboardHost> {
       animation: _kb,
       builder: (context, _) {
         final show = _kb.visible;
-        return Column(
+        final align = switch (_kb.dock) {
+          TouchKeyboardDock.left => Alignment.bottomLeft,
+          TouchKeyboardDock.center => Alignment.bottomCenter,
+          TouchKeyboardDock.right => Alignment.bottomRight,
+        };
+        return Stack(
           children: [
-            Expanded(child: widget.child),
-            if (show) const _DockedTouchKeyboardPanel(),
+            Positioned.fill(child: widget.child),
+            if (show)
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 8,
+                child: Align(
+                  alignment: align,
+                  child: _DockedTouchKeyboardPanel(kb: _kb),
+                ),
+              ),
           ],
         );
       },
@@ -240,7 +282,8 @@ class _TouchKeyboardHostState extends State<TouchKeyboardHost> {
 }
 
 class _DockedTouchKeyboardPanel extends StatelessWidget {
-  const _DockedTouchKeyboardPanel();
+  final TouchKeyboardController kb;
+  const _DockedTouchKeyboardPanel({required this.kb});
 
   static const _azertyRows = <List<String>>[
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -265,126 +308,146 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final kb = TouchKeyboardController.instance;
     final p = FullTekThemes.paletteOf(context);
+    final screenW = MediaQuery.of(context).size.width;
     final editable = kb.activeEditable;
     final rawVal = editable?.textEditingValue.text ?? '';
     final isObscure = editable?.widget.obscureText == true;
     final preview = isObscure ? ('•' * rawVal.length) : rawVal;
 
+    // On wide screens keep keyboard compact (~60% left side) so the right-side Cart & Checkout remain fully visible!
+    final double panelMaxW = kb.mode == TouchKeyboardMode.numeric
+        ? 360.0
+        : (screenW >= 1100 ? 700.0 : (screenW * 0.68).clamp(340.0, 700.0));
+
     return TextFieldTapRegion(
       child: Material(
         key: const Key('global_touch_keyboard'),
-        elevation: 16,
+        elevation: 18,
+        borderRadius: BorderRadius.circular(16),
         color: p.surface,
-        child: Container(
-          decoration: BoxDecoration(
-            color: p.surface,
-            border: Border(top: BorderSide(color: p.primary, width: 2)),
-          ),
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: kb.mode == TouchKeyboardMode.numeric ? 420 : 880,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Top control bar: mode switchers (FR / عربي / 123) + live preview + Close
-                  Row(
-                    children: [
-                      _modePill(
-                        label: 'FR',
-                        active: kb.mode == TouchKeyboardMode.azerty,
-                        onTap: () => kb.setMode(TouchKeyboardMode.azerty),
-                        p: p,
-                      ),
-                      const SizedBox(width: 5),
-                      _modePill(
-                        label: 'عربي',
-                        active: kb.mode == TouchKeyboardMode.arabic,
-                        onTap: () => kb.setMode(TouchKeyboardMode.arabic),
-                        p: p,
-                      ),
-                      const SizedBox(width: 5),
-                      _modePill(
-                        label: '123',
-                        active: kb.mode == TouchKeyboardMode.numeric,
-                        onTap: () => kb.setMode(TouchKeyboardMode.numeric),
-                        p: p,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: p.surfaceAlt,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: p.border),
-                          ),
-                          child: Text(
-                            preview.isEmpty ? 'Clavier tactile...' : preview,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: preview.isEmpty
-                                  ? p.textMuted
-                                  : p.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      InkWell(
-                        key: const Key('touch_kb_close_btn'),
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: kb.hide,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: p.danger.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: p.danger.withValues(alpha: 0.4)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.keyboard_hide_rounded,
-                                  size: 16, color: p.danger),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Fermer',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: p.danger,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (kb.mode == TouchKeyboardMode.numeric)
-                    _buildNumericPad(kb, p)
-                  else
-                    _buildAlphaPad(
-                      kb,
-                      p,
-                      kb.mode == TouchKeyboardMode.arabic
-                          ? _arabicRows
-                          : _azertyRows,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: panelMaxW),
+          child: Container(
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: p.primary, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top control bar: mode switchers (FR / عربي / 123) + live preview + Dock L/C/R + Close
+                Row(
+                  children: [
+                    _modePill(
+                      key: const Key('touch_kb_mode_fr'),
+                      label: 'FR',
+                      active: kb.mode == TouchKeyboardMode.azerty,
+                      onTap: () => kb.setMode(TouchKeyboardMode.azerty),
+                      p: p,
                     ),
-                ],
-              ),
+                    const SizedBox(width: 4),
+                    _modePill(
+                      key: const Key('touch_kb_mode_ar'),
+                      label: 'عربي',
+                      active: kb.mode == TouchKeyboardMode.arabic,
+                      onTap: () => kb.setMode(TouchKeyboardMode.arabic),
+                      p: p,
+                    ),
+                    const SizedBox(width: 4),
+                    _modePill(
+                      key: const Key('touch_kb_mode_num'),
+                      label: '123',
+                      active: kb.mode == TouchKeyboardMode.numeric,
+                      onTap: () => kb.setMode(TouchKeyboardMode.numeric),
+                      p: p,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: p.surfaceAlt,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: p.border),
+                        ),
+                        child: Text(
+                          preview.isEmpty ? 'Clavier tactile...' : preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: preview.isEmpty
+                                ? p.textMuted
+                                : p.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Quick position switcher (Left / Center / Right)
+                    _dockIconBtn(
+                      icon: Icons.align_horizontal_left_rounded,
+                      active: kb.dock == TouchKeyboardDock.left,
+                      onTap: () => kb.setDock(TouchKeyboardDock.left),
+                      p: p,
+                    ),
+                    const SizedBox(width: 2),
+                    _dockIconBtn(
+                      icon: Icons.align_horizontal_center_rounded,
+                      active: kb.dock == TouchKeyboardDock.center,
+                      onTap: () => kb.setDock(TouchKeyboardDock.center),
+                      p: p,
+                    ),
+                    const SizedBox(width: 2),
+                    _dockIconBtn(
+                      icon: Icons.align_horizontal_right_rounded,
+                      active: kb.dock == TouchKeyboardDock.right,
+                      onTap: () => kb.setDock(TouchKeyboardDock.right),
+                      p: p,
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      key: const Key('touch_kb_close_btn'),
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: kb.hide,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: p.danger.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: p.danger.withValues(alpha: 0.4)),
+                        ),
+                        child: Icon(Icons.keyboard_hide_rounded,
+                            size: 17, color: p.danger),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (kb.mode == TouchKeyboardMode.numeric)
+                  _buildNumericPad(p)
+                else
+                  _buildAlphaPad(
+                    p,
+                    kb.mode == TouchKeyboardMode.arabic
+                        ? _arabicRows
+                        : _azertyRows,
+                  ),
+              ],
             ),
           ),
         ),
@@ -392,13 +455,36 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
     );
   }
 
+  Widget _dockIconBtn({
+    required IconData icon,
+    required bool active,
+    required VoidCallback onTap,
+    required PosPalette p,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(7),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: active ? p.primary.withValues(alpha: 0.2) : p.surfaceAlt,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: active ? p.primary : p.border),
+        ),
+        child: Icon(icon, size: 15, color: active ? p.primary : p.textMuted),
+      ),
+    );
+  }
+
   Widget _modePill({
+    required Key key,
     required String label,
     required bool active,
     required VoidCallback onTap,
     required PosPalette p,
   }) {
     return InkWell(
+      key: key,
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: Container(
@@ -420,7 +506,7 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildNumericPad(TouchKeyboardController kb, PosPalette p) {
+  Widget _buildNumericPad(PosPalette p) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -431,8 +517,9 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
               final isBack = k == '⌫';
               return Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(3),
+                  padding: const EdgeInsets.all(2.5),
                   child: _keyBtn(
+                    key: Key('touch_kb_num_$k'),
                     label: k,
                     p: p,
                     height: 44,
@@ -476,25 +563,28 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
   }
 
   Widget _buildAlphaPad(
-    TouchKeyboardController kb,
     PosPalette p,
     List<List<String>> rows,
   ) {
     final isAzerty = kb.mode == TouchKeyboardMode.azerty;
+    final shiftLabel = kb.capsLock
+        ? '⇪ CAPS'
+        : (kb.shift ? '⇧ MAJ' : '⇧ maj');
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         for (final row in rows)
           Row(
             children: row.map((k) {
-              final shown = (isAzerty && kb.shift) ? k.toUpperCase() : k;
+              final shown = (isAzerty && kb.isUppercase) ? k.toUpperCase() : k;
               return Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(2.5),
+                  padding: const EdgeInsets.all(2),
                   child: _keyBtn(
+                    key: Key('touch_kb_key_$k'),
                     label: shown,
                     p: p,
-                    height: 40,
+                    height: 39,
                     onTap: () => kb.insertText(k),
                   ),
                 ),
@@ -508,13 +598,14 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Padding(
-                  padding: const EdgeInsets.all(2.5),
+                  padding: const EdgeInsets.all(2),
                   child: _keyBtn(
-                    label: kb.shift ? '⇧ MAJ' : '⇧ maj',
+                    key: const Key('touch_kb_shift_btn'),
+                    label: shiftLabel,
                     p: p,
-                    height: 42,
-                    bg: kb.shift ? p.primary : p.surfaceAlt,
-                    fg: kb.shift ? p.onPrimary : p.textPrimary,
+                    height: 40,
+                    bg: kb.isUppercase ? p.primary : p.surfaceAlt,
+                    fg: kb.isUppercase ? p.onPrimary : p.textPrimary,
                     onTap: kb.toggleShift,
                   ),
                 ),
@@ -522,11 +613,12 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
             Expanded(
               flex: 5,
               child: Padding(
-                padding: const EdgeInsets.all(2.5),
+                padding: const EdgeInsets.all(2),
                 child: _keyBtn(
-                  label: 'Espace',
+                  key: const Key('touch_kb_space_btn'),
+                  label: kb.mode == TouchKeyboardMode.arabic ? 'مسافة' : 'Espace',
                   p: p,
-                  height: 42,
+                  height: 40,
                   onTap: () => kb.insertText(' '),
                 ),
               ),
@@ -534,11 +626,12 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
             Expanded(
               flex: 2,
               child: Padding(
-                padding: const EdgeInsets.all(2.5),
+                padding: const EdgeInsets.all(2),
                 child: _keyBtn(
+                  key: const Key('touch_kb_backspace_btn'),
                   label: '⌫ Effacer',
                   p: p,
-                  height: 42,
+                  height: 40,
                   bg: p.warning.withValues(alpha: 0.16),
                   fg: p.warning,
                   onTap: kb.backspace,
@@ -548,11 +641,12 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
             Expanded(
               flex: 2,
               child: Padding(
-                padding: const EdgeInsets.all(2.5),
+                padding: const EdgeInsets.all(2),
                 child: _keyBtn(
+                  key: const Key('touch_kb_ok_btn'),
                   label: '✓ OK',
                   p: p,
-                  height: 42,
+                  height: 40,
                   bg: p.primary,
                   fg: p.onPrimary,
                   onTap: kb.submitAndClose,
@@ -566,31 +660,33 @@ class _DockedTouchKeyboardPanel extends StatelessWidget {
   }
 
   Widget _keyBtn({
+    Key? key,
     required String label,
     required PosPalette p,
     required VoidCallback onTap,
-    double height = 40,
+    double height = 39,
     Color? bg,
     Color? fg,
   }) {
     return Material(
       color: bg ?? p.surfaceAlt,
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(9),
+        key: key,
+        borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         child: Container(
           height: height,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: p.border),
           ),
           child: Text(
             label,
             maxLines: 1,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13.5,
               fontWeight: FontWeight.w800,
               color: fg ?? p.textPrimary,
             ),

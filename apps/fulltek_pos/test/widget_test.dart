@@ -5,6 +5,7 @@ import 'package:fulltek_pos/models/pos_models.dart';
 import 'package:fulltek_pos/services/receipt_formatter.dart';
 import 'package:fulltek_pos/state/pos_store.dart';
 import 'package:fulltek_pos/theme/fulltek_themes.dart';
+import 'package:fulltek_pos/widgets/touch_keyboard.dart';
 
 void main() {
   group('PosStore — Core Full-Tek Resto Business Logic', () {
@@ -188,5 +189,69 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('receipt_80mm_text')), findsOneWidget);
     });
+
+    testWidgets(
+      'TouchKeyboardHost switches FR/MAJ/CAPS, Arabic (عربي) and Numeric (123) live',
+      (tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          TouchKeyboardController.instance.setAutoOpen(false);
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final ctrl = TextEditingController();
+        TouchKeyboardController.instance.setAutoOpen(true);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: FullTekThemes.all[FullTekThemeId.emeraldNight]!.toThemeData(),
+            builder: (ctx, child) => TouchKeyboardHost(child: child!),
+            home: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(24),
+                child: TextField(
+                  key: const Key('kb_test_input'),
+                  controller: ctrl,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Focus field -> keyboard pops up automatically
+        await tester.tap(find.byKey(const Key('kb_test_input')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('global_touch_keyboard')), findsOneWidget);
+
+        // Tap Shift (MAJ) -> tap 'a' -> produces uppercase 'A', then auto-returns to lowercase 'z'
+        await tester.tap(find.byKey(const Key('touch_kb_shift_btn')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('touch_kb_key_a')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('touch_kb_key_z')));
+        await tester.pumpAndSettle();
+        expect(ctrl.text, 'Az');
+
+        // Switch to Arabic (عربي) -> tap 'ض' -> inserts Arabic letter
+        await tester.tap(find.byKey(const Key('touch_kb_mode_ar')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('touch_kb_key_ض')));
+        await tester.pumpAndSettle();
+        expect(ctrl.text, 'Azض');
+
+        // Switch to Numeric (123) -> tap '7' and '5' -> inserts '75'
+        await tester.tap(find.byKey(const Key('touch_kb_mode_num')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('touch_kb_num_7')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('touch_kb_num_5')));
+        await tester.pumpAndSettle();
+        expect(ctrl.text, 'Azض75');
+
+        ctrl.dispose();
+      },
+    );
   });
 }
