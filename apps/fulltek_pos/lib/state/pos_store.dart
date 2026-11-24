@@ -180,6 +180,7 @@ class PosStore extends ChangeNotifier {
         'enabledPayMethods': enabledPayMethods,
         'customWallets': customWallets,
         'walletCustomConfigured': walletCustomConfigured,
+        'quickComments': quickComments,
         'ticketCounter': _ticketCounter,
         'syncCounter': _syncCounter,
         'printReceiptAfterNote': printReceiptAfterNote,
@@ -306,6 +307,13 @@ class PosStore extends ChangeNotifier {
       }
       if (map['walletCustomConfigured'] is bool) {
         walletCustomConfigured = map['walletCustomConfigured'] as bool;
+      }
+      final savedQuickComments = map['quickComments'] as List?;
+      if (savedQuickComments != null && savedQuickComments.isNotEmpty) {
+        quickComments = savedQuickComments
+            .map((e) => '$e'.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
       final zAt = map['lastZClosedAt'] as String?;
       if (zAt != null) _lastZClosedAt = DateTime.tryParse(zAt);
@@ -636,7 +644,49 @@ class PosStore extends ChangeNotifier {
   ];
   List<String> customWallets = [];
   bool walletCustomConfigured = false;
+  List<String> quickComments = [
+    'Sans piment',
+    'Peu épicé',
+    'Bien pimenté',
+    'Sans oignon',
+    'Sans sel',
+    'Bien cuit',
+    'À point',
+    'Sauce à part',
+    'Sans glaçons',
+    'Très chaud',
+    'Client pressé',
+    'Servir ensemble',
+  ];
   bool accountOffline = false;
+
+  void addQuickComment(String raw) {
+    final clean = raw.trim();
+    if (clean.isEmpty) return;
+    if (quickComments.any((c) => c.toLowerCase() == clean.toLowerCase())) {
+      return;
+    }
+    quickComments = [...quickComments, clean];
+    notifyListeners();
+  }
+
+  void removeQuickComment(String raw) {
+    quickComments = quickComments
+        .where((c) => c.toLowerCase() != raw.trim().toLowerCase())
+        .toList();
+    notifyListeners();
+  }
+
+  void setActiveOrderComment(String? comment) {
+    final order = activeOrder;
+    if (order == null) return;
+    final clean = (comment ?? '').trim();
+    _openOrdersById[order.id] = order.copyWith(
+      orderComment: clean.isEmpty ? null : clean,
+      clearOrderComment: clean.isEmpty,
+    );
+    notifyListeners();
+  }
 
   static bool _isLegacyDefaultPayList(List<String> list) {
     final norm = list
@@ -2467,7 +2517,8 @@ class PosStore extends ChangeNotifier {
         serviceMode: order.serviceMode,
         deliveryZoneName: order.deliveryZone?.nameFr,
         takeawayNumber: order.takeawayNumber,
-        staffName: order.staffName,
+        staffName: order.serverName ?? order.staffName,
+        orderComment: order.orderComment,
         isTraining: order.isTraining,
         sentAt: DateTime.now(),
         items: kdsItems,

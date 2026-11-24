@@ -163,6 +163,13 @@ class ReceiptFormatter {
       }
     }
 
+    if (order.orderComment != null && order.orderComment!.trim().isNotEmpty) {
+      buf.writeln(_line());
+      for (final l in _wrapLines('COMMENTAIRE: ${order.orderComment!.trim()}',
+          indent: '')) {
+        buf.writeln(l);
+      }
+    }
     buf.writeln(_line());
     buf.writeln(_padRow('Sous-total / المجموع:', formatMru(order.subtotal)));
     if (order.discountAmount > 0) {
@@ -305,6 +312,13 @@ class ReceiptFormatter {
       }
     }
 
+    if (order.orderComment != null && order.orderComment!.trim().isNotEmpty) {
+      buf.writeln(_line());
+      for (final l in _wrapLines('COMMENTAIRE: ${order.orderComment!.trim()}',
+          indent: '')) {
+        buf.writeln(l);
+      }
+    }
     buf.writeln(_line());
     buf.writeln(_padRow('Sous-total / المجموع:', formatMru(order.subtotal)));
     if (order.discountAmount > 0) {
@@ -373,6 +387,13 @@ class ReceiptFormatter {
       if (order.deliveryDriverName != null &&
           order.deliveryDriverName!.trim().isNotEmpty) {
         buf.writeln('Livreur: ${order.deliveryDriverName!.trim()}');
+      }
+    }
+    if (order.orderComment != null && order.orderComment!.trim().isNotEmpty) {
+      buf.writeln(_line());
+      for (final l in _wrapLines('*** COMMENTAIRE: ${order.orderComment!.trim()} ***',
+          indent: '')) {
+        buf.writeln(l);
       }
     }
     buf.writeln(_line());

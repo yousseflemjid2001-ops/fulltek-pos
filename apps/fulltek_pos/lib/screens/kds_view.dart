@@ -242,6 +242,19 @@ class _KdsViewState extends State<KdsView> {
             ),
           ),
           Divider(height: 1, color: p.border),
+          if (t.orderComment != null && t.orderComment!.trim().isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              color: p.warning.withValues(alpha: 0.18),
+              child: Text(
+                '💬 ${t.orderComment!.trim()}',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w900,
+                  color: p.warning,
+                ),
+              ),
+            ),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,

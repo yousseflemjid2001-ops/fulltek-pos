@@ -1086,6 +1086,7 @@ class PosOrder {
   final String? customerPhone;
   final String? deliveryAddress;
   final String? deliveryDriverName;
+  final String? orderComment;
   final bool isTraining;
   final int? takeawayNumber;
 
@@ -1111,6 +1112,7 @@ class PosOrder {
     this.customerPhone,
     this.deliveryAddress,
     this.deliveryDriverName,
+    this.orderComment,
     this.isTraining = false,
     this.takeawayNumber,
   });
@@ -1161,6 +1163,8 @@ class PosOrder {
     String? deliveryAddress,
     String? deliveryDriverName,
     bool clearDeliveryDriver = false,
+    String? orderComment,
+    bool clearOrderComment = false,
     bool? isTraining,
     int? takeawayNumber,
   }) {
@@ -1189,6 +1193,8 @@ class PosOrder {
       deliveryDriverName: clearDeliveryDriver
           ? null
           : (deliveryDriverName ?? this.deliveryDriverName),
+      orderComment:
+          clearOrderComment ? null : (orderComment ?? this.orderComment),
       isTraining: isTraining ?? this.isTraining,
       takeawayNumber: takeawayNumber ?? this.takeawayNumber,
     );
@@ -1211,6 +1217,8 @@ class PosOrder {
       if (deliveryAddress != null) 'delivery_address': deliveryAddress,
       if (deliveryDriverName != null && deliveryDriverName!.isNotEmpty)
         'delivery_driver': deliveryDriverName,
+      if (orderComment != null && orderComment!.trim().isNotEmpty)
+        'notes': orderComment!.trim(),
       if (takeawayNumber != null) 'takeaway_number': takeawayNumber,
       'is_training': isTraining,
       'subtotal_mru': subtotal,
@@ -1503,6 +1511,7 @@ class KdsTicket {
   final String? deliveryZoneName;
   final int? takeawayNumber;
   final String staffName;
+  final String? orderComment;
   final bool isTraining;
   final DateTime sentAt;
   final DateTime? readyAt;
@@ -1520,6 +1529,7 @@ class KdsTicket {
     this.deliveryZoneName,
     this.takeawayNumber,
     this.staffName = '',
+    this.orderComment,
     this.isTraining = false,
     DateTime? sentAt,
     DateTime? createdAt,
@@ -1590,6 +1600,7 @@ class KdsTicket {
       deliveryZoneName: deliveryZoneName,
       takeawayNumber: takeawayNumber,
       staffName: staffName,
+      orderComment: orderComment,
       isTraining: isTraining,
       sentAt: sentAt,
       readyAt: readyAt ?? this.readyAt,

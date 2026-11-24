@@ -494,8 +494,11 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             (order.serverName != null && order.serverName!.trim().isNotEmpty)
                 ? order.serverName!.trim()
                 : store.currentStaff?.name;
+        final commentCtrl =
+            TextEditingController(text: order.orderComment ?? '');
 
-        final chosen = await showDialog<({String tableId, String? serverName})>(
+        final chosen = await showDialog<
+            ({String tableId, String? serverName, String comment})>(
           context: context,
           builder: (ctx) => StatefulBuilder(
             builder: (ctx, setD) => Dialog(
@@ -506,7 +509,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               ),
               child: ConstrainedBox(
                 constraints:
-                    const BoxConstraints(maxWidth: 560, maxHeight: 560),
+                    const BoxConstraints(maxWidth: 580, maxHeight: 620),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -520,7 +523,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'Table & Serveur avant envoi cuisine',
+                              'Table, Serveur & Commentaire cuisine',
                               style: TextStyle(
                                   fontSize: 16.5, fontWeight: FontWeight.w900),
                             ),
@@ -574,8 +577,65 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             );
                           }).toList(),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                       ],
+                      Text(
+                        '💬 Commentaire cuisine (optionnel) :',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: p.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      TextField(
+                        key: const Key('kitchen_dialog_comment_input'),
+                        controller: commentCtrl,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText:
+                              'Ex: Sans piment, client pressé, servir ensemble...',
+                          prefixIcon: const Icon(Icons.chat_bubble_outline,
+                              size: 18),
+                          suffixIcon: commentCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 16),
+                                  onPressed: () =>
+                                      setD(() => commentCtrl.clear()),
+                                )
+                              : null,
+                        ),
+                        onChanged: (_) => setD(() {}),
+                      ),
+                      const SizedBox(height: 6),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: store.quickComments.take(8).map((c) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ActionChip(
+                                visualDensity: VisualDensity.compact,
+                                backgroundColor: p.surfaceAlt,
+                                side: BorderSide(color: p.border),
+                                label: Text(c,
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: p.textPrimary)),
+                                onPressed: () {
+                                  setD(() {
+                                    final cur = commentCtrl.text.trim();
+                                    commentCtrl.text =
+                                        cur.isEmpty ? c : '$cur, $c';
+                                  });
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Text(
                         activeStaff.isNotEmpty
                             ? '2. Sélectionnez la table du client :'
@@ -608,6 +668,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                               onTap: () => Navigator.of(ctx).pop((
                                 tableId: t.id,
                                 serverName: selectedServer,
+                                comment: commentCtrl.text.trim(),
                               )),
                               child: Container(
                                 alignment: Alignment.center,
@@ -650,11 +711,13 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             ),
           ),
         );
+        commentCtrl.dispose();
         if (chosen == null || !mounted) return;
         store.assignTableToActiveOrder(chosen.tableId);
         if (chosen.serverName != null && chosen.serverName!.trim().isNotEmpty) {
           store.setActiveOrderServer(chosen.serverName!.trim());
         }
+        store.setActiveOrderComment(chosen.comment);
       }
     }
 
@@ -1322,34 +1385,154 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     iconCtrl.dispose();
   }
 
-  Future<void> _editNote(OrderItem line) async {
-    final ctrl = TextEditingController(text: line.kitchenNote ?? '');
+  Future<String?> _showCommentPickerDialog({
+    required String title,
+    required String initialText,
+  }) async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    final ctrl = TextEditingController(text: initialText);
     final saved = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(widget.store.i18n.t('add_note')),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Ex: Sans piment, bien cuit, extra sauce...',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: p.surface,
+          title: Row(
+            children: [
+              Icon(Icons.chat_bubble_outline_rounded, color: p.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
           ),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    key: const Key('comment_picker_input'),
+                    controller: ctrl,
+                    autofocus: true,
+                    maxLines: 2,
+                    onChanged: (_) => setD(() {}),
+                    decoration: InputDecoration(
+                      hintText:
+                          'Ex: Sans piment, bien cuit, sauce à part, client pressé...',
+                      suffixIcon: ctrl.text.isNotEmpty
+                          ? IconButton(
+                              tooltip: 'Effacer',
+                              icon: const Icon(Icons.clear_rounded, size: 18),
+                              onPressed: () => setD(() => ctrl.clear()),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Commentaires rapides (1 clic) :',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: p.textMuted,
+                        ),
+                      ),
+                      if (ctrl.text.trim().isNotEmpty &&
+                          !store.quickComments.any((c) =>
+                              c.toLowerCase() ==
+                              ctrl.text.trim().toLowerCase()))
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            store.addQuickComment(ctrl.text.trim());
+                            setD(() {});
+                          },
+                          icon: const Icon(Icons.bookmark_add_outlined,
+                              size: 15),
+                          label: const Text('Enregistrer favori',
+                              style: TextStyle(fontSize: 11.5)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: store.quickComments.map((c) {
+                      return ActionChip(
+                        backgroundColor: p.surfaceAlt,
+                        side: BorderSide(color: p.border),
+                        label: Text(
+                          c,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                        onPressed: () {
+                          setD(() {
+                            final cur = ctrl.text.trim();
+                            ctrl.text = cur.isEmpty ? c : '$cur, $c';
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(store.i18n.t('cancel')),
+            ),
+            ElevatedButton.icon(
+              key: const Key('confirm_comment_btn'),
+              onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text(store.i18n.t('confirm')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(widget.store.i18n.t('cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
-            child: Text(widget.store.i18n.t('confirm')),
-          ),
-        ],
       ),
     );
     ctrl.dispose();
+    return saved;
+  }
+
+  Future<void> _editNote(OrderItem line) async {
+    final saved = await _showCommentPickerDialog(
+      title: 'Commentaire · ${line.item.label(widget.store.lang)}',
+      initialText: line.kitchenNote ?? '',
+    );
     if (saved != null) {
       widget.store.updateLineNote(line.lineId, saved);
+    }
+  }
+
+  Future<void> _openOrderCommentDialog() async {
+    final order = widget.store.activeOrder;
+    if (order == null) return;
+    final saved = await _showCommentPickerDialog(
+      title: 'Commentaire cuisine (commande)',
+      initialText: order.orderComment ?? '',
+    );
+    if (saved != null) {
+      widget.store.setActiveOrderComment(saved);
     }
   }
 
@@ -2404,6 +2587,62 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     },
                   ),
           ),
+
+          if (items.isNotEmpty) ...[
+            InkWell(
+              key: const Key('order_comment_btn'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: _openOrderCommentDialog,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                margin: const EdgeInsets.only(bottom: 7),
+                decoration: BoxDecoration(
+                  color: (order?.orderComment ?? '').trim().isNotEmpty
+                      ? p.warning.withValues(alpha: 0.14)
+                      : p.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: (order?.orderComment ?? '').trim().isNotEmpty
+                        ? p.warning
+                        : p.border,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 16,
+                      color: (order?.orderComment ?? '').trim().isNotEmpty
+                          ? p.warning
+                          : p.textMuted,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        (order?.orderComment ?? '').trim().isNotEmpty
+                            ? '💬 ${order!.orderComment!.trim()}'
+                            : 'Ajouter un commentaire cuisine...',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              (order?.orderComment ?? '').trim().isNotEmpty
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                          color: (order?.orderComment ?? '').trim().isNotEmpty
+                              ? p.warning
+                              : p.textMuted,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.edit_rounded, size: 14, color: p.textMuted),
+                  ],
+                ),
+              ),
+            ),
+          ],
 
           // Totals + Dont TVA 16 % + Delivery Fee
           Container(
