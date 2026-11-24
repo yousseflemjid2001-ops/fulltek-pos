@@ -126,21 +126,25 @@ class _PosShellScreenState extends State<PosShellScreen> {
           side: BorderSide(color: p.border),
         ),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760, maxHeight: 620),
+          constraints: BoxConstraints(
+            maxWidth: 880,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
                         color: p.primary.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.apps_rounded, color: p.primary, size: 24),
+                      child: Icon(Icons.apps_rounded, color: p.primary, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -150,295 +154,362 @@ class _PosShellScreenState extends State<PosShellScreen> {
                           Text(
                             'Fonctions & Outils · ${store.tenantName}',
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: 17,
                               fontWeight: FontWeight.w900,
                               color: p.textPrimary,
                             ),
                           ),
                           Text(
                             'Opérateur : ${staff?.name ?? ''} (${staff?.role.label(store.lang) ?? ''}) — Boutons activés selon vos droits',
-                            style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                            style: TextStyle(fontSize: 12, color: p.textMuted),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close_rounded, size: 26),
+                      icon: const Icon(Icons.close_rounded, size: 24),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Divider(height: 1, color: p.border),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: GridView.count(
-                    crossAxisCount:
-                        MediaQuery.of(ctx).size.width >= 680 ? 3 : 2,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 1.55,
-                    children: [
-                      for (final v in availableViews)
-                        _buildFunctionTile(
-                          p: p,
-                          icon: v.selectedIcon,
-                          title: v.label,
-                          subtitle: v.subtitle,
-                          color: v.color,
-                          selected: _activeViewId == v.id,
-                          badgeText: v.badge &&
-                                  store.activeKdsTickets().isNotEmpty
-                              ? '${store.activeKdsTickets().length}'
-                              : null,
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            setState(() => _activeViewId = v.id);
-                          },
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount:
+                              MediaQuery.of(ctx).size.width >= 760
+                                  ? 4
+                                  : (MediaQuery.of(ctx).size.width >= 520
+                                      ? 3
+                                      : 2),
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 1.95,
+                          children: [
+                            for (final v in availableViews)
+                              _buildFunctionTile(
+                                p: p,
+                                icon: v.selectedIcon,
+                                title: v.label,
+                                subtitle: v.subtitle,
+                                color: v.color,
+                                selected: _activeViewId == v.id,
+                                badgeText: v.badge &&
+                                        store.activeKdsTickets().isNotEmpty
+                                    ? '${store.activeKdsTickets().length}'
+                                    : null,
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  setState(() => _activeViewId = v.id);
+                                },
+                              ),
+                            if (canBackOffice)
+                              _buildFunctionTile(
+                                p: p,
+                                icon: Icons.dashboard_customize_rounded,
+                                title: 'Back-Office ERP',
+                                subtitle: 'Achats, Factures, Compta',
+                                color: const Color(0xFF7C3AED),
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => BackOfficeScreen(
+                                        store: store,
+                                        operatorStaff: staff,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            if (canBackOffice ||
+                                store.canCurrent(PosPermission.voidOrComp) ||
+                                store.canCurrent(
+                                    PosPermission.manageMenuStock))
+                              _buildFunctionTile(
+                                p: p,
+                                icon: Icons.account_balance_wallet_rounded,
+                                title: 'Portefeuilles (16+)',
+                                subtitle: '${store.activeWallets.length} actifs',
+                                color: const Color(0xFF059669),
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  showWalletsConfigDialog(context, store);
+                                },
+                              ),
+                            _buildFunctionTile(
+                              p: p,
+                              icon: Icons.chat_bubble_outline_rounded,
+                              title: 'Commentaires',
+                              subtitle:
+                                  'Cuisine (${store.kitchenComments.length}) · Bar (${store.barComments.length})',
+                              color: p.warning,
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                _openQuickCommentsDialog();
+                              },
+                            ),
+                            _buildFunctionTile(
+                              p: p,
+                              icon: Icons.cloud_sync_rounded,
+                              title: 'Synchroniser Cloud',
+                              subtitle: store.pendingSyncCount > 0
+                                  ? '${store.pendingSyncCount} en attente'
+                                  : 'À jour',
+                              color: p.accent,
+                              badgeText: store.pendingSyncCount > 0
+                                  ? '${store.pendingSyncCount}'
+                                  : null,
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                store.fetchCloudCatalog();
+                              },
+                            ),
+                          ],
                         ),
-                      if (canBackOffice)
-                        _buildFunctionTile(
-                          p: p,
-                          icon: Icons.dashboard_customize_rounded,
-                          title: 'Back-Office ERP',
-                          subtitle: 'Fournisseurs, Achats, Factures, Compta',
-                          color: const Color(0xFF7C3AED),
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => BackOfficeScreen(
-                                  store: store,
-                                  operatorStaff: staff,
+                        const SizedBox(height: 14),
+                        Text(
+                          'Paramètres rapides de la caisse',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: p.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // 3 compact setting cards side-by-side on wide screens
+                        LayoutBuilder(
+                          builder: (ctx, sc) {
+                            final isWide = sc.maxWidth >= 640;
+                            final noteCard = StatefulBuilder(
+                              builder: (ctx, setOpt) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: p.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: p.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.print_outlined,
+                                        color: p.primary, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Ticket après Note',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: p.textPrimary,
+                                            ),
+                                          ),
+                                          Text(
+                                            store.printReceiptAfterNote
+                                                ? 'Imprime 2ᵉ ticket'
+                                                : 'Économie papier',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: p.textMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Switch(
+                                      key: const Key('print_after_note_switch'),
+                                      value: store.printReceiptAfterNote,
+                                      onChanged: (v) {
+                                        store.setPrintReceiptAfterNote(v);
+                                        setOpt(() {});
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
-                          },
-                        ),
-                      if (canBackOffice ||
-                          store.canCurrent(PosPermission.voidOrComp) ||
-                          store.canCurrent(PosPermission.manageMenuStock))
-                        _buildFunctionTile(
-                          p: p,
-                          icon: Icons.account_balance_wallet_rounded,
-                          title: 'Portefeuilles (16+)',
-                          subtitle:
-                              '${store.activeWallets.length} actifs · Bankily, Masrvi, BCI-Pay...',
-                          color: const Color(0xFF059669),
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            showWalletsConfigDialog(context, store);
-                          },
-                        ),
-                      _buildFunctionTile(
-                        p: p,
-                        icon: Icons.chat_bubble_outline_rounded,
-                        title: 'Commentaires cuisine',
-                        subtitle:
-                            '${store.quickComments.length} rapides · Ajouter / Supprimer',
-                        color: p.warning,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          _openQuickCommentsDialog();
-                        },
-                      ),
-                      _buildFunctionTile(
-                        p: p,
-                        icon: Icons.cloud_sync_rounded,
-                        title: 'Synchroniser Cloud',
-                        subtitle: store.pendingSyncCount > 0
-                            ? '${store.pendingSyncCount} élément(s) en attente'
-                            : 'Catalogue & ventes à jour',
-                        color: p.accent,
-                        badgeText: store.pendingSyncCount > 0
-                            ? '${store.pendingSyncCount}'
-                            : null,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          store.fetchCloudCatalog();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Option "Impression après Note" (save thermal paper)
-                StatefulBuilder(
-                  builder: (ctx, setOpt) => Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: p.surfaceAlt,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: p.border),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.print_outlined, color: p.primary, size: 22),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Impression après Note (Ticket Final)',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: p.textPrimary,
+                            final tvaCard = StatefulBuilder(
+                              builder: (ctx, setTva) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: p.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: p.border),
                                 ),
-                              ),
-                              Text(
-                                store.printReceiptAfterNote
-                                    ? 'Activé : imprime automatiquement le Ticket Final après une Note.'
-                                    : 'Désactivé : n\'imprime pas de 2ᵉ ticket après une Note (économie papier).',
-                                style: TextStyle(
-                                    fontSize: 11.5, color: p.textMuted),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          key: const Key('print_after_note_switch'),
-                          value: store.printReceiptAfterNote,
-                          onChanged: (v) {
-                            store.setPrintReceiptAfterNote(v);
-                            setOpt(() {});
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Option "TVA (%)" configurable (ON/OFF + taux %)
-                StatefulBuilder(
-                  builder: (ctx, setTva) => Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: p.surfaceAlt,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: p.border),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.percent_rounded,
-                            color: store.tvaEnabled ? p.primary : p.textMuted,
-                            size: 22),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'TVA (${store.tvaRatePercent.toStringAsFixed(0)} %)',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: p.textPrimary,
-                                ),
-                              ),
-                              Text(
-                                store.tvaEnabled
-                                    ? 'Activée : affiche HT et TVA ${store.tvaRatePercent.toStringAsFixed(0)} % sur caisse et tickets.'
-                                    : 'Désactivée : aucune ligne TVA affichée sur caisse ni tickets.',
-                                style: TextStyle(
-                                    fontSize: 11.5, color: p.textMuted),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (store.tvaEnabled)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: DropdownButton<double>(
-                              key: const Key('tva_rate_dropdown'),
-                              isDense: true,
-                              underline: const SizedBox.shrink(),
-                              value: const [14.0, 16.0, 18.0, 20.0]
-                                      .contains(store.tvaRatePercent)
-                                  ? store.tvaRatePercent
-                                  : 16.0,
-                              items: const [14.0, 16.0, 18.0, 20.0]
-                                  .map(
-                                    (r) => DropdownMenuItem(
-                                      value: r,
-                                      child: Text('${r.toStringAsFixed(0)} %',
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12.5)),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.percent_rounded,
+                                        color: store.tvaEnabled
+                                            ? p.primary
+                                            : p.textMuted,
+                                        size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'TVA (${store.tvaRatePercent.toStringAsFixed(0)} %)',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: p.textPrimary,
+                                            ),
+                                          ),
+                                          if (store.tvaEnabled)
+                                            DropdownButton<double>(
+                                              key:
+                                                  const Key('tva_rate_dropdown'),
+                                              isDense: true,
+                                              underline:
+                                                  const SizedBox.shrink(),
+                                              value: const [
+                                                14.0,
+                                                16.0,
+                                                18.0,
+                                                20.0
+                                              ].contains(store.tvaRatePercent)
+                                                  ? store.tvaRatePercent
+                                                  : 16.0,
+                                              items: const [
+                                                14.0,
+                                                16.0,
+                                                18.0,
+                                                20.0
+                                              ]
+                                                  .map(
+                                                    (r) => DropdownMenuItem(
+                                                      value: r,
+                                                      child: Text(
+                                                        'Taux ${r.toStringAsFixed(0)} %',
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          fontSize: 11.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                              onChanged: (r) {
+                                                if (r == null) return;
+                                                store.setTvaSettings(
+                                                    ratePercent: r);
+                                                setTva(() {});
+                                              },
+                                            )
+                                          else
+                                            Text(
+                                              'Désactivée',
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: p.textMuted),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                  )
-                                  .toList(),
-                              onChanged: (r) {
-                                if (r == null) return;
-                                store.setTvaSettings(ratePercent: r);
-                                setTva(() {});
-                              },
-                            ),
-                          ),
-                        Switch(
-                          key: const Key('tva_enabled_switch'),
-                          value: store.tvaEnabled,
-                          onChanged: (v) {
-                            store.setTvaSettings(enabled: v);
-                            setTva(() {});
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Option "Clavier tactile visuel" (AZERTY / Arabe / Numérique)
-                StatefulBuilder(
-                  builder: (ctx, setKb) => Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: p.surfaceAlt,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: p.border),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.keyboard_rounded,
-                            color: TouchKeyboardController.instance
-                                    .autoOpenEnabled
-                                ? p.primary
-                                : p.textMuted,
-                            size: 22),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Clavier tactile visuel (AZERTY / عربي / 123)',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: p.textPrimary,
+                                    Switch(
+                                      key: const Key('tva_enabled_switch'),
+                                      value: store.tvaEnabled,
+                                      onChanged: (v) {
+                                        store.setTvaSettings(enabled: v);
+                                        setTva(() {});
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Text(
-                                TouchKeyboardController.instance.autoOpenEnabled
-                                    ? 'Activé : s\'ouvre automatiquement sur tous les champs (écran tactile).'
-                                    : 'Désactivé : utilisez un clavier physique ou le bouton ⌨️.',
-                                style: TextStyle(
-                                    fontSize: 11.5, color: p.textMuted),
+                            );
+                            final kbCard = StatefulBuilder(
+                              builder: (ctx, setKb) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: p.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: p.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.keyboard_rounded,
+                                        color: TouchKeyboardController
+                                                .instance.autoOpenEnabled
+                                            ? p.primary
+                                            : p.textMuted,
+                                        size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Clavier tactile',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: p.textPrimary,
+                                            ),
+                                          ),
+                                          Text(
+                                            TouchKeyboardController
+                                                    .instance.autoOpenEnabled
+                                                ? 'Auto (FR/AR/123)'
+                                                : 'Clavier physique',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: p.textMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Switch(
+                                      key: const Key(
+                                          'touch_keyboard_auto_switch'),
+                                      value: TouchKeyboardController
+                                          .instance.autoOpenEnabled,
+                                      onChanged: (v) {
+                                        TouchKeyboardController.instance
+                                            .setAutoOpen(v);
+                                        setKb(() {});
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          key: const Key('touch_keyboard_auto_switch'),
-                          value:
-                              TouchKeyboardController.instance.autoOpenEnabled,
-                          onChanged: (v) {
-                            TouchKeyboardController.instance.setAutoOpen(v);
-                            setKb(() {});
+                            );
+                            if (isWide) {
+                              return Row(
+                                children: [
+                                  Expanded(child: noteCard),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: tvaCard),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: kbCard),
+                                ],
+                              );
+                            }
+                            return Column(
+                              children: [
+                                noteCard,
+                                const SizedBox(height: 8),
+                                tvaCard,
+                                const SizedBox(height: 8),
+                                kbCard,
+                              ],
+                            );
                           },
                         ),
                       ],
@@ -447,11 +518,11 @@ class _PosShellScreenState extends State<PosShellScreen> {
                 ),
                 const SizedBox(height: 12),
                 Divider(height: 1, color: p.border),
-                const SizedBox(height: 12),
-                // Secondary utility bar inside Functions Hub (Theme, Language, License, Fullscreen)
+                const SizedBox(height: 10),
+                // Secondary utility bar inside Functions Hub (Language, License, Fullscreen)
                 Wrap(
                   spacing: 10,
-                  runSpacing: 10,
+                  runSpacing: 8,
                   alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
@@ -459,23 +530,43 @@ class _PosShellScreenState extends State<PosShellScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         for (final l in const [
-                          ('fr', '🇫🇷 FR'),
-                          ('ar', '🇲🇷 AR'),
-                          ('en', '🇬🇧 EN'),
+                          ('fr', 'FR · Français'),
+                          ('ar', 'AR · عربي'),
+                          ('en', 'EN · English'),
                         ])
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
-                            child: ChoiceChip(
-                              label: Text(
-                                l.$2,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800),
-                              ),
-                              selected: store.lang == l.$1,
-                              onSelected: (_) {
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
                                 store.setLanguage(l.$1);
                                 Navigator.of(ctx).pop();
                               },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: store.lang == l.$1
+                                      ? p.primary
+                                      : p.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: store.lang == l.$1
+                                        ? p.primary
+                                        : p.border,
+                                  ),
+                                ),
+                                child: Text(
+                                  l.$2,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: store.lang == l.$1
+                                        ? p.onPrimary
+                                        : p.textPrimary,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -490,7 +581,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
                           },
                           icon: Icon(
                             Icons.verified_user_rounded,
-                            size: 18,
+                            size: 17,
                             color: store.license.daysRemaining <= 5
                                 ? p.warning
                                 : p.success,
@@ -509,7 +600,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
                             _isFullscreen
                                 ? Icons.fullscreen_exit_rounded
                                 : Icons.fullscreen_rounded,
-                            size: 18,
+                            size: 17,
                           ),
                           label: const Text('Plein écran'),
                         ),
@@ -719,77 +810,81 @@ class _PosShellScreenState extends State<PosShellScreen> {
     String? badgeText,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: selected ? color.withValues(alpha: 0.16) : p.surfaceAlt,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? color : p.border,
             width: selected ? 2 : 1,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(9),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                if (badgeText != null)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: p.danger,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      badgeText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w900,
-                    color: p.textPrimary,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w900,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                      ),
+                      if (badgeText != null)
+                        Container(
+                          margin: const EdgeInsets.only(left: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: p.danger,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: p.textMuted,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: p.textMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
