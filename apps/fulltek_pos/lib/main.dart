@@ -3,6 +3,7 @@ import 'screens/account_login_screen.dart';
 import 'screens/pin_login_screen.dart';
 import 'screens/pos_shell_screen.dart';
 import 'state/pos_store.dart';
+import 'widgets/touch_keyboard.dart';
 
 void main() {
   runApp(const FullTekPosApp());
@@ -62,7 +63,7 @@ class _FullTekPosAppState extends State<FullTekPosApp> {
             }
             return Directionality(
               textDirection: i18n.direction,
-              child: content,
+              child: TouchKeyboardHost(child: content),
             );
           },
           home: !_store.accountLoggedIn

@@ -4,6 +4,7 @@ import '../services/fullscreen_helper.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/fulltek_logo.dart';
+import '../widgets/touch_keyboard.dart';
 import 'back_office_view.dart';
 import 'checkout_dialog.dart';
 import 'closing_z_view.dart';
@@ -389,6 +390,61 @@ class _PosShellScreenState extends State<PosShellScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                // Option "Clavier tactile visuel" (AZERTY / Arabe / Numérique)
+                StatefulBuilder(
+                  builder: (ctx, setKb) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: p.surfaceAlt,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.keyboard_rounded,
+                            color: TouchKeyboardController.instance
+                                    .autoOpenEnabled
+                                ? p.primary
+                                : p.textMuted,
+                            size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Clavier tactile visuel (AZERTY / عربي / 123)',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                TouchKeyboardController.instance.autoOpenEnabled
+                                    ? 'Activé : s\'ouvre automatiquement sur tous les champs (écran tactile).'
+                                    : 'Désactivé : utilisez un clavier physique ou le bouton ⌨️.',
+                                style: TextStyle(
+                                    fontSize: 11.5, color: p.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          key: const Key('touch_keyboard_auto_switch'),
+                          value:
+                              TouchKeyboardController.instance.autoOpenEnabled,
+                          onChanged: (v) {
+                            TouchKeyboardController.instance.setAutoOpen(v);
+                            setKb(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Divider(height: 1, color: p.border),
                 const SizedBox(height: 12),
@@ -473,120 +529,180 @@ class _PosShellScreenState extends State<PosShellScreen> {
     final store = widget.store;
     final p = FullTekThemes.paletteOf(context);
     final ctrl = TextEditingController();
+    bool isBarTab = false;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          backgroundColor: p.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: p.border),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.chat_bubble_outline_rounded, color: p.warning),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Paramétrer les commentaires cuisine',
-                  style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900),
+        builder: (ctx, setD) {
+          final currentList =
+              isBarTab ? store.barComments : store.kitchenComments;
+          return AlertDialog(
+            backgroundColor: p.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: p.border),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  isBarTab
+                      ? Icons.local_cafe_rounded
+                      : Icons.restaurant_rounded,
+                  color: p.warning,
                 ),
-              ),
-              IconButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 500,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Ajoutez ou supprimez les commentaires rapides affichés lors de la prise de commande et de l\'envoi en cuisine :',
-                    style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Paramétrer les commentaires (Cuisine & Café/Bar)',
+                    style:
+                        TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          key: const Key('new_quick_comment_input'),
-                          controller: ctrl,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            labelText: 'Nouveau commentaire rapide',
-                            hintText: 'Ex: Sans ail, Bien doré, Sans fromage...',
-                            prefixIcon: Icon(Icons.add_comment_outlined),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ChoiceChip(
+                            key: const Key('cfg_comments_tab_kitchen'),
+                            selected: !isBarTab,
+                            selectedColor: p.primary,
+                            label: Center(
+                              child: Text(
+                                '🍳 Cuisine (${store.kitchenComments.length})',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color: !isBarTab
+                                      ? p.onPrimary
+                                      : p.textPrimary,
+                                ),
+                              ),
+                            ),
+                            onSelected: (_) => setD(() => isBarTab = false),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        key: const Key('add_quick_comment_btn'),
-                        onPressed: () {
-                          final txt = ctrl.text.trim();
-                          if (txt.isEmpty) return;
-                          store.addQuickComment(txt);
-                          ctrl.clear();
-                          setD(() {});
-                        },
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('Ajouter'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (store.quickComments.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        'Aucun commentaire rapide enregistré.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: p.textMuted),
-                      ),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: store.quickComments.map((c) {
-                        return Chip(
-                          key: Key('quick_comment_chip_$c'),
-                          backgroundColor: p.surfaceAlt,
-                          side: BorderSide(color: p.border),
-                          label: Text(
-                            c,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              color: p.textPrimary,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ChoiceChip(
+                            key: const Key('cfg_comments_tab_bar'),
+                            selected: isBarTab,
+                            selectedColor: p.primary,
+                            label: Center(
+                              child: Text(
+                                '☕ Café / Bar (${store.barComments.length})',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color:
+                                      isBarTab ? p.onPrimary : p.textPrimary,
+                                ),
+                              ),
+                            ),
+                            onSelected: (_) => setD(() => isBarTab = true),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      isBarTab
+                          ? 'Commentaires affichés automatiquement pour les cafés, thés, jus, milkshakes et boissons du bar :'
+                          : 'Commentaires affichés automatiquement pour les plats, grillades, pizzas et fast-food :',
+                      style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            key: const Key('new_quick_comment_input'),
+                            controller: ctrl,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              labelText: isBarTab
+                                  ? 'Nouveau commentaire Café / Bar'
+                                  : 'Nouveau commentaire Cuisine',
+                              hintText: isBarTab
+                                  ? 'Ex: Sans sucre, lait d\'avoine, paille...'
+                                  : 'Ex: Sans ail, bien doré, sans fromage...',
+                              prefixIcon: const Icon(Icons.add_comment_outlined),
                             ),
                           ),
-                          deleteIcon: Icon(Icons.close_rounded,
-                              size: 16, color: p.danger),
-                          onDeleted: () {
-                            store.removeQuickComment(c);
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          key: const Key('add_quick_comment_btn'),
+                          onPressed: () {
+                            final txt = ctrl.text.trim();
+                            if (txt.isEmpty) return;
+                            store.addQuickComment(txt, isBar: isBarTab);
+                            ctrl.clear();
                             setD(() {});
                           },
-                        );
-                      }).toList(),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Ajouter'),
+                        ),
+                      ],
                     ),
-                ],
+                    const SizedBox(height: 12),
+                    if (currentList.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          'Aucun commentaire enregistré dans cette catégorie.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: p.textMuted),
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: currentList.map((c) {
+                          return Chip(
+                            key: Key('quick_comment_chip_$c'),
+                            backgroundColor: p.surfaceAlt,
+                            side: BorderSide(color: p.border),
+                            label: Text(
+                              c,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                            deleteIcon: Icon(Icons.close_rounded,
+                                size: 16, color: p.danger),
+                            onDeleted: () {
+                              store.removeQuickComment(c, isBar: isBarTab);
+                              setD(() {});
+                            },
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Terminé'),
-            ),
-          ],
-        ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Terminé'),
+              ),
+            ],
+          );
+        },
       ),
     );
     ctrl.dispose();

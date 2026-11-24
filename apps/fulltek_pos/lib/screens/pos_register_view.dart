@@ -3,6 +3,7 @@ import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/dish_image.dart';
+import '../widgets/touch_keyboard.dart';
 import '../widgets/touch_numpad.dart';
 import 'checkout_dialog.dart';
 import 'modifiers_dialog.dart';
@@ -1388,126 +1389,186 @@ class _PosRegisterViewState extends State<PosRegisterView> {
   Future<String?> _showCommentPickerDialog({
     required String title,
     required String initialText,
+    bool initialIsBar = false,
   }) async {
     final store = widget.store;
     final p = FullTekThemes.paletteOf(context);
     final ctrl = TextEditingController(text: initialText);
+    bool isBarTab = initialIsBar;
     final saved = await showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          backgroundColor: p.surface,
-          title: Row(
-            children: [
-              Icon(Icons.chat_bubble_outline_rounded, color: p.warning),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w900),
+        builder: (ctx, setD) {
+          final activeList =
+              isBarTab ? store.barComments : store.kitchenComments;
+          return AlertDialog(
+            backgroundColor: p.surface,
+            title: Row(
+              children: [
+                Icon(
+                  isBarTab
+                      ? Icons.local_cafe_rounded
+                      : Icons.restaurant_rounded,
+                  color: p.warning,
                 ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 440,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    key: const Key('comment_picker_input'),
-                    controller: ctrl,
-                    autofocus: true,
-                    maxLines: 2,
-                    onChanged: (_) => setD(() {}),
-                    decoration: InputDecoration(
-                      hintText:
-                          'Ex: Sans piment, bien cuit, sauce à part, client pressé...',
-                      suffixIcon: ctrl.text.isNotEmpty
-                          ? IconButton(
-                              tooltip: 'Effacer',
-                              icon: const Icon(Icons.clear_rounded, size: 18),
-                              onPressed: () => setD(() => ctrl.clear()),
-                            )
-                          : null,
-                    ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w900),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Commentaires rapides (1 clic) :',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: p.textMuted,
-                        ),
-                      ),
-                      if (ctrl.text.trim().isNotEmpty &&
-                          !store.quickComments.any((c) =>
-                              c.toLowerCase() ==
-                              ctrl.text.trim().toLowerCase()))
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 460,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 2 tabs: Cuisine vs Café / Bar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ChoiceChip(
+                            key: const Key('comment_tab_kitchen'),
+                            selected: !isBarTab,
+                            selectedColor: p.primary,
+                            label: Center(
+                              child: Text(
+                                '🍳 Cuisine (${store.kitchenComments.length})',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: !isBarTab
+                                      ? p.onPrimary
+                                      : p.textPrimary,
+                                ),
+                              ),
+                            ),
+                            onSelected: (_) => setD(() => isBarTab = false),
                           ),
-                          onPressed: () {
-                            store.addQuickComment(ctrl.text.trim());
-                            setD(() {});
-                          },
-                          icon: const Icon(Icons.bookmark_add_outlined,
-                              size: 15),
-                          label: const Text('Enregistrer favori',
-                              style: TextStyle(fontSize: 11.5)),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: store.quickComments.map((c) {
-                      return ActionChip(
-                        backgroundColor: p.surfaceAlt,
-                        side: BorderSide(color: p.border),
-                        label: Text(
-                          c,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ChoiceChip(
+                            key: const Key('comment_tab_bar'),
+                            selected: isBarTab,
+                            selectedColor: p.primary,
+                            label: Center(
+                              child: Text(
+                                '☕ Café / Bar (${store.barComments.length})',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color:
+                                      isBarTab ? p.onPrimary : p.textPrimary,
+                                ),
+                              ),
+                            ),
+                            onSelected: (_) => setD(() => isBarTab = true),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      key: const Key('comment_picker_input'),
+                      controller: ctrl,
+                      autofocus: true,
+                      maxLines: 2,
+                      onChanged: (_) => setD(() {}),
+                      decoration: InputDecoration(
+                        hintText: isBarTab
+                            ? 'Ex: Sans sucre, peu sucré, sans glaçons, lait chaud...'
+                            : 'Ex: Sans piment, bien cuit, sauce à part, client pressé...',
+                        suffixIcon: ctrl.text.isNotEmpty
+                            ? IconButton(
+                                tooltip: 'Effacer',
+                                icon:
+                                    const Icon(Icons.clear_rounded, size: 18),
+                                onPressed: () => setD(() => ctrl.clear()),
+                              )
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isBarTab
+                              ? 'Commentaires Café / Bar (1 clic) :'
+                              : 'Commentaires Cuisine (1 clic) :',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: p.textPrimary,
+                            fontWeight: FontWeight.w800,
+                            color: p.textMuted,
                           ),
                         ),
-                        onPressed: () {
-                          setD(() {
-                            final cur = ctrl.text.trim();
-                            ctrl.text = cur.isEmpty ? c : '$cur, $c';
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
+                        if (ctrl.text.trim().isNotEmpty &&
+                            !activeList.any((c) =>
+                                c.toLowerCase() ==
+                                ctrl.text.trim().toLowerCase()))
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: () {
+                              store.addQuickComment(ctrl.text.trim(),
+                                  isBar: isBarTab);
+                              setD(() {});
+                            },
+                            icon: const Icon(Icons.bookmark_add_outlined,
+                                size: 15),
+                            label: const Text('Enregistrer favori',
+                                style: TextStyle(fontSize: 11.5)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: activeList.map((c) {
+                        return ActionChip(
+                          backgroundColor: p.surfaceAlt,
+                          side: BorderSide(color: p.border),
+                          label: Text(
+                            c,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: p.textPrimary,
+                            ),
+                          ),
+                          onPressed: () {
+                            setD(() {
+                              final cur = ctrl.text.trim();
+                              ctrl.text = cur.isEmpty ? c : '$cur, $c';
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(store.i18n.t('cancel')),
-            ),
-            ElevatedButton.icon(
-              key: const Key('confirm_comment_btn'),
-              onPressed: () => Navigator.of(ctx).pop(ctrl.text),
-              icon: const Icon(Icons.check_rounded, size: 18),
-              label: Text(store.i18n.t('confirm')),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(store.i18n.t('cancel')),
+              ),
+              ElevatedButton.icon(
+                key: const Key('confirm_comment_btn'),
+                onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: Text(store.i18n.t('confirm')),
+              ),
+            ],
+          );
+        },
       ),
     );
     ctrl.dispose();
@@ -1515,9 +1576,11 @@ class _PosRegisterViewState extends State<PosRegisterView> {
   }
 
   Future<void> _editNote(OrderItem line) async {
+    final isBar = widget.store.isBarMenuItem(line.item);
     final saved = await _showCommentPickerDialog(
       title: 'Commentaire · ${line.item.label(widget.store.lang)}',
       initialText: line.kitchenNote ?? '',
+      initialIsBar: isBar,
     );
     if (saved != null) {
       widget.store.updateLineNote(line.lineId, saved);
@@ -1765,6 +1828,12 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                   decoration: InputDecoration(
                     hintText: i18n.t('search_menu'),
                     prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: IconButton(
+                      tooltip: 'Clavier tactile',
+                      icon: const Icon(Icons.keyboard_rounded, size: 20),
+                      onPressed: () => TouchKeyboardController.instance
+                          .openForCurrentFocus(),
+                    ),
                     isDense: true,
                   ),
                 ),

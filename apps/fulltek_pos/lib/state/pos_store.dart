@@ -180,7 +180,12 @@ class PosStore extends ChangeNotifier {
         'enabledPayMethods': enabledPayMethods,
         'customWallets': customWallets,
         'walletCustomConfigured': walletCustomConfigured,
-        'quickComments': quickComments,
+        'kitchenComments': kitchenComments,
+        'barComments': barComments,
+        'tablePositions': {
+          for (final t in tables)
+            if (t.x > 0 || t.y > 0) t.id: {'x': t.x, 'y': t.y},
+        },
         'ticketCounter': _ticketCounter,
         'syncCounter': _syncCounter,
         'printReceiptAfterNote': printReceiptAfterNote,
@@ -310,12 +315,41 @@ class PosStore extends ChangeNotifier {
       if (map['walletCustomConfigured'] is bool) {
         walletCustomConfigured = map['walletCustomConfigured'] as bool;
       }
-      final savedQuickComments = map['quickComments'] as List?;
-      if (savedQuickComments != null && savedQuickComments.isNotEmpty) {
-        quickComments = savedQuickComments
+      final savedKitchenComments = map['kitchenComments'] as List?;
+      if (savedKitchenComments != null && savedKitchenComments.isNotEmpty) {
+        kitchenComments = savedKitchenComments
             .map((e) => '$e'.trim())
             .where((e) => e.isNotEmpty)
             .toList();
+      } else {
+        final savedQuickComments = map['quickComments'] as List?;
+        if (savedQuickComments != null && savedQuickComments.isNotEmpty) {
+          kitchenComments = savedQuickComments
+              .map((e) => '$e'.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+      }
+      final savedBarComments = map['barComments'] as List?;
+      if (savedBarComments != null && savedBarComments.isNotEmpty) {
+        barComments = savedBarComments
+            .map((e) => '$e'.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+      final savedTablePos = map['tablePositions'] as Map?;
+      if (savedTablePos != null) {
+        _savedTablePositions.clear();
+        for (final entry in savedTablePos.entries) {
+          final v = entry.value;
+          if (v is Map) {
+            final px = ((v['x'] ?? 0) as num).toDouble();
+            final py = ((v['y'] ?? 0) as num).toDouble();
+            if (px > 0 || py > 0) {
+              _savedTablePositions['${entry.key}'] = (px, py);
+            }
+          }
+        }
       }
       final zAt = map['lastZClosedAt'] as String?;
       if (zAt != null) _lastZClosedAt = DateTime.tryParse(zAt);
@@ -653,7 +687,8 @@ class PosStore extends ChangeNotifier {
   ];
   List<String> customWallets = [];
   bool walletCustomConfigured = false;
-  List<String> quickComments = [
+  final Map<String, (double, double)> _savedTablePositions = {};
+  List<String> kitchenComments = [
     'Sans piment',
     'Peu épicé',
     'Bien pimenté',
@@ -662,28 +697,121 @@ class PosStore extends ChangeNotifier {
     'Bien cuit',
     'À point',
     'Sauce à part',
-    'Sans glaçons',
     'Très chaud',
     'Client pressé',
     'Servir ensemble',
   ];
+  List<String> barComments = [
+    'Sans sucre',
+    'Peu sucré',
+    'Bien sucré',
+    'Sans glaçons',
+    'Beaucoup de glaçons',
+    'Lait chaud',
+    'Lait froid',
+    'Lait à part',
+    'Très chaud',
+    'Tiède',
+    'Sans mousse',
+    'Gobelet à emporter',
+  ];
+  List<String> get quickComments => [...kitchenComments, ...barComments];
   bool accountOffline = false;
 
-  void addQuickComment(String raw) {
+  void addQuickComment(String raw, {bool isBar = false}) {
     final clean = raw.trim();
     if (clean.isEmpty) return;
-    if (quickComments.any((c) => c.toLowerCase() == clean.toLowerCase())) {
+    final list = isBar ? barComments : kitchenComments;
+    if (list.any((c) => c.toLowerCase() == clean.toLowerCase())) {
       return;
     }
-    quickComments = [...quickComments, clean];
+    if (isBar) {
+      barComments = [...barComments, clean];
+    } else {
+      kitchenComments = [...kitchenComments, clean];
+    }
     notifyListeners();
   }
 
-  void removeQuickComment(String raw) {
-    quickComments = quickComments
-        .where((c) => c.toLowerCase() != raw.trim().toLowerCase())
-        .toList();
+  void removeQuickComment(String raw, {bool? isBar}) {
+    final target = raw.trim().toLowerCase();
+    if (isBar == true) {
+      barComments =
+          barComments.where((c) => c.toLowerCase() != target).toList();
+    } else if (isBar == false) {
+      kitchenComments =
+          kitchenComments.where((c) => c.toLowerCase() != target).toList();
+    } else {
+      kitchenComments =
+          kitchenComments.where((c) => c.toLowerCase() != target).toList();
+      barComments =
+          barComments.where((c) => c.toLowerCase() != target).toList();
+    }
     notifyListeners();
+  }
+
+  /// Helper: returns true when a menu item belongs to Café / Bar / Drinks.
+  bool isBarMenuItem(MenuItem item) {
+    final st = item.kitchenStation.trim().toUpperCase();
+    if (st == 'BAR' || st == 'CAFE' || st == 'CAFÉ' || st == 'DRINKS') {
+      return true;
+    }
+    final name = '${item.nameFr} ${item.nameEn}'.toLowerCase();
+    return name.contains('café') ||
+        name.contains('cafe') ||
+        name.contains('thé') ||
+        name.contains('ataya') ||
+        name.contains('jus') ||
+        name.contains('milkshake') ||
+        name.contains('smoothie') ||
+        name.contains('cocktail') ||
+        name.contains('eau') ||
+        name.contains('soda') ||
+        name.contains('boisson') ||
+        name.contains('zrig') ||
+        name.contains('bissap') ||
+        name.contains('bouye') ||
+        name.contains('espresso') ||
+        name.contains('cappuccino') ||
+        name.contains('latte');
+  }
+
+  /// Updates the (x, y) normalized floor plan position (0.0..1.0) of a dining table
+  /// and persists it locally and to Cloud API (`PATCH /api/pos/tables/:id`).
+  Future<void> updateTablePosition(
+    String tableId,
+    double x,
+    double y, {
+    bool syncCloud = true,
+  }) async {
+    final idx = tables.indexWhere((t) => t.id == tableId);
+    if (idx == -1) return;
+    final clampedX = x.clamp(0.02, 0.88);
+    final clampedY = y.clamp(0.02, 0.86);
+    final cur = tables[idx];
+    tables[idx] = cur.copyWith(x: clampedX, y: clampedY);
+    _savedTablePositions[cur.id] = (clampedX, clampedY);
+    notifyListeners();
+
+    if (syncCloud &&
+        cloudJwtToken != null &&
+        cloudJwtToken!.isNotEmpty &&
+        !accountOffline) {
+      try {
+        await _httpRequest(
+          'PATCH',
+          '$apiBaseUrl/api/pos/tables/${Uri.encodeComponent(cur.id)}',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $cloudJwtToken',
+          },
+          body: jsonEncode({
+            'x': double.parse(clampedX.toStringAsFixed(4)),
+            'y': double.parse(clampedY.toStringAsFixed(4)),
+          }),
+        );
+      } catch (_) {}
+    }
   }
 
   void setActiveOrderComment(String? comment) {
@@ -1090,9 +1218,19 @@ class PosStore extends ChangeNotifier {
             t.code.trim().toLowerCase(): t,
           }
         };
-        tables = parsed.tables.map((t) {
-          final prev =
-              prevByIdOrCode[t.id] ?? prevByIdOrCode[t.code.trim().toLowerCase()];
+        tables = parsed.tables.map((rawT) {
+          final savedPos = _savedTablePositions[rawT.id];
+          final prev = prevByIdOrCode[rawT.id] ??
+              prevByIdOrCode[rawT.code.trim().toLowerCase()];
+          final double effX = rawT.x > 0
+              ? rawT.x
+              : (savedPos != null ? savedPos.$1 : (prev?.x ?? 0.0));
+          final double effY = rawT.y > 0
+              ? rawT.y
+              : (savedPos != null ? savedPos.$2 : (prev?.y ?? 0.0));
+          final t = (effX != rawT.x || effY != rawT.y)
+              ? rawT.copyWith(x: effX, y: effY)
+              : rawT;
           PosOrder? matchedOrder;
           if (prev?.activeOrderId != null &&
               _openOrdersById.containsKey(prev!.activeOrderId)) {

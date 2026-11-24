@@ -570,4 +570,44 @@ void main() {
       expect(store.quickComments, isNot(contains('Sans ail')));
     },
   );
+
+  test(
+    'Separated Kitchen vs Cafe/Bar comments and interactive floor plan table position drag-and-drop',
+    () async {
+      final store = PosStore(enablePersistence: false);
+
+      // Kitchen vs Bar separation
+      expect(store.kitchenComments, contains('Sans piment'));
+      expect(store.barComments, contains('Sans sucre'));
+      expect(store.barComments, isNot(contains('Sans piment')));
+
+      // Add & remove bar-only comment
+      store.addQuickComment('Lait d\'amande', isBar: true);
+      expect(store.barComments, contains('Lait d\'amande'));
+      expect(store.kitchenComments, isNot(contains('Lait d\'amande')));
+      store.removeQuickComment('Lait d\'amande', isBar: true);
+      expect(store.barComments, isNot(contains('Lait d\'amande')));
+
+      // Auto-detection of Café / Bar items vs Kitchen dishes
+      const cafeAuLait = MenuItem(
+        id: 'C1',
+        categoryId: 'drinks',
+        sku: 'CAF-1',
+        nameFr: 'CAFE AU LAIT',
+        nameAr: 'قهوة بالحليب',
+        nameEn: 'Coffee with milk',
+        priceMru: 100,
+        kitchenStation: 'KITCHEN',
+      );
+      expect(store.isBarMenuItem(cafeAuLait), isTrue);
+      expect(store.isBarMenuItem(store.menuItems.first), isFalse);
+
+      // Drag & drop table position update
+      final t = store.tables.first;
+      await store.updateTablePosition(t.id, 0.62, 0.44, syncCloud: false);
+      final moved = store.tables.firstWhere((e) => e.id == t.id);
+      expect(moved.x, closeTo(0.62, 0.001));
+      expect(moved.y, closeTo(0.44, 0.001));
+    },
+  );
 }

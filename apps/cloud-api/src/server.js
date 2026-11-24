@@ -1967,7 +1967,9 @@ function createApp(options = {}) {
         const rawTables = parseJson(zone.tables_json, []);
         const currentTables = rawTables.length > 0 ? rawTables : synthesizeTablesForZone(zone);
         const tableId = typeof b.id === 'string' && b.id.trim() ? b.id.trim() : `TBL-${Date.now()}`;
-        const newTable = { id: tableId, code, capacity, shape, status: 'free' };
+        const posX = b.x != null && Number.isFinite(Number(b.x)) ? Math.max(0, Math.min(1, Number(b.x))) : 0;
+        const posY = b.y != null && Number.isFinite(Number(b.y)) ? Math.max(0, Math.min(1, Number(b.y))) : 0;
+        const newTable = { id: tableId, code, capacity, shape, status: 'free', x: posX, y: posY };
         currentTables.push(newTable);
         database.prepare('UPDATE dining_zones SET tables_json = ?, table_count = ? WHERE id = ? AND tenant_id = ?')
           .run(JSON.stringify(currentTables), currentTables.length, zone.id, currentTenant.id);
@@ -1987,11 +1989,19 @@ function createApp(options = {}) {
           const idx = currentTables.findIndex((t) => String(t.id) === targetId || String(t.code) === targetId);
           if (idx !== -1) {
             const cur = currentTables[idx];
+            const nextX = b.x != null && Number.isFinite(Number(b.x))
+              ? Math.max(0, Math.min(1, Number(b.x)))
+              : (typeof cur.x === 'number' ? cur.x : 0);
+            const nextY = b.y != null && Number.isFinite(Number(b.y))
+              ? Math.max(0, Math.min(1, Number(b.y)))
+              : (typeof cur.y === 'number' ? cur.y : 0);
             const updatedTable = {
               ...cur,
               code: typeof b.code === 'string' && b.code.trim() ? b.code.trim() : cur.code,
               capacity: b.capacity != null ? Math.max(1, Math.round(Number(b.capacity))) : cur.capacity,
               shape: typeof b.shape === 'string' && b.shape.trim() ? b.shape.trim().toLowerCase() : (cur.shape || 'square'),
+              x: nextX,
+              y: nextY,
             };
             const destZoneId = b.zoneId != null && /^\d+$/.test(String(b.zoneId)) ? Number(b.zoneId) : z.id;
             const destZone = zonesList.find((dz) => dz.id === destZoneId) || z;
