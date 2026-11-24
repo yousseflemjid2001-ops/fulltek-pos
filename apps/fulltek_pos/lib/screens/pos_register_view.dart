@@ -483,107 +483,178 @@ class _PosRegisterViewState extends State<PosRegisterView> {
           return;
         }
       } else {
-        final chosenTableId = await showDialog<String>(
+        final activeStaff = store.staff.where((s) => s.isActive).toList()
+          ..sort((a, b) {
+            final aw = a.role == PosRole.waiter ? 0 : 1;
+            final bw = b.role == PosRole.waiter ? 0 : 1;
+            if (aw != bw) return aw.compareTo(bw);
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
+        String? selectedServer =
+            (order.serverName != null && order.serverName!.trim().isNotEmpty)
+                ? order.serverName!.trim()
+                : store.currentStaff?.name;
+
+        final chosen = await showDialog<({String tableId, String? serverName})>(
           context: context,
-          builder: (ctx) => Dialog(
-            backgroundColor: p.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: p.border),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520, maxHeight: 500),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.table_restaurant_rounded,
-                            color: p.warning, size: 24),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Table obligatoire avant envoi cuisine',
-                            style: TextStyle(
-                                fontSize: 16.5, fontWeight: FontWeight.w900),
+          builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setD) => Dialog(
+              backgroundColor: p.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: p.border),
+              ),
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: 560, maxHeight: 560),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.table_restaurant_rounded,
+                              color: p.warning, size: 24),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Table & Serveur avant envoi cuisine',
+                              style: TextStyle(
+                                  fontSize: 16.5, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                      if (activeStaff.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '1. Serveur en charge :',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: p.textMuted,
                           ),
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          icon: const Icon(Icons.close_rounded),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: activeStaff.map((s) {
+                            final isSel = selectedServer == s.name;
+                            return ChoiceChip(
+                              key: Key('pick_server_kitchen_${s.id}'),
+                              selected: isSel,
+                              selectedColor: p.primary,
+                              backgroundColor: p.surfaceAlt,
+                              side: BorderSide(
+                                color: isSel ? p.primary : p.border,
+                                width: isSel ? 1.6 : 1,
+                              ),
+                              avatar: Icon(
+                                Icons.person_rounded,
+                                size: 16,
+                                color: isSel ? p.onPrimary : p.primary,
+                              ),
+                              label: Text(
+                                s.name,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSel ? p.onPrimary : p.textPrimary,
+                                ),
+                              ),
+                              onSelected: (_) =>
+                                  setD(() => selectedServer = s.name),
+                            );
+                          }).toList(),
                         ),
+                        const SizedBox(height: 12),
                       ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Sélectionnez la table du client pour envoyer la commande en cuisine et la retrouver facilement à l\'encaissement :',
-                      style: TextStyle(fontSize: 12.5, color: p.textMuted),
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.7,
+                      Text(
+                        activeStaff.isNotEmpty
+                            ? '2. Sélectionnez la table du client :'
+                            : 'Sélectionnez la table du client pour envoyer la commande en cuisine :',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: p.textMuted,
                         ),
-                        itemCount: store.tables.length,
-                        itemBuilder: (_, idx) {
-                          final t = store.tables[idx];
-                          final occ = t.status != TableStatus.free;
-                          final col = occ ? p.warning : p.success;
-                          return InkWell(
-                            key: Key('pick_table_kitchen_${t.id}'),
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => Navigator.of(ctx).pop(t.id),
-                            child: Container(
-                              alignment: Alignment.center,
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: col.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: col, width: 1.6),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Table ${t.code}',
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w900,
-                                      color: p.textPrimary,
-                                    ),
-                                  ),
-                                  Text(
-                                    occ ? 'Occupée (ajouter)' : 'Libre',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: col,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Flexible(
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 1.7,
+                          ),
+                          itemCount: store.tables.length,
+                          itemBuilder: (_, idx) {
+                            final t = store.tables[idx];
+                            final occ = t.status != TableStatus.free;
+                            final col = occ ? p.warning : p.success;
+                            return InkWell(
+                              key: Key('pick_table_kitchen_${t.id}'),
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => Navigator.of(ctx).pop((
+                                tableId: t.id,
+                                serverName: selectedServer,
+                              )),
+                              child: Container(
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: col.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: col, width: 1.6),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Table ${t.code}',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: p.textPrimary,
+                                      ),
+                                    ),
+                                    Text(
+                                      occ ? 'Occupée (ajouter)' : 'Libre',
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: col,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         );
-        if (chosenTableId == null || !mounted) return;
-        store.assignTableToActiveOrder(chosenTableId);
+        if (chosen == null || !mounted) return;
+        store.assignTableToActiveOrder(chosen.tableId);
+        if (chosen.serverName != null && chosen.serverName!.trim().isNotEmpty) {
+          store.setActiveOrderServer(chosen.serverName!.trim());
+        }
       }
     }
 
