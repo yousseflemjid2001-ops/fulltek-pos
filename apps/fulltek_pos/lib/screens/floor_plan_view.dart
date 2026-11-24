@@ -1540,6 +1540,159 @@ class _FloorPlanViewState extends State<FloorPlanView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final canvasW = math.max(constraints.maxWidth, 620.0);
+
+        // In "Toutes zones", group tables by zone into separate visual floor sections
+        // so tables from different zones (which share local 0..1 coordinates) never overlap!
+        if (_selectedZoneId == 'all') {
+          final grouped = <({String id, String label, bool isVip, List<DiningTable> tables})>[];
+          final assignedIds = <String>{};
+          for (final z in store.zones) {
+            final zTables =
+                visibleTables.where((t) => t.zoneId == z.id).toList();
+            if (zTables.isNotEmpty) {
+              grouped.add((
+                id: z.id,
+                label: store.i18n.isRtl && z.nameAr.trim().isNotEmpty
+                    ? z.nameAr
+                    : z.nameFr,
+                isVip: z.isVip,
+                tables: zTables,
+              ));
+              for (final t in zTables) {
+                assignedIds.add(t.id);
+              }
+            }
+          }
+          final orphans =
+              visibleTables.where((t) => !assignedIds.contains(t.id)).toList();
+          if (orphans.isNotEmpty) {
+            grouped.add((
+              id: '_other',
+              label: 'Autres tables',
+              isVip: false,
+              tables: orphans,
+            ));
+          }
+
+          if (grouped.length > 1) {
+            final innerW = math.max(constraints.maxWidth - 4, 620.0);
+            return ListView.separated(
+              key: const Key('visual_floor_canvas'),
+              padding: const EdgeInsets.only(bottom: 16),
+              itemCount: grouped.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 14),
+              itemBuilder: (context, gIdx) {
+                final g = grouped[gIdx];
+                final occupiedCount = g.tables
+                    .where((t) => t.status != TableStatus.free)
+                    .length;
+                final rowsNeeded = ((g.tables.length - 1) ~/ 4) + 1;
+                final sectionH = math.max(250.0, rowsNeeded * 160.0 + 36.0);
+                return Container(
+                  key: Key('visual_zone_section_${g.id}'),
+                  decoration: BoxDecoration(
+                    color: p.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: _editLayoutMode ? p.primary : p.border,
+                      width: _editLayoutMode ? 1.8 : 1,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: p.surfaceAlt,
+                          border: Border(bottom: BorderSide(color: p.border)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              g.isVip
+                                  ? Icons.workspace_premium_rounded
+                                  : Icons.layers_rounded,
+                              size: 16,
+                              color: g.isVip ? p.vipGold : p.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              g.label,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w900,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: p.primary.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${g.tables.length} table(s)${occupiedCount > 0 ? ' · $occupiedCount occupée(s)' : ''}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: p.primary,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            if (g.id != '_other')
+                              InkWell(
+                                onTap: () =>
+                                    setState(() => _selectedZoneId = g.id),
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Ouvrir la zone',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: p.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Icon(Icons.arrow_forward_rounded,
+                                          size: 14, color: p.primary),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: _buildSingleZoneCanvas(
+                          store: store,
+                          tables: g.tables,
+                          p: p,
+                          canvasW: innerW,
+                          canvasH: sectionH,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          }
+        }
+
         final rowsNeeded = ((visibleTables.length - 1) ~/ 4) + 1;
         final canvasH = math.max(constraints.maxHeight, rowsNeeded * 165.0 + 40);
 
@@ -1558,71 +1711,87 @@ class _FloorPlanViewState extends State<FloorPlanView> {
             scrollDirection: Axis.vertical,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: canvasW,
-                height: canvasH,
-                child: Stack(
-                  children: [
-                    // Subtle architectural floor dots grid
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _FloorGridPainter(
-                          dotColor: p.border.withValues(alpha: 0.7),
-                          showGridLines: _editLayoutMode,
-                        ),
-                      ),
-                    ),
-                    ...visibleTables.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final t = entry.value;
-                      final isKhaima = t.shape == TableShape.khaima;
-                      final isWideRect =
-                          !isKhaima && t.shape == TableShape.square && t.capacity >= 6;
-                      final itemW = isKhaima
-                          ? 170.0
-                          : (isWideRect ? 156.0 : 122.0);
-                      final itemH = isKhaima ? 124.0 : 114.0;
-
-                      // Default neat grid coordinates when (x, y) not yet set
-                      final defaultCol = idx % 4;
-                      final defaultRow = idx ~/ 4;
-                      final defaultX = (0.04 + defaultCol * 0.235).clamp(0.02, 0.85);
-                      final defaultY = (0.05 + defaultRow * 0.28).clamp(0.03, 0.82);
-
-                      final override = _dragOverrides[t.id];
-                      final normX = override?.dx ?? (t.x > 0 ? t.x : defaultX);
-                      final normY = override?.dy ?? (t.y > 0 ? t.y : defaultY);
-
-                      final leftPx =
-                          (normX * (canvasW - itemW)).clamp(8.0, canvasW - itemW - 8.0);
-                      final topPx =
-                          (normY * (canvasH - itemH)).clamp(8.0, canvasH - itemH - 8.0);
-
-                      return Positioned(
-                        left: leftPx,
-                        top: topPx,
-                        width: itemW,
-                        height: itemH,
-                        child: _buildVisualTableWidget(
-                          store: store,
-                          table: t,
-                          p: p,
-                          width: itemW,
-                          height: itemH,
-                          canvasW: canvasW,
-                          canvasH: canvasH,
-                          currentNormX: normX,
-                          currentNormY: normY,
-                        ),
-                      );
-                    }),
-                  ],
-                ),
+              child: _buildSingleZoneCanvas(
+                store: store,
+                tables: visibleTables,
+                p: p,
+                canvasW: canvasW,
+                canvasH: canvasH,
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSingleZoneCanvas({
+    required PosStore store,
+    required List<DiningTable> tables,
+    required PosPalette p,
+    required double canvasW,
+    required double canvasH,
+  }) {
+    return SizedBox(
+      width: canvasW,
+      height: canvasH,
+      child: Stack(
+        children: [
+          // Subtle architectural floor dots grid
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _FloorGridPainter(
+                dotColor: p.border.withValues(alpha: 0.7),
+                showGridLines: _editLayoutMode,
+              ),
+            ),
+          ),
+          ...tables.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final t = entry.value;
+            final isKhaima = t.shape == TableShape.khaima;
+            final isWideRect =
+                !isKhaima && t.shape == TableShape.square && t.capacity >= 6;
+            final itemW = isKhaima
+                ? 170.0
+                : (isWideRect ? 156.0 : 122.0);
+            final itemH = isKhaima ? 124.0 : 114.0;
+
+            // Default neat grid coordinates when (x, y) not yet set
+            final defaultCol = idx % 4;
+            final defaultRow = idx ~/ 4;
+            final defaultX = (0.04 + defaultCol * 0.235).clamp(0.02, 0.85);
+            final defaultY = (0.05 + defaultRow * 0.28).clamp(0.03, 0.82);
+
+            final override = _dragOverrides[t.id];
+            final normX = override?.dx ?? (t.x > 0 ? t.x : defaultX);
+            final normY = override?.dy ?? (t.y > 0 ? t.y : defaultY);
+
+            final leftPx =
+                (normX * (canvasW - itemW)).clamp(8.0, canvasW - itemW - 8.0);
+            final topPx =
+                (normY * (canvasH - itemH)).clamp(8.0, canvasH - itemH - 8.0);
+
+            return Positioned(
+              left: leftPx,
+              top: topPx,
+              width: itemW,
+              height: itemH,
+              child: _buildVisualTableWidget(
+                store: store,
+                table: t,
+                p: p,
+                width: itemW,
+                height: itemH,
+                canvasW: canvasW,
+                canvasH: canvasH,
+                currentNormX: normX,
+                currentNormY: normY,
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
