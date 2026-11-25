@@ -2,10 +2,23 @@
 import 'dart:convert';
 import 'dart:html' as html;
 
-bool platformPrint80mm(String title, String receiptText) {
+bool platformPrint80mm(
+  String title,
+  String receiptText, {
+  String? logoDataUrl,
+  String logoPosition = 'center',
+}) {
   try {
     final escapedTitle = const HtmlEscape().convert(title);
     final escapedBody = const HtmlEscape().convert(receiptText);
+    final hasLogo =
+        logoDataUrl != null && logoDataUrl.trim().startsWith('data:image/');
+    final alignCss = logoPosition == 'left'
+        ? 'left'
+        : (logoPosition == 'right' ? 'right' : 'center');
+    final logoBlock = hasLogo
+        ? '<div class="logo-wrap" style="text-align:$alignCss;"><img src="$logoDataUrl" alt="Logo" /></div>'
+        : '';
     final docHtml = '''
 <!DOCTYPE html>
 <html lang="fr">
@@ -23,6 +36,15 @@ bool platformPrint80mm(String title, String receiptText) {
     color: #000;
     background: #fff;
   }
+  .logo-wrap {
+    margin: 0 0 6px 0;
+  }
+  .logo-wrap img {
+    max-width: 54mm;
+    max-height: 22mm;
+    object-fit: contain;
+    filter: grayscale(100%) contrast(125%);
+  }
   pre {
     white-space: pre-wrap;
     word-break: break-word;
@@ -34,6 +56,7 @@ bool platformPrint80mm(String title, String receiptText) {
 </style>
 </head>
 <body onload="window.focus(); window.print();">
+  $logoBlock
   <pre>$escapedBody</pre>
 </body>
 </html>

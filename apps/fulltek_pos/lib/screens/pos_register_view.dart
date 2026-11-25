@@ -166,6 +166,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
         title: 'Ticket Final · ${widget.store.i18n.t('receipt_preview')}',
         subtitle: changeBanner,
         receiptText: receipt,
+        logoDataUrl: widget.store.receiptLogoDataUrl,
+        logoPosition: widget.store.receiptLogoPosition,
       );
       return;
     }
@@ -185,6 +187,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               title: 'Ticket Final · ${widget.store.i18n.t('receipt_preview')}',
               subtitle: changeBanner,
               receiptText: receipt,
+              logoDataUrl: widget.store.receiptLogoDataUrl,
+              logoPosition: widget.store.receiptLogoPosition,
             );
           },
         ),
@@ -1010,6 +1014,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       title: '🧾 Note (sans encaissement)',
       subtitle: 'Table marquée « Note sortie » · Document non encaissé',
       receiptText: additionTicket,
+      logoDataUrl: widget.store.receiptLogoDataUrl,
+      logoPosition: widget.store.receiptLogoPosition,
     );
   }
 

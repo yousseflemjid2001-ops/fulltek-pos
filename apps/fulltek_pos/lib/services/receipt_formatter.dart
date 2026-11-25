@@ -493,6 +493,7 @@ class ReceiptFormatter {
     required double clickMru,
     Map<String, double> otherWallets = const {},
     required double karniMru,
+    double walletCashbackMru = 0,
     String restaurantName = 'FULL-TEK RESTO POS',
   }) {
     final now = DateTime.now();
@@ -521,6 +522,10 @@ class ReceiptFormatter {
     buf.writeln(_padRow('Annulations/Offerts:', '$remakesCount'));
     buf.writeln(_line());
     buf.writeln(_padRow('Especes (Cash):', formatMru(cashMru)));
+    if (walletCashbackMru > 0) {
+      buf.writeln(_padRow(
+          '  dont rendu s/Wallets:', '-${formatMru(walletCashbackMru)}'));
+    }
     buf.writeln(_padRow('Bankily:', formatMru(bankilyMru)));
     buf.writeln(_padRow('Masrivi:', formatMru(masriviMru)));
     buf.writeln(_padRow('Sedad:', formatMru(sedadMru)));

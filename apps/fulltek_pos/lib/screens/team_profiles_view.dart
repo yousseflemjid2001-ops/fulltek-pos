@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
+import '../services/web_file_picker.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 
@@ -637,6 +640,162 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
               ),
             ),
             const SizedBox(height: 12),
+            // Logo du Ticket 80mm (Parcourir + Position + Format recommandé)
+            Builder(builder: (_) {
+              Uint8List? logoBytes;
+              if (store.receiptLogoDataUrl.contains(',')) {
+                try {
+                  logoBytes = base64Decode(
+                      store.receiptLogoDataUrl.split(',').last.trim());
+                } catch (_) {}
+              }
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: p.surfaceAlt,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: p.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 84,
+                          height: 52,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: p.border),
+                          ),
+                          child: logoBytes != null
+                              ? Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Image.memory(
+                                    logoBytes,
+                                    fit: BoxFit.contain,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.image_outlined,
+                                  size: 24,
+                                  color: Colors.black38,
+                                ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Logo du restaurant (En-tête Ticket 80mm)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                children: [
+                                  ElevatedButton.icon(
+                                    key: const Key('upload_receipt_logo_btn'),
+                                    onPressed: () async {
+                                      final dataUrl =
+                                          await pickLogoImageDataUrl(
+                                              maxBytes: 600000);
+                                      if (!mounted || dataUrl == null) return;
+                                      if (dataUrl == '__TOO_LARGE__') {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                                'Image trop lourde (max 500 Ko). Utilisez un PNG/JPG léger (384 × 160 px).'),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      store.setReceiptLogo(dataUrl);
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(Icons.folder_open_rounded,
+                                        size: 16),
+                                    label: Text(logoBytes == null
+                                        ? 'Parcourir un logo'
+                                        : 'Changer le logo'),
+                                  ),
+                                  if (logoBytes != null)
+                                    OutlinedButton.icon(
+                                      key: const Key('clear_receipt_logo_btn'),
+                                      onPressed: () {
+                                        store.clearReceiptLogo();
+                                        setState(() {});
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: p.danger,
+                                        side: BorderSide(color: p.danger),
+                                      ),
+                                      icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 16),
+                                      label: const Text('Supprimer'),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          'Position :',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: p.textMuted,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        for (final opt in const [
+                          ('left', 'Gauche'),
+                          ('center', 'Centré'),
+                          ('right', 'Droite'),
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(opt.$2,
+                                  style: const TextStyle(fontSize: 11.5)),
+                              selected: store.receiptLogoPosition == opt.$1,
+                              onSelected: (_) {
+                                store.setReceiptLogo(null, position: opt.$1);
+                                setState(() {});
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Format recommandé : PNG ou JPG (fond blanc ou transparent) · 384 × 160 px (ratio 2:1) · Noir & blanc ou fort contraste · max 500 Ko — idéal pour imprimante thermique 80 mm.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: p.textMuted,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 12),
             TextField(
               key: const Key('rest_name_input'),
               controller: _restNameCtrl,
@@ -768,6 +927,35 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
                 color: Colors.black54),
           ),
           const Divider(),
+          Builder(builder: (_) {
+            if (!store.receiptLogoDataUrl.contains(',')) {
+              return const SizedBox.shrink();
+            }
+            try {
+              final bytes = base64Decode(
+                  store.receiptLogoDataUrl.split(',').last.trim());
+              final align = store.receiptLogoPosition == 'left'
+                  ? Alignment.centerLeft
+                  : (store.receiptLogoPosition == 'right'
+                      ? Alignment.centerRight
+                      : Alignment.center);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(
+                  alignment: align,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 150,
+                      maxHeight: 62,
+                    ),
+                    child: Image.memory(bytes, fit: BoxFit.contain),
+                  ),
+                ),
+              );
+            } catch (_) {
+              return const SizedBox.shrink();
+            }
+          }),
           Text(
             _restNameCtrl.text.trim().isEmpty
                 ? store.tenantName

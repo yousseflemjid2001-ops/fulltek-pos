@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../services/receipt_formatter.dart';
@@ -552,13 +554,30 @@ class _CheckoutDialogState extends State<CheckoutDialog> {
   }
 }
 
+Uint8List? _decodeLogoBytes(String? dataUrl) {
+  if (dataUrl == null || !dataUrl.contains(',')) return null;
+  try {
+    return base64Decode(dataUrl.split(',').last.trim());
+  } catch (_) {
+    return null;
+  }
+}
+
 void showReceiptPreviewDialog(
   BuildContext context, {
   required String title,
   required String receiptText,
   String? subtitle,
+  String? logoDataUrl,
+  String logoPosition = 'center',
 }) {
   final p = FullTekThemes.paletteOf(context);
+  final logoBytes = _decodeLogoBytes(logoDataUrl);
+  final logoAlign = logoPosition == 'left'
+      ? Alignment.centerLeft
+      : (logoPosition == 'right'
+          ? Alignment.centerRight
+          : Alignment.center);
   showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -587,22 +606,49 @@ void showReceiptPreviewDialog(
           border: Border.all(color: const Color(0xFFD6D3D1)),
         ),
         child: SingleChildScrollView(
-          child: SelectableText(
-            receiptText,
-            key: const Key('receipt_80mm_text'),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
-              height: 1.35,
-              color: Color(0xFF1C1917),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (logoBytes != null) ...[
+                Align(
+                  alignment: logoAlign,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 160,
+                      maxHeight: 68,
+                    ),
+                    child: Image.memory(
+                      logoBytes,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              SelectableText(
+                receiptText,
+                key: const Key('receipt_80mm_text'),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  height: 1.35,
+                  color: Color(0xFF1C1917),
+                ),
+              ),
+            ],
           ),
         ),
       ),
       actions: [
         OutlinedButton.icon(
           key: const Key('print_80mm_btn'),
-          onPressed: () => printThermal80mm(title, receiptText),
+          onPressed: () => printThermal80mm(
+            title,
+            receiptText,
+            logoDataUrl: logoDataUrl,
+            logoPosition: logoPosition,
+          ),
           icon: const Icon(Icons.print_rounded, size: 17),
           label: const Text('Imprimer 80mm'),
         ),

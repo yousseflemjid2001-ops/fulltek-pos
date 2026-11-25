@@ -658,6 +658,40 @@ void main() {
       expect(receipt, isNotNull);
       expect(store.waitingOrders.any((o) => o.id == sentOrderId), isFalse);
 
+      // 4. Wallet cashback accounting (500 MRU Bankily on 230 MRU bill -> +500 Bankily, -270 Cash!)
+      store.startCounterOrder();
+      store.setServiceMode(ServiceMode.takeaway);
+      const snack = MenuItem(
+        id: 'SNACK-230',
+        categoryId: 'plats',
+        sku: 'SNK-230',
+        nameFr: 'Menu Express',
+        nameAr: 'وجبة سريعة',
+        nameEn: 'Express Meal',
+        priceMru: 230,
+      );
+      store.addItemToActiveOrder(snack);
+      final cashbackClosed = store.completeCheckout([
+        const PaymentEntry(
+          method: PaymentMethod.bankily,
+          amountMru: 500,
+          reference: 'BK-500',
+        ),
+      ]);
+      expect(cashbackClosed, isNotNull);
+      expect(cashbackClosed!.changeDue, closeTo(270, 0.01));
+      expect(store.walletCashbackGivenMru, closeTo(270, 0.01));
+      final reportX = store.generateReportX80mm();
+      expect(reportX, contains('dont rendu s/Wallets'));
+      expect(reportX, contains('500 MRU'));
+
+      // 5. Custom Receipt Logo configuration
+      store.setReceiptLogo('data:image/png;base64,iVBORw0KGgo=', position: 'right');
+      expect(store.receiptLogoDataUrl, startsWith('data:image/png;base64,'));
+      expect(store.receiptLogoPosition, 'right');
+      store.clearReceiptLogo();
+      expect(store.receiptLogoDataUrl, isEmpty);
+
       // Delete custom delivery zone
       expect(store.deleteDeliveryZone(customZ.id), isTrue);
       expect(store.deliveryZones.any((z) => z.id == customZ.id), isFalse);

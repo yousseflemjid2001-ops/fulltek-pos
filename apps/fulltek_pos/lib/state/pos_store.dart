@@ -175,6 +175,10 @@ class PosStore extends ChangeNotifier {
         'storeNif': storeNif,
         'storeRc': storeRc,
         'receiptFooter': receiptFooter,
+        'receiptLogoDataUrl': receiptLogoDataUrl,
+        'receiptLogoPosition': receiptLogoPosition,
+        'freeDeliveryAboveMru': freeDeliveryAboveMru,
+        'deliveryZones': deliveryZones.map((z) => z.toJson()).toList(),
         'cloudJwtToken': cloudJwtToken,
         'enabledThemeCodes': enabledThemeCodes,
         'enabledPayMethods': enabledPayMethods,
@@ -261,6 +265,27 @@ class PosStore extends ChangeNotifier {
         storeNif = '${map['storeNif'] ?? storeNif}';
         storeRc = '${map['storeRc'] ?? storeRc}';
         receiptFooter = '${map['receiptFooter'] ?? receiptFooter}';
+        receiptLogoDataUrl = '${map['receiptLogoDataUrl'] ?? ''}';
+        final rawLogoPos = '${map['receiptLogoPosition'] ?? 'center'}';
+        if (rawLogoPos == 'left' ||
+            rawLogoPos == 'right' ||
+            rawLogoPos == 'center') {
+          receiptLogoPosition = rawLogoPos;
+        }
+        if (map['freeDeliveryAboveMru'] is num) {
+          freeDeliveryAboveMru = (map['freeDeliveryAboveMru'] as num).toDouble();
+        }
+        if (map['deliveryZones'] is List) {
+          final loadedZones = (map['deliveryZones'] as List)
+              .whereType<Map>()
+              .map((m) => DeliveryZone.fromJson(Map<String, dynamic>.from(m)))
+              .where((z) => z.nameFr.trim().isNotEmpty)
+              .toList();
+          if (loadedZones.isNotEmpty) {
+            deliveryZones = loadedZones;
+            _selectedDeliveryZone = deliveryZones.first;
+          }
+        }
         cloudJwtToken = map['cloudJwtToken'] as String?;
         if (cloudJwtToken != null &&
             cloudJwtToken!.isNotEmpty &&
@@ -679,6 +704,24 @@ class PosStore extends ChangeNotifier {
   String storeNif = '';
   String storeRc = '';
   String receiptFooter = 'Merci de votre visite ! شكراً لزيارتكم';
+  String receiptLogoDataUrl = '';
+  String receiptLogoPosition = 'center'; // 'left' | 'center' | 'right'
+
+  void setReceiptLogo(String? dataUrl, {String? position}) {
+    if (dataUrl != null) {
+      receiptLogoDataUrl = dataUrl.trim();
+    }
+    if (position != null &&
+        (position == 'left' || position == 'center' || position == 'right')) {
+      receiptLogoPosition = position;
+    }
+    notifyListeners();
+  }
+
+  void clearReceiptLogo() {
+    receiptLogoDataUrl = '';
+    notifyListeners();
+  }
   List<String> enabledThemeCodes = const ['01', '04', '06', '07', '11'];
   List<String> enabledPayMethods = const [
     'Cash',
@@ -4813,22 +4856,38 @@ class PosStore extends ChangeNotifier {
       List<PosOrder> orders, PaymentMethod method) {
     double sum = 0;
     for (final o in orders) {
-      var remainingChange = o.changeDue;
       for (final p in o.payments) {
         if (p.method == method) {
-          if (method == PaymentMethod.cash) {
-            final deducted =
-                remainingChange > p.amountMru ? p.amountMru : remainingChange;
-            sum += (p.amountMru - deducted).clamp(0.0, double.infinity);
-            remainingChange -= deducted;
-          } else {
-            sum += p.amountMru;
-          }
+          sum += p.amountMru;
         }
+      }
+      // All change returned to the customer (whether from Cash overpayment OR
+      // Wallet cashback like Bankily 500 MRU on a 230 MRU bill -> 270 MRU cash returned)
+      // comes out of the physical Cash drawer!
+      if (method == PaymentMethod.cash && o.changeDue > 0) {
+        sum -= o.changeDue;
       }
     }
     return sum;
   }
+
+  /// Cash returned from the physical drawer on wallet/non-cash overpayments
+  /// (e.g. client transfers 500 MRU Bankily on a 230 MRU bill -> 270 MRU cash given back).
+  double walletCashbackGivenInOrders(List<PosOrder> orders) {
+    double total = 0;
+    for (final o in orders) {
+      if (o.changeDue <= 0) continue;
+      final cashPaid = o.payments
+          .where((p) => p.method == PaymentMethod.cash)
+          .fold<double>(0.0, (s, p) => s + p.amountMru);
+      final excessFromNonCash = (o.changeDue - cashPaid).clamp(0.0, o.changeDue);
+      total += excessFromNonCash;
+    }
+    return total;
+  }
+
+  double get walletCashbackGivenMru =>
+      walletCashbackGivenInOrders(_unclosedRealOrders);
 
   double _expectedForMethod(PaymentMethod method) =>
       _expectedForMethodInOrders(_unclosedRealOrders, method);
@@ -4902,6 +4961,7 @@ class PosStore extends ChangeNotifier {
       clickMru: _expectedForMethodInOrders(orders, PaymentMethod.click),
       otherWallets: _expectedOtherWalletsInOrders(orders),
       karniMru: _expectedForMethodInOrders(orders, PaymentMethod.karni),
+      walletCashbackMru: walletCashbackGivenInOrders(orders),
       restaurantName: tenantName,
     );
   }
