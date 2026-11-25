@@ -15,7 +15,7 @@ void main() {
       final arafat = DeliveryZone.nouakchottPresets
           .firstWhere((z) => z.id == 'zone-arafat');
 
-      expect(centre.feeMru, 50);
+      expect(centre.feeMru, 100);
       expect(tz.feeMru, 100);
       expect(ksar.feeMru, 150);
       expect(arafat.feeMru, 150);

@@ -1759,6 +1759,85 @@ class PosStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Creates or updates a delivery zone & its fee (MRU) according to restaurant location.
+  DeliveryZone saveDeliveryZone({
+    String? existingId,
+    required String nameFr,
+    String? nameAr,
+    required double feeMru,
+  }) {
+    final cleanFr = nameFr.trim();
+    final cleanAr = (nameAr != null && nameAr.trim().isNotEmpty)
+        ? nameAr.trim()
+        : cleanFr;
+    final safeFee = feeMru < 0 ? 0.0 : feeMru;
+    final id = (existingId != null && existingId.trim().isNotEmpty)
+        ? existingId.trim()
+        : 'zone-${DateTime.now().millisecondsSinceEpoch}';
+    final updated = DeliveryZone(
+      id: id,
+      nameFr: cleanFr,
+      nameAr: cleanAr,
+      nameEn: cleanFr,
+      feeMru: safeFee,
+    );
+    final idx = deliveryZones.indexWhere((z) => z.id == id);
+    if (idx != -1) {
+      deliveryZones[idx] = updated;
+    } else {
+      deliveryZones.add(updated);
+    }
+    if (_selectedDeliveryZone?.id == id || _selectedDeliveryZone == null) {
+      _selectedDeliveryZone = updated;
+    }
+    final order = activeOrder;
+    if (order != null &&
+        order.serviceMode == ServiceMode.delivery &&
+        order.deliveryZone?.id == id) {
+      final fee = _computeDeliveryFee(order.serviceMode, updated, order.subtotal);
+      _openOrdersById[order.id] = order.copyWith(
+        deliveryZone: updated,
+        deliveryFeeMru: fee,
+      );
+    }
+    notifyListeners();
+    return updated;
+  }
+
+  /// Removes a delivery zone (keeps at least 1 zone configured).
+  bool deleteDeliveryZone(String id) {
+    if (deliveryZones.length <= 1) return false;
+    final before = deliveryZones.length;
+    deliveryZones.removeWhere((z) => z.id == id);
+    if (deliveryZones.length == before) return false;
+    if (_selectedDeliveryZone?.id == id) {
+      _selectedDeliveryZone = deliveryZones.first;
+    }
+    final order = activeOrder;
+    if (order != null &&
+        order.serviceMode == ServiceMode.delivery &&
+        order.deliveryZone?.id == id) {
+      final fallback = deliveryZones.first;
+      final fee = _computeDeliveryFee(order.serviceMode, fallback, order.subtotal);
+      _openOrdersById[order.id] = order.copyWith(
+        deliveryZone: fallback,
+        deliveryFeeMru: fee,
+      );
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Updates the free-delivery threshold (0 = never free automatically).
+  void setFreeDeliveryAboveMru(double thresholdMru) {
+    freeDeliveryAboveMru = thresholdMru < 0 ? 0.0 : thresholdMru;
+    final order = activeOrder;
+    if (order != null && order.serviceMode == ServiceMode.delivery) {
+      _openOrdersById[order.id] = _withRecomputedDelivery(order);
+    }
+    notifyListeners();
+  }
+
   void setDeliveryInfo({
     String? customerName,
     String? customerPhone,
@@ -1766,6 +1845,7 @@ class PosStore extends ChangeNotifier {
     String? deliveryDriverName,
     bool clearDeliveryDriver = false,
     DeliveryZone? zone,
+    double? customDeliveryFeeMru,
   }) {
     if (zone != null) {
       _selectedDeliveryZone = zone;
@@ -1773,11 +1853,9 @@ class PosStore extends ChangeNotifier {
     final order = activeOrder;
     if (order != null) {
       final nextZone = zone ?? order.deliveryZone ?? _selectedDeliveryZone;
-      final fee = _computeDeliveryFee(
-        order.serviceMode,
-        nextZone,
-        order.subtotal,
-      );
+      final nextFee = customDeliveryFeeMru != null
+          ? (customDeliveryFeeMru < 0 ? 0.0 : customDeliveryFeeMru)
+          : _computeDeliveryFee(order.serviceMode, nextZone, order.subtotal);
       _openOrdersById[order.id] = order.copyWith(
         customerName: customerName,
         customerPhone: customerPhone,
@@ -1785,7 +1863,7 @@ class PosStore extends ChangeNotifier {
         deliveryDriverName: deliveryDriverName,
         clearDeliveryDriver: clearDeliveryDriver,
         deliveryZone: order.serviceMode == ServiceMode.delivery ? nextZone : null,
-        deliveryFeeMru: fee,
+        deliveryFeeMru: nextFee,
       );
     }
     notifyListeners();
@@ -4636,12 +4714,52 @@ class PosStore extends ChangeNotifier {
     final rIdx = reservations.indexWhere((r) => r.id == reservationId);
     if (rIdx == -1) return startCounterOrder();
     final res = reservations[rIdx];
+    // Automatically archive any older seated reservations on the same table so duplicates never pile up
+    for (var i = 0; i < reservations.length; i++) {
+      if (i != rIdx &&
+          reservations[i].tableId == res.tableId &&
+          reservations[i].status == 'seated') {
+        reservations[i] = reservations[i].copyWith(status: 'completed');
+      }
+    }
     reservations[rIdx] = res.copyWith(status: 'seated');
     return openOrSelectTable(
       res.tableId,
       guests: res.guests,
       arbounMru: res.arbounMru,
     );
+  }
+
+  /// Marks a reservation as completed (archives it from the active Floor Plan list).
+  void completeReservation(String reservationId) {
+    final rIdx = reservations.indexWhere((r) => r.id == reservationId);
+    if (rIdx == -1) return;
+    reservations[rIdx] = reservations[rIdx].copyWith(status: 'completed');
+    notifyListeners();
+  }
+
+  /// Cancels a pending/seated reservation and frees the table if it was only 'reserved' (no active order).
+  void cancelReservation(String reservationId) {
+    final rIdx = reservations.indexWhere((r) => r.id == reservationId);
+    if (rIdx == -1) return;
+    final res = reservations[rIdx];
+    reservations[rIdx] = res.copyWith(status: 'cancelled');
+    final tIdx = tables.indexWhere((t) => t.id == res.tableId);
+    if (tIdx != -1) {
+      final tbl = tables[tIdx];
+      final hasOrder = tbl.activeOrderId != null &&
+          _openOrdersById.containsKey(tbl.activeOrderId) &&
+          (_openOrdersById[tbl.activeOrderId]?.items.isNotEmpty ?? false);
+      if (!hasOrder && tbl.status == TableStatus.reserved) {
+        tables[tIdx] = tbl.copyWith(
+          status: TableStatus.free,
+          guests: 0,
+          arbounMru: 0,
+          clearOrder: true,
+        );
+      }
+    }
+    notifyListeners();
   }
 
   // --- Karni Credit ---

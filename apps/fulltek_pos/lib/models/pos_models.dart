@@ -338,7 +338,7 @@ class DeliveryZone {
       nameFr: 'Centre / Ilot K',
       nameAr: 'المركز / إيلو ك',
       nameEn: 'Center / Ilot K',
-      feeMru: 50,
+      feeMru: 100,
     ),
     DeliveryZone(
       id: 'zone-tz',

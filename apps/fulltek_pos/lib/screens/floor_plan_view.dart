@@ -1441,23 +1441,73 @@ class _FloorPlanViewState extends State<FloorPlanView> {
                       ],
                       const SizedBox(height: 8),
                       if (r.status == 'confirmed')
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            key: Key('seat_res_${r.id}'),
-                            onPressed: () {
-                              store.seatReservation(r.id);
-                              widget.onTableSelected();
-                            },
-                            icon: const Icon(Icons.login_rounded, size: 16),
-                            label: Text(i18n.t('seat_guests')),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                key: Key('seat_res_${r.id}'),
+                                onPressed: () {
+                                  store.seatReservation(r.id);
+                                  widget.onTableSelected();
+                                },
+                                icon: const Icon(Icons.login_rounded, size: 15),
+                                label: Text(i18n.t('seat_guests')),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            OutlinedButton(
+                              key: Key('cancel_res_${r.id}'),
+                              onPressed: () {
+                                store.cancelReservation(r.id);
+                                setState(() {});
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: p.danger,
+                                side: BorderSide(color: p.danger),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                              ),
+                              child: const Icon(Icons.close_rounded, size: 16),
+                            ),
+                          ],
                         )
                       else
-                        Text(
-                          '✓ Installé',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800, color: p.success),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                key: Key('open_seated_res_${r.id}'),
+                                onPressed: () {
+                                  store.openOrSelectTable(r.tableId);
+                                  widget.onTableSelected();
+                                },
+                                icon: Icon(Icons.restaurant_rounded,
+                                    size: 14, color: p.primary),
+                                label: const Text('Ouvrir table',
+                                    style: TextStyle(fontSize: 11.5)),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 6),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            FilledButton.tonalIcon(
+                              key: Key('complete_res_${r.id}'),
+                              onPressed: () {
+                                store.completeReservation(r.id);
+                                setState(() {});
+                              },
+                              icon: Icon(Icons.check_circle_outline_rounded,
+                                  size: 14, color: p.success),
+                              label: const Text('Terminer',
+                                  style: TextStyle(fontSize: 11.5)),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                              ),
+                            ),
+                          ],
                         ),
                     ],
                   ),

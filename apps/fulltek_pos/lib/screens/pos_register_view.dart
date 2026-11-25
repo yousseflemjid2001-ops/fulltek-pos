@@ -229,6 +229,12 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     DeliveryZone? selectedZone = order?.deliveryZone ??
         store.selectedDeliveryZone ??
         (store.deliveryZones.isNotEmpty ? store.deliveryZones.first : null);
+    final initialFee = (order != null &&
+            order.serviceMode == ServiceMode.delivery &&
+            order.deliveryFeeMru > 0)
+        ? order.deliveryFeeMru
+        : (selectedZone?.feeMru ?? 100.0);
+    final feeCtrl = TextEditingController(text: initialFee.toStringAsFixed(0));
 
     final driverSuggestions = <String>{
       for (final s in store.staff.where((s) => s.isActive)) s.name,
@@ -264,29 +270,52 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (store.deliveryZones.isNotEmpty && selectedZone != null) ...[
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedZone!.id,
-                      decoration: const InputDecoration(
-                        labelText: 'Zone de livraison (Nouakchott)',
-                        prefixIcon: Icon(Icons.map_outlined),
-                      ),
-                      items: store.deliveryZones
-                          .map(
-                            (z) => DropdownMenuItem(
-                              value: z.id,
-                              child: Text(
-                                '${z.label(store.lang)} (+${z.feeMru.toStringAsFixed(0)} MRU)',
-                              ),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedZone!.id,
+                            decoration: const InputDecoration(
+                              labelText: 'Zone de livraison',
+                              prefixIcon: Icon(Icons.map_outlined),
                             ),
-                          )
-                          .toList(),
-                      onChanged: (id) {
-                        if (id == null) return;
-                        setD(() {
-                          selectedZone = store.deliveryZones
-                              .firstWhere((e) => e.id == id);
-                        });
-                      },
+                            items: store.deliveryZones
+                                .map(
+                                  (z) => DropdownMenuItem(
+                                    value: z.id,
+                                    child: Text(
+                                      '${z.label(store.lang)} (${z.feeMru.toStringAsFixed(0)} MRU)',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (id) {
+                              if (id == null) return;
+                              setD(() {
+                                selectedZone = store.deliveryZones
+                                    .firstWhere((e) => e.id == id);
+                                feeCtrl.text =
+                                    selectedZone!.feeMru.toStringAsFixed(0);
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            key: const Key('delivery_custom_fee_input'),
+                            controller: feeCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Frais (MRU)',
+                              suffixText: 'MRU',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -375,6 +404,8 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               key: const Key('save_delivery_info_btn'),
               onPressed: () {
                 final drv = driverCtrl.text.trim();
+                final parsedFee = double.tryParse(
+                    feeCtrl.text.trim().replaceAll(',', '.'));
                 store.setDeliveryInfo(
                   customerName: nameCtrl.text.trim(),
                   customerPhone: phoneCtrl.text.trim(),
@@ -382,6 +413,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                   deliveryDriverName: drv.isEmpty ? null : drv,
                   clearDeliveryDriver: drv.isEmpty,
                   zone: selectedZone,
+                  customDeliveryFeeMru: parsedFee,
                 );
                 Navigator.of(ctx).pop(true);
               },
@@ -398,7 +430,233 @@ class _PosRegisterViewState extends State<PosRegisterView> {
     phoneCtrl.dispose();
     addrCtrl.dispose();
     driverCtrl.dispose();
+    feeCtrl.dispose();
     return saved == true;
+  }
+
+  Future<void> _openManageDeliveryZonesDialog() async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    final nameCtrl = TextEditingController();
+    final feeCtrl = TextEditingController(text: '100');
+    final freeCtrl = TextEditingController(
+      text: store.freeDeliveryAboveMru.toStringAsFixed(0),
+    );
+    String? editingId;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: p.surface,
+          title: Row(
+            children: [
+              Icon(Icons.local_shipping_rounded, color: p.primary, size: 22),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Tarifs & Zones de Livraison',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Adaptez les quartiers et tarifs (MRU) selon la localisation de votre restaurant :',
+                    style: TextStyle(fontSize: 12, color: p.textMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  ...store.deliveryZones.map((z) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: p.surfaceAlt,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: editingId == z.id ? p.primary : p.border,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              z.nameFr,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: p.primary.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${z.feeMru.toStringAsFixed(0)} MRU',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: p.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            tooltip: 'Modifier',
+                            visualDensity: VisualDensity.compact,
+                            icon: Icon(Icons.edit_rounded,
+                                size: 17, color: p.primary),
+                            onPressed: () {
+                              setD(() {
+                                editingId = z.id;
+                                nameCtrl.text = z.nameFr;
+                                feeCtrl.text = z.feeMru.toStringAsFixed(0);
+                              });
+                            },
+                          ),
+                          if (store.deliveryZones.length > 1)
+                            IconButton(
+                              tooltip: 'Supprimer',
+                              visualDensity: VisualDensity.compact,
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  size: 17, color: p.danger),
+                              onPressed: () {
+                                setD(() {
+                                  if (editingId == z.id) {
+                                    editingId = null;
+                                    nameCtrl.clear();
+                                    feeCtrl.text = '100';
+                                  }
+                                  store.deleteDeliveryZone(z.id);
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          key: const Key('manage_dz_name_input'),
+                          controller: nameCtrl,
+                          decoration: InputDecoration(
+                            labelText: editingId == null
+                                ? 'Nouveau quartier / zone'
+                                : 'Modifier le nom de zone',
+                            hintText: 'Ex: Tevragh Zeina Nord...',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          key: const Key('manage_dz_fee_input'),
+                          controller: feeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Tarif',
+                            suffixText: 'MRU',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        key: const Key('manage_dz_save_btn'),
+                        onPressed: () {
+                          final n = nameCtrl.text.trim();
+                          final f = double.tryParse(
+                                  feeCtrl.text.trim().replaceAll(',', '.')) ??
+                              100.0;
+                          if (n.isEmpty) return;
+                          setD(() {
+                            store.saveDeliveryZone(
+                              existingId: editingId,
+                              nameFr: n,
+                              feeMru: f,
+                            );
+                            editingId = null;
+                            nameCtrl.clear();
+                            feeCtrl.text = '100';
+                          });
+                        },
+                        child: Text(editingId == null ? '+' : 'OK'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('manage_dz_free_above_input'),
+                          controller: freeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Livraison offerte dès (0 = désactivé)',
+                            suffixText: 'MRU',
+                            prefixIcon: Icon(Icons.card_giftcard_rounded),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          final v = double.tryParse(
+                                  freeCtrl.text.trim().replaceAll(',', '.')) ??
+                              0.0;
+                          setD(() => store.setFreeDeliveryAboveMru(v));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(v > 0
+                                  ? 'Livraison gratuite dès ${v.toStringAsFixed(0)} MRU.'
+                                  : 'Livraison gratuite automatique désactivée.'),
+                            ),
+                          );
+                        },
+                        child: const Text('Appliquer'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    feeCtrl.dispose();
+    freeCtrl.dispose();
   }
 
   Future<void> _sendToKitchen() async {
@@ -722,8 +980,21 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       }
     }
 
+    final sentMode = order.serviceMode;
     final kdsTicket = store.sendActiveOrderToKitchenAndPark();
     if (kdsTicket == null || !mounted) return;
+    if (sentMode == ServiceMode.delivery || sentMode == ServiceMode.takeaway) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 5),
+          content: Text(
+            sentMode == ServiceMode.delivery
+                ? '🛵 Livraison envoyée en cuisine ! Cliquez sur « En attente / Encaisser » en haut du panier pour l\'encaisser.'
+                : '🛍️ Commande à emporter envoyée ! Cliquez sur « En attente / Encaisser » en haut du panier pour l\'encaisser.',
+          ),
+        ),
+      );
+    }
     showReceiptPreviewDialog(
       context,
       title: '${store.i18n.t('kitchen_sent')} · Mise en attente',
@@ -1199,14 +1470,15 @@ class _PosRegisterViewState extends State<PosRegisterView> {
 
   Future<void> _openWaitingOrdersDialog() async {
     final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
     final waiting = store.waitingOrders;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Commandes en attente & Tables (${waiting.length})'),
         content: SizedBox(
-          width: 440,
-          height: 360,
+          width: 540,
+          height: 380,
           child: waiting.isEmpty
               ? const Center(
                   child: Text('Aucune commande en attente.'),
@@ -1260,12 +1532,49 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                       subtitle: Text(
                         '${deliverySummary.isNotEmpty ? '$deliverySummary\n' : ''}👤 $srv · 🕒 Ouverte à $hm · ⏱ $chrono · ${o.items.length} article(s)',
                       ),
-                      trailing: FilledButton.tonal(
-                        onPressed: () {
-                          store.resumeWaitingOrder(o.id);
-                          Navigator.of(ctx).pop();
-                        },
-                        child: const Text('Ouvrir / Modifier'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Annuler la commande',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () {
+                              store.resumeWaitingOrder(o.id);
+                              Navigator.of(ctx).pop();
+                              _openAbandonOrderDialog();
+                            },
+                            icon: Icon(Icons.delete_outline_rounded,
+                                size: 19, color: p.danger),
+                          ),
+                          OutlinedButton(
+                            onPressed: () {
+                              store.resumeWaitingOrder(o.id);
+                              Navigator.of(ctx).pop();
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 9, vertical: 6),
+                            ),
+                            child: const Text('Ouvrir',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                          const SizedBox(width: 6),
+                          FilledButton(
+                            key: Key('waiting_pay_${o.id}'),
+                            onPressed: () {
+                              store.resumeWaitingOrder(o.id);
+                              Navigator.of(ctx).pop();
+                              _openCheckout();
+                            },
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                            ),
+                            child: const Text('Encaisser',
+                                style: TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.w800)),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -2279,6 +2588,79 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               }).toList(),
             ),
           ),
+          // Prominent quick-access banner whenever there are pending Deliveries / Takeaway / Waiting orders
+          Builder(builder: (_) {
+            final waitingAll = store.waitingOrders;
+            final waitingDelivery = waitingAll
+                .where((o) => o.serviceMode == ServiceMode.delivery)
+                .toList();
+            final waitingTakeaway = waitingAll
+                .where((o) => o.serviceMode == ServiceMode.takeaway)
+                .toList();
+            final showBanner = waitingDelivery.isNotEmpty ||
+                waitingTakeaway.isNotEmpty ||
+                (items.isEmpty && waitingAll.isNotEmpty);
+            if (!showBanner) return const SizedBox.shrink();
+            final parts = <String>[
+              if (waitingDelivery.isNotEmpty)
+                '🛵 ${waitingDelivery.length} Livraison(s)',
+              if (waitingTakeaway.isNotEmpty)
+                '🛍️ ${waitingTakeaway.length} Emporter',
+            ];
+            final bannerText = parts.isNotEmpty
+                ? '${parts.join(' · ')} en cours'
+                : '⏳ ${waitingAll.length} commande(s) en attente';
+            return Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: InkWell(
+                key: const Key('waiting_delivery_banner_btn'),
+                borderRadius: BorderRadius.circular(11),
+                onTap: _openWaitingOrdersDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: p.warning.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: p.warning, width: 1.3),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          bannerText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: p.warning,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Encaisser →',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
           if (store.serviceMode == ServiceMode.delivery) ...[
             const SizedBox(height: 8),
             Container(
@@ -2307,10 +2689,17 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                               key: const Key('delivery_zone_dropdown'),
                               isDense: true,
                               isExpanded: true,
-                              value: (order?.deliveryZone ??
-                                      store.selectedDeliveryZone ??
-                                      store.deliveryZones.first)
-                                  .id,
+                              value: store.deliveryZones.any((z) =>
+                                      z.id ==
+                                      (order?.deliveryZone ??
+                                              store.selectedDeliveryZone ??
+                                              store.deliveryZones.first)
+                                          .id)
+                                  ? (order?.deliveryZone ??
+                                          store.selectedDeliveryZone ??
+                                          store.deliveryZones.first)
+                                      .id
+                                  : store.deliveryZones.first.id,
                               items: store.deliveryZones.map((z) {
                                 return DropdownMenuItem(
                                   value: z.id,
@@ -2331,6 +2720,37 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                     .firstWhere((e) => e.id == id);
                                 store.setDeliveryZone(z);
                               },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          key: const Key('manage_delivery_zones_btn'),
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: _openManageDeliveryZonesDialog,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: p.surface,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: p.border),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.tune_rounded,
+                                    size: 14, color: p.primary),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Tarifs',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: p.primary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

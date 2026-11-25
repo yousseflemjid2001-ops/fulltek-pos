@@ -610,4 +610,105 @@ void main() {
       expect(moved.y, closeTo(0.44, 0.001));
     },
   );
+
+  test(
+    'Customizable Delivery zones/fees (>=100 MRU), delivery recall-to-checkout, and reservation complete/cancel lifecycle',
+    () {
+      final store = PosStore(enablePersistence: false);
+      store.loginWithPin('1234');
+
+      // 1. Default zones start at >= 100 MRU (no 50 MRU) + custom zone CRUD & per-order fee override
+      expect(store.deliveryZones.every((z) => z.feeMru >= 100), isTrue);
+      final customZ = store.saveDeliveryZone(
+        nameFr: 'Tevragh Zeina Nord',
+        feeMru: 200,
+      );
+      expect(store.deliveryZones.any((z) => z.id == customZ.id && z.feeMru == 200), isTrue);
+      store.setFreeDeliveryAboveMru(0);
+      expect(store.freeDeliveryAboveMru, 0);
+
+      // 2. Delivery order sent to kitchen stays in waitingOrders, resumes cleanly & checks out
+      store.startCounterOrder();
+      store.setServiceMode(ServiceMode.delivery);
+      store.addItemToActiveOrder(store.menuItems.first);
+      store.setDeliveryInfo(
+        customerName: 'Ahmed',
+        customerPhone: '+222 44112233',
+        deliveryDriverName: 'Sidi Moto',
+        zone: customZ,
+        customDeliveryFeeMru: 150,
+      );
+      expect(store.activeOrder!.deliveryFeeMru, 150);
+      final sentOrderId = store.activeOrder!.id;
+      final kds = store.sendActiveOrderToKitchenAndPark();
+      expect(kds, isNotNull);
+      expect(store.waitingOrders.any((o) => o.id == sentOrderId), isTrue);
+
+      // Resume and pay
+      store.resumeWaitingOrder(sentOrderId);
+      expect(store.activeOrder!.id, sentOrderId);
+      expect(store.activeOrder!.customerName, 'Ahmed');
+      expect(store.activeOrder!.deliveryDriverName, 'Sidi Moto');
+      final receipt = store.completeCheckout([
+        PaymentEntry(
+          method: PaymentMethod.cash,
+          amountMru: store.activeOrder!.netTotal,
+        ),
+      ]);
+      expect(receipt, isNotNull);
+      expect(store.waitingOrders.any((o) => o.id == sentOrderId), isFalse);
+
+      // Delete custom delivery zone
+      expect(store.deleteDeliveryZone(customZ.id), isTrue);
+      expect(store.deliveryZones.any((z) => z.id == customZ.id), isFalse);
+
+      // 3. Reservation complete / cancel & no duplicate seated piling
+      final tbl = store.tables.first;
+      store.addVipReservation(
+        customerName: 'Taha 1',
+        phone: '+222 46000001',
+        tableId: tbl.id,
+        guests: 2,
+        timeSlot: '20:00',
+        arbounMru: 150,
+      );
+      final res1Id = store.reservations.first.id;
+      store.seatReservation(res1Id);
+      expect(store.reservations.firstWhere((r) => r.id == res1Id).status, 'seated');
+
+      // Second reservation on same table auto-archives older seated one
+      store.addVipReservation(
+        customerName: 'Taha 2',
+        phone: '+222 46000002',
+        tableId: tbl.id,
+        guests: 3,
+        timeSlot: '21:00',
+        arbounMru: 200,
+      );
+      final res2Id = store.reservations.first.id;
+      store.seatReservation(res2Id);
+      expect(store.reservations.firstWhere((r) => r.id == res1Id).status, 'completed');
+      expect(store.reservations.firstWhere((r) => r.id == res2Id).status, 'seated');
+
+      // Manual complete removes it from active list
+      store.completeReservation(res2Id);
+      expect(store.reservations.firstWhere((r) => r.id == res2Id).status, 'completed');
+
+      // Cancel pending reservation frees reserved table
+      final tbl2 = store.tables[1];
+      store.addVipReservation(
+        customerName: 'Client Annule',
+        phone: '+222 46000003',
+        tableId: tbl2.id,
+        guests: 4,
+        timeSlot: '22:00',
+        arbounMru: 0,
+      );
+      final res3Id = store.reservations.first.id;
+      expect(store.tables.firstWhere((t) => t.id == tbl2.id).status, TableStatus.reserved);
+      store.cancelReservation(res3Id);
+      expect(store.reservations.firstWhere((r) => r.id == res3Id).status, 'cancelled');
+      expect(store.tables.firstWhere((t) => t.id == tbl2.id).status, TableStatus.free);
+    },
+  );
 }
