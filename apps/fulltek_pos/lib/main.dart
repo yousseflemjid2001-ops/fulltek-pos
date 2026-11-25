@@ -105,36 +105,33 @@ class _FullTekPosAppState extends State<FullTekPosApp> {
                 child: content,
               );
             }
-            Widget root = Directionality(
-              textDirection: i18n.direction,
-              child: TouchKeyboardHost(child: content),
+            final mq = MediaQuery.of(context);
+            final z = _store.uiZoom.clamp(0.80, 1.30);
+            final hasFiniteSize = mq.size.width.isFinite &&
+                mq.size.height.isFinite &&
+                mq.size.width > 0 &&
+                mq.size.height > 0;
+            final scaledSize = hasFiniteSize
+                ? Size(mq.size.width / z, mq.size.height / z)
+                : mq.size;
+
+            return MediaQuery(
+              data: mq.copyWith(
+                size: scaledSize,
+                devicePixelRatio: mq.devicePixelRatio * z,
+              ),
+              child: FittedBox(
+                fit: BoxFit.fill,
+                child: SizedBox(
+                  width: scaledSize.width,
+                  height: scaledSize.height,
+                  child: Directionality(
+                    textDirection: i18n.direction,
+                    child: TouchKeyboardHost(child: content),
+                  ),
+                ),
+              ),
             );
-            final z = _store.uiZoom;
-            if ((z - 1.0).abs() > 0.001) {
-              root = LayoutBuilder(
-                builder: (ctx, constraints) {
-                  if (!constraints.maxWidth.isFinite ||
-                      !constraints.maxHeight.isFinite ||
-                      constraints.maxWidth <= 0 ||
-                      constraints.maxHeight <= 0) {
-                    return root;
-                  }
-                  return OverflowBox(
-                    minWidth: constraints.maxWidth / z,
-                    maxWidth: constraints.maxWidth / z,
-                    minHeight: constraints.maxHeight / z,
-                    maxHeight: constraints.maxHeight / z,
-                    alignment: Alignment.center,
-                    child: Transform.scale(
-                      scale: z,
-                      alignment: Alignment.center,
-                      child: root,
-                    ),
-                  );
-                },
-              );
-            }
-            return root;
           },
           home: !_store.accountLoggedIn
               ? AccountLoginScreen(store: _store)

@@ -181,6 +181,25 @@ void main() {
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
+      // Live Zoom 90% -> 110% -> 100% must never unmount Navigator or block UI
+      await tester.tap(find.byKey(const Key('zoom_menu_btn')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('90%'));
+      await tester.pumpAndSettle();
+      expect(store.uiZoom, closeTo(0.9, 0.01));
+
+      await tester.tap(find.byKey(const Key('zoom_menu_btn')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('80%'));
+      await tester.pumpAndSettle();
+      expect(store.uiZoom, closeTo(0.8, 0.01));
+
+      await tester.tap(find.byKey(const Key('zoom_menu_btn')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('100% (Normal)'));
+      await tester.pumpAndSettle();
+      expect(store.uiZoom, closeTo(1.0, 0.01));
+
       // Navigate to Closing Z & submit blind closing
       await tester.tap(find.byKey(const Key('nav_tab_closing')));
       await tester.pumpAndSettle();
