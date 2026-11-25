@@ -49,6 +49,7 @@ class PosStore extends ChangeNotifier {
   List<VipReservation> reservations = [];
   List<KarniCustomer> karniCustomers = [];
   List<DeliveryZone> deliveryZones = [];
+  bool deliveryFeeEnabled = true;
   List<Ingredient> ingredients = [];
   List<RecipeBomLine> recipesBom = [];
 
@@ -177,6 +178,7 @@ class PosStore extends ChangeNotifier {
         'receiptFooter': receiptFooter,
         'receiptLogoDataUrl': receiptLogoDataUrl,
         'receiptLogoPosition': receiptLogoPosition,
+        'deliveryFeeEnabled': deliveryFeeEnabled,
         'freeDeliveryAboveMru': freeDeliveryAboveMru,
         'deliveryZones': deliveryZones.map((z) => z.toJson()).toList(),
         'cloudJwtToken': cloudJwtToken,
@@ -271,6 +273,9 @@ class PosStore extends ChangeNotifier {
             rawLogoPos == 'right' ||
             rawLogoPos == 'center') {
           receiptLogoPosition = rawLogoPos;
+        }
+        if (map['deliveryFeeEnabled'] is bool) {
+          deliveryFeeEnabled = map['deliveryFeeEnabled'] == true;
         }
         if (map['freeDeliveryAboveMru'] is num) {
           freeDeliveryAboveMru = (map['freeDeliveryAboveMru'] as num).toDouble();
@@ -1743,8 +1748,20 @@ class PosStore extends ChangeNotifier {
     DeliveryZone? zone,
     double subtotal,
   ) {
-    if (mode != ServiceMode.delivery || zone == null) return 0;
+    if (!deliveryFeeEnabled || mode != ServiceMode.delivery || zone == null) {
+      return 0;
+    }
     return zone.effectiveFeeFor(subtotal, freeAboveMru: freeDeliveryAboveMru);
+  }
+
+  void setDeliveryFeeEnabled(bool enabled) {
+    if (deliveryFeeEnabled == enabled) return;
+    deliveryFeeEnabled = enabled;
+    final order = activeOrder;
+    if (order != null && order.serviceMode == ServiceMode.delivery) {
+      _openOrdersById[order.id] = _withRecomputedDelivery(order);
+    }
+    notifyListeners();
   }
 
   PosOrder _withRecomputedDelivery(PosOrder order) {
@@ -1896,9 +1913,12 @@ class PosStore extends ChangeNotifier {
     final order = activeOrder;
     if (order != null) {
       final nextZone = zone ?? order.deliveryZone ?? _selectedDeliveryZone;
-      final nextFee = customDeliveryFeeMru != null
-          ? (customDeliveryFeeMru < 0 ? 0.0 : customDeliveryFeeMru)
-          : _computeDeliveryFee(order.serviceMode, nextZone, order.subtotal);
+      final nextFee = !deliveryFeeEnabled
+          ? 0.0
+          : (customDeliveryFeeMru != null
+              ? (customDeliveryFeeMru < 0 ? 0.0 : customDeliveryFeeMru)
+              : _computeDeliveryFee(
+                  order.serviceMode, nextZone, order.subtotal));
       _openOrdersById[order.id] = order.copyWith(
         customerName: customerName,
         customerPhone: customerPhone,

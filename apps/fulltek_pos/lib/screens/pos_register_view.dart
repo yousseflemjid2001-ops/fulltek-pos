@@ -2683,7 +2683,35 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (store.deliveryZones.isNotEmpty)
+                  if (!store.deliveryFeeEnabled)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: p.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: p.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.delivery_dining_rounded,
+                              size: 16, color: p.textMuted),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Frais livraison désactivés (0 MRU · réglés au livreur)',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (store.deliveryZones.isNotEmpty)
                     Row(
                       children: [
                         Icon(Icons.delivery_dining_rounded,

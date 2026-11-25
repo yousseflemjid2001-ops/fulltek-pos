@@ -627,6 +627,17 @@ void main() {
       store.setFreeDeliveryAboveMru(0);
       expect(store.freeDeliveryAboveMru, 0);
 
+      // Delivery fees toggle OFF (managed directly between client & driver -> 0 MRU on receipt)
+      store.startCounterOrder();
+      store.setServiceMode(ServiceMode.delivery);
+      store.addItemToActiveOrder(store.menuItems.first);
+      store.setDeliveryZone(customZ);
+      expect(store.activeOrder!.deliveryFeeMru, 200);
+      store.setDeliveryFeeEnabled(false);
+      expect(store.activeOrder!.deliveryFeeMru, 0);
+      store.setDeliveryFeeEnabled(true);
+      expect(store.activeOrder!.deliveryFeeMru, 200);
+
       // 2. Delivery order sent to kitchen stays in waitingOrders, resumes cleanly & checks out
       store.startCounterOrder();
       store.setServiceMode(ServiceMode.delivery);

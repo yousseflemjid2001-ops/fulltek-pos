@@ -490,14 +490,123 @@ class _PosShellScreenState extends State<PosShellScreen> {
                                 ),
                               ),
                             );
+                            final deliveryFeeCard = StatefulBuilder(
+                              builder: (ctx, setDeliv) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: p.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: p.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.delivery_dining_rounded,
+                                        color: store.deliveryFeeEnabled
+                                            ? p.primary
+                                            : p.textMuted,
+                                        size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  'Frais de livraison',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: p.textPrimary,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (store.deliveryFeeEnabled) ...[
+                                                const SizedBox(width: 6),
+                                                InkWell(
+                                                  key: const Key(
+                                                      'settings_delivery_zones_btn'),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  onTap: () =>
+                                                      _openDeliveryZonesSettingsDialog(
+                                                          ctx),
+                                                  child: Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: p.primary
+                                                          .withValues(
+                                                              alpha: 0.14),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              6),
+                                                    ),
+                                                    child: Text(
+                                                      '⚙ Tarifs',
+                                                      style: TextStyle(
+                                                        fontSize: 10.5,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: p.primary,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          Text(
+                                            store.deliveryFeeEnabled
+                                                ? '${store.deliveryZones.length} zone(s) actives (MRU)'
+                                                : 'Désactivé (0 MRU · géré avec livreur)',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: p.textMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Switch(
+                                      key: const Key(
+                                          'delivery_fee_enabled_switch'),
+                                      value: store.deliveryFeeEnabled,
+                                      onChanged: (v) {
+                                        store.setDeliveryFeeEnabled(v);
+                                        setDeliv(() {});
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
                             if (isWide) {
-                              return Row(
+                              return Column(
                                 children: [
-                                  Expanded(child: noteCard),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: tvaCard),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: kbCard),
+                                  Row(
+                                    children: [
+                                      Expanded(child: noteCard),
+                                      const SizedBox(width: 10),
+                                      Expanded(child: tvaCard),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(child: deliveryFeeCard),
+                                      const SizedBox(width: 10),
+                                      Expanded(child: kbCard),
+                                    ],
+                                  ),
                                 ],
                               );
                             }
@@ -506,6 +615,8 @@ class _PosShellScreenState extends State<PosShellScreen> {
                                 noteCard,
                                 const SizedBox(height: 8),
                                 tvaCard,
+                                const SizedBox(height: 8),
+                                deliveryFeeCard,
                                 const SizedBox(height: 8),
                                 kbCard,
                               ],
@@ -1314,5 +1425,220 @@ class _PosShellScreenState extends State<PosShellScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openDeliveryZonesSettingsDialog(BuildContext parentCtx) async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(parentCtx);
+    final nameCtrl = TextEditingController();
+    final feeCtrl = TextEditingController(text: '100');
+    final freeCtrl = TextEditingController(
+      text: store.freeDeliveryAboveMru.toStringAsFixed(0),
+    );
+    String? editingId;
+
+    await showDialog<void>(
+      context: parentCtx,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: p.surface,
+          title: Row(
+            children: [
+              Icon(Icons.local_shipping_rounded, color: p.primary, size: 22),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Paramétrage Zones & Frais de Livraison',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Appliquer des frais de livraison',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      store.deliveryFeeEnabled
+                          ? 'Les frais de la zone choisie s\'ajoutent au ticket.'
+                          : 'Désactivé : 0 MRU sur le ticket (réglé entre client et livreur).',
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                    value: store.deliveryFeeEnabled,
+                    onChanged: (v) {
+                      setD(() => store.setDeliveryFeeEnabled(v));
+                    },
+                  ),
+                  const Divider(height: 14),
+                  ...store.deliveryZones.map((z) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: p.surfaceAlt,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: editingId == z.id ? p.primary : p.border,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              z.nameFr,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${z.feeMru.toStringAsFixed(0)} MRU',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                              color: p.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            tooltip: 'Modifier',
+                            visualDensity: VisualDensity.compact,
+                            icon: Icon(Icons.edit_rounded,
+                                size: 17, color: p.primary),
+                            onPressed: () {
+                              setD(() {
+                                editingId = z.id;
+                                nameCtrl.text = z.nameFr;
+                                feeCtrl.text = z.feeMru.toStringAsFixed(0);
+                              });
+                            },
+                          ),
+                          if (store.deliveryZones.length > 1)
+                            IconButton(
+                              tooltip: 'Supprimer',
+                              visualDensity: VisualDensity.compact,
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  size: 17, color: p.danger),
+                              onPressed: () {
+                                setD(() {
+                                  if (editingId == z.id) {
+                                    editingId = null;
+                                    nameCtrl.clear();
+                                    feeCtrl.text = '100';
+                                  }
+                                  store.deleteDeliveryZone(z.id);
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: nameCtrl,
+                          decoration: InputDecoration(
+                            labelText: editingId == null
+                                ? 'Nouveau quartier / zone'
+                                : 'Modifier la zone',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: feeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Tarif',
+                            suffixText: 'MRU',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        onPressed: () {
+                          final n = nameCtrl.text.trim();
+                          final f = double.tryParse(
+                                  feeCtrl.text.trim().replaceAll(',', '.')) ??
+                              100.0;
+                          if (n.isEmpty) return;
+                          setD(() {
+                            store.saveDeliveryZone(
+                              existingId: editingId,
+                              nameFr: n,
+                              feeMru: f,
+                            );
+                            editingId = null;
+                            nameCtrl.clear();
+                            feeCtrl.text = '100';
+                          });
+                        },
+                        child: Text(editingId == null ? '+' : 'OK'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: freeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Livraison offerte dès (0 = désactivé)',
+                            suffixText: 'MRU',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          final v = double.tryParse(
+                                  freeCtrl.text.trim().replaceAll(',', '.')) ??
+                              0.0;
+                          setD(() => store.setFreeDeliveryAboveMru(v));
+                        },
+                        child: const Text('Appliquer'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    feeCtrl.dispose();
+    freeCtrl.dispose();
   }
 }
