@@ -131,6 +131,19 @@
         }
       });
     }
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        for (var i = 0; i < keys.length; i++) {
+          caches.delete(keys[i]);
+        }
+      });
+    }
+    window.addEventListener('error', function (ev) {
+      var sub = document.querySelector('.ft-sub');
+      var btn = document.getElementById('ft-reload');
+      if (sub && ev && ev.message) sub.textContent = 'Erreur: ' + ev.message;
+      if (btn) btn.style.display = 'inline-block';
+    });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

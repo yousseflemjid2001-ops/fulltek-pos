@@ -6,6 +6,50 @@ import 'state/pos_store.dart';
 import 'widgets/touch_keyboard.dart';
 
 void main() {
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: const Color(0xFF0B1220),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFF131C2E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFEF4444)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Erreur d\'affichage Full·Tek Resto',
+                    style: TextStyle(
+                      color: Color(0xFFF87171),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    '${details.exception}',
+                    style: const TextStyle(
+                      color: Color(0xFFE2E8F0),
+                      fontSize: 12.5,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  };
   runApp(const FullTekPosApp());
 }
 
@@ -68,18 +112,26 @@ class _FullTekPosAppState extends State<FullTekPosApp> {
             final z = _store.uiZoom;
             if ((z - 1.0).abs() > 0.001) {
               root = LayoutBuilder(
-                builder: (ctx, constraints) => OverflowBox(
-                  minWidth: constraints.maxWidth / z,
-                  maxWidth: constraints.maxWidth / z,
-                  minHeight: constraints.maxHeight / z,
-                  maxHeight: constraints.maxHeight / z,
-                  alignment: Alignment.center,
-                  child: Transform.scale(
-                    scale: z,
+                builder: (ctx, constraints) {
+                  if (!constraints.maxWidth.isFinite ||
+                      !constraints.maxHeight.isFinite ||
+                      constraints.maxWidth <= 0 ||
+                      constraints.maxHeight <= 0) {
+                    return root;
+                  }
+                  return OverflowBox(
+                    minWidth: constraints.maxWidth / z,
+                    maxWidth: constraints.maxWidth / z,
+                    minHeight: constraints.maxHeight / z,
+                    maxHeight: constraints.maxHeight / z,
                     alignment: Alignment.center,
-                    child: root,
-                  ),
-                ),
+                    child: Transform.scale(
+                      scale: z,
+                      alignment: Alignment.center,
+                      child: root,
+                    ),
+                  );
+                },
               );
             }
             return root;
