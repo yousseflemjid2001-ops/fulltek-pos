@@ -246,6 +246,22 @@ class _PosShellScreenState extends State<PosShellScreen> {
                               ),
                             _buildFunctionTile(
                               p: p,
+                              icon: Icons.tune_rounded,
+                              title: 'Paramétrage X & Z',
+                              subtitle: [
+                                'Règlements',
+                                if (store.xzShowByFamily) 'Familles',
+                                if (store.xzShowByArticle) 'Articles',
+                                if (store.xzShowByCustomer) 'Clients',
+                              ].join(' · '),
+                              color: const Color(0xFF0EA5E9),
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                showXzReportSettingsDialog(context, store);
+                              },
+                            ),
+                            _buildFunctionTile(
+                              p: p,
                               icon: Icons.chat_bubble_outline_rounded,
                               title: 'Commentaires',
                               subtitle:
@@ -1239,7 +1255,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
                   foregroundColor: p.textPrimary,
                   side: BorderSide(color: p.primary.withValues(alpha: 0.45)),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1277,6 +1293,70 @@ class _PosShellScreenState extends State<PosShellScreen> {
                 ),
               ],
             ],
+            const SizedBox(width: 4),
+            // Compact In-app Zoom menu (like browser zoom: 80% .. 130%)
+            PopupMenuButton<double>(
+              key: const Key('zoom_menu_btn'),
+              tooltip: 'Zoom interface (${(store.uiZoom * 100).round()}%)',
+              onSelected: store.setUiZoom,
+              itemBuilder: (_) => [0.80, 0.90, 1.00, 1.10, 1.20, 1.30]
+                  .map(
+                    (z) => PopupMenuItem<double>(
+                      value: z,
+                      child: Row(
+                        children: [
+                          Icon(
+                            z < 1.0
+                                ? Icons.zoom_out_rounded
+                                : (z > 1.0
+                                    ? Icons.zoom_in_rounded
+                                    : Icons.center_focus_strong_rounded),
+                            size: 18,
+                            color: (store.uiZoom - z).abs() < 0.01
+                                ? p.primary
+                                : p.textMuted,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(z * 100).round()}%${z == 1.0 ? ' (Normal)' : ''}',
+                            style: TextStyle(
+                              fontWeight: (store.uiZoom - z).abs() < 0.01
+                                  ? FontWeight.w900
+                                  : FontWeight.w600,
+                              color: (store.uiZoom - z).abs() < 0.01
+                                  ? p.primary
+                                  : p.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.zoom_in_rounded,
+                        color: (store.uiZoom - 1.0).abs() > 0.01
+                            ? p.primary
+                            : p.textPrimary,
+                        size: 19),
+                    Text(
+                      '${(store.uiZoom * 100).round()}%',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: (store.uiZoom - 1.0).abs() > 0.01
+                            ? p.primary
+                            : p.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(width: 4),
             // Theme quick button
             PopupMenuButton<FullTekThemeId>(
@@ -1394,7 +1474,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
         decoration: BoxDecoration(
           color: active ? p.primary : p.surfaceAlt,
           borderRadius: BorderRadius.circular(12),

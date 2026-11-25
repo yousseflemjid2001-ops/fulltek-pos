@@ -495,6 +495,13 @@ class ReceiptFormatter {
     required double karniMru,
     double walletCashbackMru = 0,
     String restaurantName = 'FULL-TEK RESTO POS',
+    bool showByFamily = false,
+    bool showByArticle = false,
+    bool showByCustomer = false,
+    List<({String name, int qty, double totalMru})> byFamily = const [],
+    List<({String name, int qty, double totalMru})> byArticle = const [],
+    List<({String name, int ordersCount, double totalMru})> byCustomer =
+        const [],
   }) {
     final now = DateTime.now();
     final dateStr =
@@ -538,12 +545,84 @@ class ReceiptFormatter {
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL ENCAISSE (X):', formatMru(total)));
     buf.writeln(_line('='));
+    _appendBreakdownSections(
+      buf,
+      showByFamily: showByFamily,
+      showByArticle: showByArticle,
+      showByCustomer: showByCustomer,
+      byFamily: byFamily,
+      byArticle: byArticle,
+      byCustomer: byCustomer,
+    );
     buf.writeln(_center('COMPTEURS NON REMIS A ZERO'));
     buf.writeln(_line('='));
     return buf.toString();
   }
 
-  static String formatClosingZReport(CashClosingZ z) {
+  static void _appendBreakdownSections(
+    StringBuffer buf, {
+    required bool showByFamily,
+    required bool showByArticle,
+    required bool showByCustomer,
+    required List<({String name, int qty, double totalMru})> byFamily,
+    required List<({String name, int qty, double totalMru})> byArticle,
+    required List<({String name, int ordersCount, double totalMru})> byCustomer,
+  }) {
+    if (showByFamily) {
+      buf.writeln(_center('--- VENTES PAR FAMILLE ---'));
+      if (byFamily.isEmpty) {
+        buf.writeln('  (Aucune vente)');
+      } else {
+        for (final f in byFamily) {
+          final label = f.name.length > 21
+              ? '${f.name.substring(0, 19)}..'
+              : f.name;
+          buf.writeln(_padRow('${f.qty}x $label', formatMru(f.totalMru)));
+        }
+      }
+      buf.writeln(_line());
+    }
+    if (showByArticle) {
+      buf.writeln(_center('--- VENTES PAR ARTICLE ---'));
+      if (byArticle.isEmpty) {
+        buf.writeln('  (Aucune vente)');
+      } else {
+        for (final a in byArticle) {
+          final label = a.name.length > 21
+              ? '${a.name.substring(0, 19)}..'
+              : a.name;
+          buf.writeln(_padRow('${a.qty}x $label', formatMru(a.totalMru)));
+        }
+      }
+      buf.writeln(_line());
+    }
+    if (showByCustomer) {
+      buf.writeln(_center('--- VENTES PAR CLIENT ---'));
+      if (byCustomer.isEmpty) {
+        buf.writeln('  (Aucun client)');
+      } else {
+        for (final c in byCustomer) {
+          final label = c.name.length > 20
+              ? '${c.name.substring(0, 18)}..'
+              : c.name;
+          buf.writeln(
+              _padRow('$label (${c.ordersCount})', formatMru(c.totalMru)));
+        }
+      }
+      buf.writeln(_line());
+    }
+  }
+
+  static String formatClosingZReport(
+    CashClosingZ z, {
+    bool showByFamily = false,
+    bool showByArticle = false,
+    bool showByCustomer = false,
+    List<({String name, int qty, double totalMru})> byFamily = const [],
+    List<({String name, int qty, double totalMru})> byArticle = const [],
+    List<({String name, int ordersCount, double totalMru})> byCustomer =
+        const [],
+  }) {
     final buf = StringBuffer();
     buf.writeln(_line('='));
     buf.writeln(_center('CLOTURE Z AVEUGLE · FULL-TEK'));
@@ -576,6 +655,15 @@ class ReceiptFormatter {
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL CA JOUR:', formatMru(z.totalExpectedMru)));
     buf.writeln(_line('='));
+    _appendBreakdownSections(
+      buf,
+      showByFamily: showByFamily,
+      showByArticle: showByArticle,
+      showByCustomer: showByCustomer,
+      byFamily: byFamily,
+      byArticle: byArticle,
+      byCustomer: byCustomer,
+    );
     return buf.toString();
   }
 }

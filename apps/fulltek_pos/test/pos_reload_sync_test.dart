@@ -703,6 +703,60 @@ void main() {
       store.clearReceiptLogo();
       expect(store.receiptLogoDataUrl, isEmpty);
 
+      // 6. Paramétrage X & Z (par famille, par article, par client) + uiZoom
+      store.startCounterOrder();
+      store.setServiceMode(ServiceMode.delivery);
+      store.addItemToActiveOrder(snack);
+      store.setDeliveryInfo(
+        customerName: 'Mariem Mint Ali',
+        customerPhone: '+222 46112233',
+        zone: customZ,
+      );
+      store.completeCheckout([
+        PaymentEntry(
+          method: PaymentMethod.cash,
+          amountMru: store.activeOrder!.netTotal,
+        ),
+      ]);
+
+      // Default: règlements only (no family/article/customer sections)
+      store.setXzReportSettings(
+          byFamily: false, byArticle: false, byCustomer: false);
+      final xPlain = store.generateReportX80mm();
+      expect(xPlain, isNot(contains('VENTES PAR FAMILLE')));
+      expect(xPlain, isNot(contains('VENTES PAR ARTICLE')));
+      expect(xPlain, isNot(contains('VENTES PAR CLIENT')));
+
+      // Enable all 3 details -> present in X and in Z
+      store.setXzReportSettings(
+          byFamily: true, byArticle: true, byCustomer: true);
+      final xDetailed = store.generateReportX80mm();
+      expect(xDetailed, contains('VENTES PAR FAMILLE'));
+      expect(xDetailed, contains('VENTES PAR ARTICLE'));
+      expect(xDetailed, contains('VENTES PAR CLIENT'));
+      expect(xDetailed, contains('Menu Express'));
+      expect(xDetailed, contains('Mariem Mint Ali'));
+
+      final zClosed = store.submitBlindClosingZ(
+        countedCashMru: 0,
+        countedBankilyMru: 500,
+        countedMasriviMru: 0,
+        countedSedadMru: 0,
+      );
+      final zDetailed = store.formatClosingZ80mm(zClosed);
+      expect(zDetailed, contains('VENTES PAR FAMILLE'));
+      expect(zDetailed, contains('VENTES PAR ARTICLE'));
+      expect(zDetailed, contains('VENTES PAR CLIENT'));
+      expect(zDetailed, contains('Mariem Mint Ali'));
+
+      // uiZoom clamping (0.80 .. 1.30)
+      store.setUiZoom(1.2);
+      expect(store.uiZoom, 1.2);
+      store.setUiZoom(2.5);
+      expect(store.uiZoom, 1.3);
+      store.setUiZoom(0.3);
+      expect(store.uiZoom, 0.8);
+
       // Delete custom delivery zone
       expect(store.deleteDeliveryZone(customZ.id), isTrue);
       expect(store.deliveryZones.any((z) => z.id == customZ.id), isFalse);

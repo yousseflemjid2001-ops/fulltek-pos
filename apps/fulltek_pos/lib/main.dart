@@ -61,10 +61,28 @@ class _FullTekPosAppState extends State<FullTekPosApp> {
                 child: content,
               );
             }
-            return Directionality(
+            Widget root = Directionality(
               textDirection: i18n.direction,
               child: TouchKeyboardHost(child: content),
             );
+            final z = _store.uiZoom;
+            if ((z - 1.0).abs() > 0.001) {
+              root = LayoutBuilder(
+                builder: (ctx, constraints) => OverflowBox(
+                  minWidth: constraints.maxWidth / z,
+                  maxWidth: constraints.maxWidth / z,
+                  minHeight: constraints.maxHeight / z,
+                  maxHeight: constraints.maxHeight / z,
+                  alignment: Alignment.center,
+                  child: Transform.scale(
+                    scale: z,
+                    alignment: Alignment.center,
+                    child: root,
+                  ),
+                ),
+              );
+            }
+            return root;
           },
           home: !_store.accountLoggedIn
               ? AccountLoginScreen(store: _store)

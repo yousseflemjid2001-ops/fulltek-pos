@@ -50,6 +50,10 @@ class PosStore extends ChangeNotifier {
   List<KarniCustomer> karniCustomers = [];
   List<DeliveryZone> deliveryZones = [];
   bool deliveryFeeEnabled = true;
+  bool xzShowByFamily = false;
+  bool xzShowByArticle = false;
+  bool xzShowByCustomer = false;
+  double uiZoom = 1.0;
   List<Ingredient> ingredients = [];
   List<RecipeBomLine> recipesBom = [];
 
@@ -180,6 +184,10 @@ class PosStore extends ChangeNotifier {
         'receiptLogoPosition': receiptLogoPosition,
         'deliveryFeeEnabled': deliveryFeeEnabled,
         'freeDeliveryAboveMru': freeDeliveryAboveMru,
+        'xzShowByFamily': xzShowByFamily,
+        'xzShowByArticle': xzShowByArticle,
+        'xzShowByCustomer': xzShowByCustomer,
+        'uiZoom': uiZoom,
         'deliveryZones': deliveryZones.map((z) => z.toJson()).toList(),
         'cloudJwtToken': cloudJwtToken,
         'enabledThemeCodes': enabledThemeCodes,
@@ -276,6 +284,18 @@ class PosStore extends ChangeNotifier {
         }
         if (map['deliveryFeeEnabled'] is bool) {
           deliveryFeeEnabled = map['deliveryFeeEnabled'] == true;
+        }
+        if (map['xzShowByFamily'] is bool) {
+          xzShowByFamily = map['xzShowByFamily'] == true;
+        }
+        if (map['xzShowByArticle'] is bool) {
+          xzShowByArticle = map['xzShowByArticle'] == true;
+        }
+        if (map['xzShowByCustomer'] is bool) {
+          xzShowByCustomer = map['xzShowByCustomer'] == true;
+        }
+        if (map['uiZoom'] is num) {
+          uiZoom = (map['uiZoom'] as num).toDouble().clamp(0.80, 1.30);
         }
         if (map['freeDeliveryAboveMru'] is num) {
           freeDeliveryAboveMru = (map['freeDeliveryAboveMru'] as num).toDouble();
@@ -725,6 +745,24 @@ class PosStore extends ChangeNotifier {
 
   void clearReceiptLogo() {
     receiptLogoDataUrl = '';
+    notifyListeners();
+  }
+
+  void setXzReportSettings({
+    bool? byFamily,
+    bool? byArticle,
+    bool? byCustomer,
+  }) {
+    if (byFamily != null) xzShowByFamily = byFamily;
+    if (byArticle != null) xzShowByArticle = byArticle;
+    if (byCustomer != null) xzShowByCustomer = byCustomer;
+    notifyListeners();
+  }
+
+  void setUiZoom(double nextZoom) {
+    final clamped = (nextZoom.clamp(0.80, 1.30) * 100).round() / 100.0;
+    if ((clamped - uiZoom).abs() < 0.001) return;
+    uiZoom = clamped;
     notifyListeners();
   }
   List<String> enabledThemeCodes = const ['01', '04', '06', '07', '11'];
@@ -4941,6 +4979,111 @@ class PosStore extends ChangeNotifier {
     return out;
   }
 
+  final Map<
+      String,
+      ({
+        List<({String name, int qty, double totalMru})> byFamily,
+        List<({String name, int qty, double totalMru})> byArticle,
+        List<({String name, int ordersCount, double totalMru})> byCustomer,
+      })> _zBreakdownsById = {};
+
+  ({
+    List<({String name, int qty, double totalMru})> byFamily,
+    List<({String name, int qty, double totalMru})> byArticle,
+    List<({String name, int ordersCount, double totalMru})> byCustomer,
+  }) _computeXzBreakdown(List<PosOrder> orders) {
+    final catNames = <String, String>{
+      for (final c in categories) c.id: c.label(lang),
+    };
+    final famQty = <String, int>{};
+    final famTot = <String, double>{};
+    final artQty = <String, int>{};
+    final artTot = <String, double>{};
+    final custCount = <String, int>{};
+    final custTot = <String, double>{};
+
+    for (final o in orders) {
+      for (final line in o.items) {
+        final fKey = catNames[line.item.categoryId] ?? line.item.categoryId;
+        famQty[fKey] = (famQty[fKey] ?? 0) + line.quantity;
+        famTot[fKey] = (famTot[fKey] ?? 0.0) + line.lineTotal;
+
+        final aKey = line.item.label(lang);
+        artQty[aKey] = (artQty[aKey] ?? 0) + line.quantity;
+        artTot[aKey] = (artTot[aKey] ?? 0.0) + line.lineTotal;
+      }
+
+      String cName = (o.customerName ?? '').trim();
+      if (cName.isEmpty) {
+        for (final p in o.payments) {
+          if (p.method == PaymentMethod.karni &&
+              (p.karniCustomerId ?? '').isNotEmpty) {
+            final kc = karniCustomers
+                .where((k) => k.id == p.karniCustomerId)
+                .firstOrNull;
+            if (kc != null && kc.name.trim().isNotEmpty) {
+              cName = kc.name.trim();
+              break;
+            }
+          }
+        }
+      }
+      if (cName.isEmpty) {
+        cName = o.tableCode != null
+            ? 'Table ${o.tableCode}'
+            : 'Client passage';
+      }
+      custCount[cName] = (custCount[cName] ?? 0) + 1;
+      custTot[cName] = (custTot[cName] ?? 0.0) + o.netTotal;
+    }
+
+    final byFamily = famTot.entries
+        .map((e) => (
+              name: e.key,
+              qty: famQty[e.key] ?? 0,
+              totalMru: e.value,
+            ))
+        .toList()
+      ..sort((a, b) => b.totalMru.compareTo(a.totalMru));
+
+    final byArticle = artTot.entries
+        .map((e) => (
+              name: e.key,
+              qty: artQty[e.key] ?? 0,
+              totalMru: e.value,
+            ))
+        .toList()
+      ..sort((a, b) => b.totalMru.compareTo(a.totalMru));
+
+    final byCustomer = custTot.entries
+        .map((e) => (
+              name: e.key,
+              ordersCount: custCount[e.key] ?? 0,
+              totalMru: e.value,
+            ))
+        .toList()
+      ..sort((a, b) => b.totalMru.compareTo(a.totalMru));
+
+    return (
+      byFamily: byFamily,
+      byArticle: byArticle,
+      byCustomer: byCustomer,
+    );
+  }
+
+  String formatClosingZ80mm(CashClosingZ z) {
+    final bd = _zBreakdownsById[z.id];
+    return ReceiptFormatter.formatClosingZReport(
+      z,
+      showByFamily: xzShowByFamily,
+      showByArticle: xzShowByArticle,
+      showByCustomer: xzShowByCustomer,
+      byFamily: bd?.byFamily ?? const [],
+      byArticle: bd?.byArticle ?? const [],
+      byCustomer: bd?.byCustomer ?? const [],
+    );
+  }
+
   /// Generates an 80mm intermediate X-Report ("Rapport X Caissier" or "X Général")
   /// WITHOUT closing the shift or resetting counters.
   String generateReportX80mm({String? staffName}) {
@@ -4968,6 +5111,8 @@ class PosStore extends ChangeNotifier {
           }).length
         : waitingOrders.length;
 
+    final breakdown = _computeXzBreakdown(orders);
+
     return ReceiptFormatter.formatReportX80mm(
       scopeLabel: filterByStaff ? 'X Caissier: $target' : 'X General (Tous)',
       ordersCount: orders.length,
@@ -4983,6 +5128,12 @@ class PosStore extends ChangeNotifier {
       karniMru: _expectedForMethodInOrders(orders, PaymentMethod.karni),
       walletCashbackMru: walletCashbackGivenInOrders(orders),
       restaurantName: tenantName,
+      showByFamily: xzShowByFamily,
+      showByArticle: xzShowByArticle,
+      showByCustomer: xzShowByCustomer,
+      byFamily: breakdown.byFamily,
+      byArticle: breakdown.byArticle,
+      byCustomer: breakdown.byCustomer,
     );
   }
 
@@ -5080,6 +5231,7 @@ class PosStore extends ChangeNotifier {
       _closedOrderIdsInZ.add(o.id);
     }
     _lastZClosedAt = zTime;
+    _zBreakdownsById[z.id] = _computeXzBreakdown(closedOrdersForZ);
     _closingsZ.insert(0, z);
     _enqueueSync(
       entityType: 'closing_z',

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
-import '../services/receipt_formatter.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/touch_numpad.dart';
@@ -99,7 +98,7 @@ class _ClosingZViewState extends State<ClosingZView> {
     showReceiptPreviewDialog(
       context,
       title: widget.store.i18n.t('closing_z_report'),
-      receiptText: ReceiptFormatter.formatClosingZReport(z),
+      receiptText: widget.store.formatClosingZ80mm(z),
     );
   }
 
@@ -165,6 +164,17 @@ class _ClosingZViewState extends State<ClosingZView> {
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
                         color: p.textPrimary),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('closing_z_settings_btn'),
+                  onPressed: () => showXzReportSettingsDialog(context, store),
+                  icon: Icon(Icons.tune_rounded, size: 16, color: p.primary),
+                  label: const Text('Détails X / Z',
+                      style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   ),
                 ),
               ],
@@ -366,7 +376,7 @@ class _ClosingZViewState extends State<ClosingZView> {
                     onPressed: () => showReceiptPreviewDialog(
                       context,
                       title: i18n.t('closing_z_report'),
-                      receiptText: ReceiptFormatter.formatClosingZReport(z),
+                      receiptText: store.formatClosingZ80mm(z),
                     ),
                   ),
                 );
@@ -569,4 +579,103 @@ class _ClosingZViewState extends State<ClosingZView> {
       ),
     );
   }
+}
+
+Future<void> showXzReportSettingsDialog(
+    BuildContext context, PosStore store) async {
+  final p = FullTekThemes.paletteOf(context);
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setD) => AlertDialog(
+        backgroundColor: p.surface,
+        title: Row(
+          children: [
+            Icon(Icons.receipt_long_rounded, color: p.primary, size: 22),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Paramétrage Rapports X & Clôture Z',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Choisissez les sections détaillées à imprimer sur vos tickets X et Z 80 mm :',
+                style: TextStyle(fontSize: 12, color: p.textMuted),
+              ),
+              const SizedBox(height: 10),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Détail des règlements',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text(
+                    'Espèces, Bankily, Masrvi, Sedad, Karni... (toujours inclus)',
+                    style: TextStyle(fontSize: 11.5)),
+                value: true,
+                onChanged: null,
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                key: const Key('xz_by_family_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Ventes par Famille / Catégorie',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text(
+                    'Quantité & total MRU par famille (Plats, Boissons, Sandwich...)',
+                    style: TextStyle(fontSize: 11.5)),
+                value: store.xzShowByFamily,
+                onChanged: (v) {
+                  setD(() => store.setXzReportSettings(byFamily: v));
+                },
+              ),
+              SwitchListTile(
+                key: const Key('xz_by_article_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Ventes par Article / Produit',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text(
+                    'Quantité & total MRU de chaque plat/boisson vendu',
+                    style: TextStyle(fontSize: 11.5)),
+                value: store.xzShowByArticle,
+                onChanged: (v) {
+                  setD(() => store.setXzReportSettings(byArticle: v));
+                },
+              ),
+              SwitchListTile(
+                key: const Key('xz_by_customer_switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Ventes par Client',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text(
+                    'Nombre de tickets & total MRU par client / table / passage',
+                    style: TextStyle(fontSize: 11.5)),
+                value: store.xzShowByCustomer,
+                onChanged: (v) {
+                  setD(() => store.setXzReportSettings(byCustomer: v));
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
