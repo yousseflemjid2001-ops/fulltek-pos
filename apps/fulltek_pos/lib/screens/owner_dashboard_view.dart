@@ -4,7 +4,7 @@ import '../models/pos_models.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 
-enum _DashboardPeriod { today, week, month, all }
+enum _DashboardPeriod { today, yesterday, week, month, year, all, custom }
 
 class OwnerDashboardView extends StatefulWidget {
   final PosStore store;
@@ -16,6 +16,15 @@ class OwnerDashboardView extends StatefulWidget {
 
 class _OwnerDashboardViewState extends State<OwnerDashboardView> {
   _DashboardPeriod _period = _DashboardPeriod.today;
+  DateTime _customFrom = DateTime(
+      DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  DateTime _customTo = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => widget.store.fetchBackOfficeData());
+  }
 
   static const _paymentColors = <PaymentMethod, Color>{
     PaymentMethod.cash: Color(0xFF10B981),
@@ -39,37 +48,52 @@ class _OwnerDashboardViewState extends State<OwnerDashboardView> {
     PaymentMethod.karni: 'Crédit Karni',
   };
 
-  List<PosOrder> _ordersForPeriod(PosStore store) {
+  bool _matchesPeriod(DateTime rawDt) {
+    final dt = rawDt.toLocal();
     final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+    switch (_period) {
+      case _DashboardPeriod.today:
+        return !dt.isBefore(todayStart) && !dt.isAfter(todayEnd);
+      case _DashboardPeriod.yesterday:
+        final yStart = todayStart.subtract(const Duration(days: 1));
+        final yEnd =
+            DateTime(yStart.year, yStart.month, yStart.day, 23, 59, 59, 999);
+        return !dt.isBefore(yStart) && !dt.isAfter(yEnd);
+      case _DashboardPeriod.week:
+        final wStart = todayStart.subtract(const Duration(days: 6));
+        return !dt.isBefore(wStart) && !dt.isAfter(todayEnd);
+      case _DashboardPeriod.month:
+        final mStart = todayStart.subtract(const Duration(days: 29));
+        return !dt.isBefore(mStart) && !dt.isAfter(todayEnd);
+      case _DashboardPeriod.year:
+        final yrStart = todayStart.subtract(const Duration(days: 364));
+        return !dt.isBefore(yrStart) && !dt.isAfter(todayEnd);
+      case _DashboardPeriod.custom:
+        final d0 = DateTime(_customFrom.year, _customFrom.month, _customFrom.day);
+        final d1 = DateTime(_customTo.year, _customTo.month, _customTo.day);
+        final start = d0.isBefore(d1) ? d0 : d1;
+        final end = d0.isBefore(d1)
+            ? DateTime(d1.year, d1.month, d1.day, 23, 59, 59, 999)
+            : DateTime(d0.year, d0.month, d0.day, 23, 59, 59, 999);
+        return !dt.isBefore(start) && !dt.isAfter(end);
+      case _DashboardPeriod.all:
+        return true;
+    }
+  }
+
+  List<PosOrder> _ordersForPeriod(PosStore store) {
     return store.completedOrders.where((o) {
       if (o.isTraining) return false;
-      final dt = o.paidAt ?? o.createdAt;
-      return switch (_period) {
-        _DashboardPeriod.today =>
-          dt.year == now.year && dt.month == now.month && dt.day == now.day,
-        _DashboardPeriod.week =>
-          dt.isAfter(now.subtract(const Duration(days: 7))),
-        _DashboardPeriod.month =>
-          dt.isAfter(now.subtract(const Duration(days: 30))),
-        _DashboardPeriod.all => true,
-      };
+      return _matchesPeriod(o.paidAt ?? o.createdAt);
     }).toList(growable: false);
   }
 
   List<ReturnRemakeCompRecord> _remakesForPeriod(PosStore store) {
-    final now = DateTime.now();
-    return store.remakeRecords.where((r) {
-      final dt = r.createdAt;
-      return switch (_period) {
-        _DashboardPeriod.today =>
-          dt.year == now.year && dt.month == now.month && dt.day == now.day,
-        _DashboardPeriod.week =>
-          dt.isAfter(now.subtract(const Duration(days: 7))),
-        _DashboardPeriod.month =>
-          dt.isAfter(now.subtract(const Duration(days: 30))),
-        _DashboardPeriod.all => true,
-      };
-    }).toList(growable: false);
+    return store.remakeRecords
+        .where((r) => _matchesPeriod(r.createdAt))
+        .toList(growable: false);
   }
 
   Map<PaymentMethod, double> _paymentBreakdown(List<PosOrder> orders) {
@@ -102,11 +126,18 @@ class _OwnerDashboardViewState extends State<OwnerDashboardView> {
     return '${rounded < 0 ? '-' : ''}$buf MRU';
   }
 
+  String _fmtShortDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
   String _periodLabel(_DashboardPeriod p) => switch (p) {
         _DashboardPeriod.today => "Aujourd'hui",
+        _DashboardPeriod.yesterday => 'Hier',
         _DashboardPeriod.week => '7 jours',
         _DashboardPeriod.month => '30 jours',
+        _DashboardPeriod.year => '1 an',
         _DashboardPeriod.all => 'Tout',
+        _DashboardPeriod.custom =>
+          '📅 ${_fmtShortDate(_customFrom)} → ${_fmtShortDate(_customTo)}',
       };
 
   @override
@@ -316,17 +347,42 @@ class _OwnerDashboardViewState extends State<OwnerDashboardView> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: p.border),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Wrap(
+                    spacing: 2,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: _DashboardPeriod.values.map((per) {
                       final active = _period == per;
                       return InkWell(
                         key: Key('dash_period_${per.name}'),
                         borderRadius: BorderRadius.circular(9),
-                        onTap: () => setState(() => _period = per),
+                        onTap: () async {
+                          if (per == _DashboardPeriod.custom) {
+                            final picked = await showDateRangePicker(
+                              context: context,
+                              firstDate: DateTime(2024),
+                              lastDate: DateTime(2030),
+                              initialDateRange: DateTimeRange(
+                                start: _customFrom,
+                                end: _customTo.isBefore(_customFrom)
+                                    ? _customFrom
+                                    : _customTo,
+                              ),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _customFrom = picked.start;
+                                _customTo = picked.end;
+                                _period = _DashboardPeriod.custom;
+                              });
+                            }
+                            return;
+                          }
+                          setState(() => _period = per);
+                        },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 7),
+                              horizontal: 10, vertical: 7),
                           decoration: BoxDecoration(
                             color: active ? p.primary : Colors.transparent,
                             borderRadius: BorderRadius.circular(9),
@@ -334,7 +390,7 @@ class _OwnerDashboardViewState extends State<OwnerDashboardView> {
                           child: Text(
                             _periodLabel(per),
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w800,
                               color: active ? p.onPrimary : p.textMuted,
                             ),

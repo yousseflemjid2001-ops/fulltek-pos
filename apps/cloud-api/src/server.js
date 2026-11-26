@@ -801,12 +801,13 @@ function handlePosSyncItem(database, tenantId, item, nowIso, insertAudit) {
       bomCost = deductBomForProduct(database, tenantId, productId, qty, channel, pick(p, 'modifiers', 'modifiers_json') ?? []);
     }
     const costValueMru = Math.round(Number(pick(p, 'cost_value_mru', 'costValueMru') ?? bomCost)) || 0;
+    const remakeCreatedAt = String(pick(p, 'created_at', 'createdAt') ?? item.createdAt ?? '').trim() || nowIso;
 
     database.prepare(`
       INSERT INTO returns_remakes_comps (
         tenant_id, order_id, product_id, type, reason, qty, amount_mru, cost_value_mru, restock, approved_by, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(tenantId, orderId, productId, actionType, reason, qty, amountMru, costValueMru, actionType === 'RETURN' && p.restock ? 1 : 0, approvedBy, nowIso);
+    `).run(tenantId, orderId, productId, actionType, reason, qty, amountMru, costValueMru, actionType === 'RETURN' && p.restock ? 1 : 0, approvedBy, remakeCreatedAt);
 
     insertAudit.run(
       tenantId,
@@ -1098,6 +1099,179 @@ function handlePosSyncItem(database, tenantId, item, nowIso, insertAudit) {
     0,
     nowIso,
   );
+}
+
+function loadHistoricalOrdersForTenant(database, tenantId, limit = 1500) {
+  const safeLimit = Math.max(1, Math.min(5000, Number(limit) || 1500));
+  const orderRows = database
+    .prepare(`
+      SELECT *
+      FROM orders
+      WHERE tenant_id = ?
+        AND COALESCE(is_training, 0) = 0
+        AND UPPER(status) = 'PAID'
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `)
+    .all(tenantId, safeLimit);
+
+  if (orderRows.length === 0) return [];
+
+  const auditRows = database
+    .prepare(`
+      SELECT entity_id, actor, after_json
+      FROM audit_logs
+      WHERE tenant_id = ?
+        AND entity_type = 'order'
+      ORDER BY id DESC
+      LIMIT 3000
+    `)
+    .all(tenantId);
+
+  const auditByCode = new Map();
+  for (const a of auditRows) {
+    const code = String(a.entity_id || '').trim();
+    if (!code || auditByCode.has(code)) continue;
+    const parsedAfter = parseJson(a.after_json, null);
+    auditByCode.set(code, {
+      actor: a.actor || '',
+      payload: parsedAfter && typeof parsedAfter === 'object' ? parsedAfter : null,
+    });
+  }
+
+  const getItemsStmt = database.prepare(`
+    SELECT oi.*,
+           p.sku,
+           p.name_fr,
+           p.name_ar,
+           p.name_en,
+           p.category_id,
+           p.price_retail,
+           p.kitchen_station AS prod_station
+    FROM order_items oi
+    LEFT JOIN products p ON p.id = oi.product_id
+    WHERE oi.order_id = ?
+    ORDER BY oi.id ASC
+  `);
+
+  return orderRows.map((o) => {
+    const code = String(o.order_code || `ORD-${o.id}`).trim();
+    const audit = auditByCode.get(code);
+    const ap = audit && audit.payload ? audit.payload : {};
+
+    const dbItems = getItemsStmt.all(o.id);
+    const auditItems = Array.isArray(ap.items) ? ap.items : [];
+    const totalMru = Number(o.total_mru ?? 0);
+    const discountMru = Number(o.discount_mru ?? 0);
+
+    let itemsSubtotal = 0;
+    const mappedItems = dbItems.map((it, idx) => {
+      const aLine = auditItems[idx] && typeof auditItems[idx] === 'object' ? auditItems[idx] : {};
+      const qty = Math.max(1, Number(it.qty ?? aLine.qty ?? 1));
+      const unitPrice = Number(it.unit_price ?? aLine.unit_price ?? it.price_retail ?? 0);
+      itemsSubtotal += qty * unitPrice;
+      const mods = parseJson(it.modifiers_json, []);
+      return {
+        product_id: String(it.product_id ?? aLine.product_id ?? ''),
+        sku: String(it.sku || aLine.sku || ''),
+        category_id: it.category_id != null ? String(it.category_id) : String(aLine.category_id || ''),
+        name: String(it.name_fr || aLine.name || 'Article'),
+        name_fr: String(it.name_fr || aLine.name || 'Article'),
+        name_ar: String(it.name_ar || it.name_fr || aLine.name || 'Article'),
+        name_en: String(it.name_en || it.name_fr || aLine.name || 'Article'),
+        qty,
+        base_price: Number(it.price_retail ?? aLine.base_price ?? unitPrice),
+        unit_price: unitPrice,
+        is_comp: aLine.is_comp === true || aLine.isComp === true,
+        is_takeaway: aLine.is_takeaway === true || aLine.isTakeaway === true,
+        kitchen_station: String(it.kitchen_station || it.prod_station || aLine.kitchen_station || 'KITCHEN'),
+        kitchen_note: String(it.kitchen_note || aLine.kitchen_note || ''),
+        modifiers: Array.isArray(mods) ? mods : [],
+      };
+    });
+
+    if (totalMru === 0 && discountMru === 0 && itemsSubtotal > 0 && mappedItems.every((l) => !l.is_comp)) {
+      for (const l of mappedItems) l.is_comp = true;
+    }
+
+    const rawPayments = parseJson(o.payments_json, []);
+    const payments = Array.isArray(rawPayments) && rawPayments.length > 0
+      ? rawPayments
+      : [{ method: o.pay_method || 'Cash', amount_mru: totalMru }];
+
+    const explicitDiscPct = Number(ap.discount_percent ?? ap.discountPercent ?? 0);
+    const computedDiscPct = explicitDiscPct > 0
+      ? explicitDiscPct
+      : (discountMru > 0 && itemsSubtotal > 0
+        ? Number(((discountMru / itemsSubtotal) * 100).toFixed(2))
+        : 0);
+
+    const staffName = String(
+      ap.staff_name || ap.staffName || (audit && audit.actor) || 'Caisse',
+    ).trim() || 'Caisse';
+
+    const createdAt = String(ap.created_at || ap.createdAt || o.created_at || '').trim();
+    const paidAt = String(ap.paid_at || ap.paidAt || o.created_at || createdAt).trim();
+
+    return {
+      id: String(ap.id || `ORD-CLOUD-${o.id}`),
+      ticket_number: String(ap.ticket_number || code),
+      order_code: code,
+      table_code: o.table_name || ap.table_code || 'COMPTOIR',
+      staff_name: staffName,
+      service_mode: o.service_mode || o.channel || ap.service_mode || 'DINE_IN',
+      delivery_zone: o.delivery_zone || ap.delivery_zone || '',
+      delivery_fee_mru: Number(o.delivery_fee_mru ?? ap.delivery_fee_mru ?? 0),
+      customer_name: o.customer_name || ap.customer_name || '',
+      customer_phone: o.customer_phone || ap.customer_phone || '',
+      delivery_address: o.delivery_address || ap.delivery_address || '',
+      delivery_driver: ap.delivery_driver || '',
+      notes: o.notes || ap.notes || '',
+      discount_mru: discountMru,
+      discount_percent: computedDiscPct,
+      arboun_deposit_mru: Number(ap.arboun_mru ?? ap.arboun_deposit_mru ?? 0),
+      total_mru: totalMru,
+      tva_mru: Number(o.tva_mru ?? 0),
+      pay_method: o.pay_method || 'Cash',
+      payments,
+      status: 'paid',
+      created_at: createdAt,
+      paid_at: paidAt,
+      is_training: false,
+      items: mappedItems,
+    };
+  });
+}
+
+function loadHistoricalRemakesForTenant(database, tenantId, limit = 500) {
+  const safeLimit = Math.max(1, Math.min(2000, Number(limit) || 500));
+  return database
+    .prepare(`
+      SELECT rrc.*,
+             o.order_code,
+             p.name_fr AS product_name,
+             p.sku AS product_sku
+      FROM returns_remakes_comps rrc
+      LEFT JOIN orders o ON o.id = rrc.order_id
+      LEFT JOIN products p ON p.id = rrc.product_id
+      WHERE rrc.tenant_id = ?
+      ORDER BY rrc.created_at DESC, rrc.id DESC
+      LIMIT ?
+    `)
+    .all(tenantId, safeLimit)
+    .map((r) => ({
+      id: `RRC-CLOUD-${r.id}`,
+      type: String(r.type || 'REMAKE').toLowerCase(),
+      orderTicket: String(r.order_code || (r.order_id ? `ORD-${r.order_id}` : '-')),
+      itemName: String(r.product_name || 'Article'),
+      sku: String(r.product_sku || ''),
+      quantity: Math.max(1, Number(r.qty ?? 1)),
+      amountMru: Number(r.amount_mru ?? 0),
+      reason: String(r.reason || ''),
+      staffName: String(r.approved_by || 'Caisse'),
+      approvedBy: String(r.approved_by || 'Caisse'),
+      createdAt: String(r.created_at || ''),
+    }));
 }
 
 function createApp(options = {}) {
@@ -1437,6 +1611,9 @@ function createApp(options = {}) {
             varianceMru: Number(z.variance_mru ?? 0),
           }));
 
+        const orders = loadHistoricalOrdersForTenant(database, tenantId, 500);
+        const remakes = loadHistoricalRemakesForTenant(database, tenantId, 300);
+
         return sendJson(res, 200, {
           ok: true,
           tenantId,
@@ -1467,6 +1644,8 @@ function createApp(options = {}) {
           karniCustomers,
           staff: staffRows,
           closingsZ,
+          orders,
+          remakes,
         });
       }
 
@@ -2494,12 +2673,16 @@ function createApp(options = {}) {
           .prepare('SELECT * FROM resto_b2b_invoices WHERE tenant_id = ? ORDER BY id DESC LIMIT 200')
           .all(tenantId)
           .map((r) => ({ ...r, items: parseJson(r.items_json, []) }));
+        const orders = loadHistoricalOrdersForTenant(database, tenantId, 2000);
+        const remakes = loadHistoricalRemakesForTenant(database, tenantId, 500);
         return sendJson(res, 200, {
           ok: true,
           suppliers,
           purchases,
           expenses,
           invoices,
+          orders,
+          remakes,
         });
       }
 

@@ -261,6 +261,17 @@ class PosStore extends ChangeNotifier {
         },
         'profiles': profiles.map((p) => p.toJson()).toList(),
         'staff': staff.map((s) => s.toJson()).toList(),
+        'auditEvents': auditEvents
+            .take(500)
+            .map((e) => {
+                  'timestamp': e.timestamp.toIso8601String(),
+                  'action': e.action,
+                  'staffName': e.staffName,
+                  'ticketNumber': e.ticketNumber,
+                  'comment': e.comment,
+                })
+            .toList(),
+        'invoicedTicketsByOrderId': invoicedTicketsByOrderId,
       };
       localStorageWrite(_storageKey, jsonEncode(data));
     } catch (_) {}
@@ -570,76 +581,40 @@ class PosStore extends ChangeNotifier {
           // Reconstruct completedOrders from persisted order sync items so Z-Closing
           // and Sales Journal retain all paid tickets across F5 page reloads.
           if (sq.entityType == 'order' && sq.payload.isNotEmpty) {
-            final p = sq.payload;
-            final orderId = '${p['id'] ?? sq.id}';
-            if (!_completedOrders.any((o) => o.id == orderId)) {
-              final rawPays = (p['payments'] as List?) ?? const [];
-              final restoredPays = rawPays.whereType<Map>().map((pm) {
-                final rawMethod = '${pm['method'] ?? 'cash'}';
-                final rawWallet = pm['wallet_label'] as String?;
-                final method = MauritanianWallets.methodForWallet(
-                    rawWallet ?? rawMethod);
-                return PaymentEntry(
-                  method: method,
-                  walletLabel: rawWallet ??
-                      (method == PaymentMethod.otherWallet ? rawMethod : null),
-                  amountMru: ((pm['amount_mru'] ?? 0) as num).toDouble(),
-                  reference: pm['reference'] as String?,
-                  karniCustomerId: pm['karni_customer_id'] as String?,
-                );
-              }).toList();
-              final rawLines = (p['items'] as List?) ?? const [];
-              final restoredLines = rawLines.whereType<Map>().map((lm) {
-                final price = ((lm['base_price'] ?? lm['unit_price'] ?? 0) as num)
-                    .toDouble();
-                return OrderItem(
-                  lineId: 'LN-R-${_lineCounter++}',
-                  item: MenuItem(
-                    id: '${lm['product_id'] ?? ''}',
-                    sku: '${lm['sku'] ?? ''}',
-                    categoryId: '',
-                    nameFr: '${lm['name'] ?? 'Article'}',
-                    nameAr: '${lm['name'] ?? 'Article'}',
-                    nameEn: '${lm['name'] ?? 'Article'}',
-                    priceMru: price,
-                    kitchenStation: '${lm['kitchen_station'] ?? 'KITCHEN'}',
-                  ),
-                  quantity: ((lm['qty'] ?? 1) as num).toInt(),
-                  isComp: lm['is_comp'] == true,
-                  isTakeaway: lm['is_takeaway'] == true,
-                  sentToKitchen: true,
-                );
-              }).toList();
-              final paidAt = DateTime.tryParse('${p['paid_at'] ?? ''}') ??
-                  sq.createdAt;
-              _completedOrders.add(
-                PosOrder(
-                  id: orderId,
-                  ticketNumber: '${p['ticket_number'] ?? orderId}',
-                  tableId: p['table_id'] as String?,
-                  tableCode: p['table_code'] as String?,
-                  staffName: '${p['staff_name'] ?? 'Caisse'}',
-                  items: restoredLines,
-                  discountPercent:
-                      ((p['discount_percent'] ?? 0) as num).toDouble(),
-                  arbounDepositMru:
-                      ((p['arboun_deposit_mru'] ?? 0) as num).toDouble(),
-                  deliveryFeeMru:
-                      ((p['delivery_fee_mru'] ?? 0) as num).toDouble(),
-                  customerName: p['customer_name'] as String?,
-                  customerPhone: p['customer_phone'] as String?,
-                  deliveryAddress: p['delivery_address'] as String?,
-                  deliveryDriverName: p['delivery_driver'] as String?,
-                  payments: restoredPays,
-                  status: 'paid',
-                  createdAt:
-                      DateTime.tryParse('${p['created_at'] ?? ''}') ?? paidAt,
-                  paidAt: paidAt,
-                  isTraining: p['is_training'] == true,
-                ),
-              );
+            final parsedOrd = _parseOrderFromPayload(
+              sq.payload,
+              fallbackId: sq.id,
+              fallbackCreatedAt: sq.createdAt,
+            );
+            if (!_completedOrders.any((o) =>
+                o.id == parsedOrd.id ||
+                o.ticketNumber == parsedOrd.ticketNumber)) {
+              _completedOrders.add(parsedOrd);
             }
           }
+        }
+      }
+
+      final rawAudit = map['auditEvents'] as List?;
+      if (rawAudit != null) {
+        auditEvents.clear();
+        for (final item in rawAudit.whereType<Map>()) {
+          final m = item.cast<String, dynamic>();
+          final ts = DateTime.tryParse('${m['timestamp'] ?? ''}')?.toLocal();
+          if (ts == null) continue;
+          auditEvents.add((
+            timestamp: ts,
+            action: '${m['action'] ?? 'VENTE'}',
+            staffName: '${m['staffName'] ?? 'Caisse'}',
+            ticketNumber: '${m['ticketNumber'] ?? ''}',
+            comment: '${m['comment'] ?? ''}',
+          ));
+        }
+      }
+      final rawInvoiced = map['invoicedTicketsByOrderId'] as Map?;
+      if (rawInvoiced != null) {
+        for (final entry in rawInvoiced.entries) {
+          invoicedTicketsByOrderId['${entry.key}'] = '${entry.value}';
         }
       }
 
@@ -1445,6 +1420,7 @@ class PosStore extends ChangeNotifier {
       if (parsed.karniCustomers.isNotEmpty) {
         karniCustomers = List<KarniCustomer>.from(parsed.karniCustomers);
       }
+      _mergeCloudOrdersAndRemakes(data);
 
       cloudConnected = true;
       accountOffline = false;
@@ -3926,6 +3902,7 @@ class PosStore extends ChangeNotifier {
             .whereType<Map>()
             .map((m) => RestoB2bInvoice.fromJson(m.cast<String, dynamic>()))
             .toList();
+        _mergeCloudOrdersAndRemakes(data);
       }
     } catch (_) {} finally {
       isLoadingBackOffice = false;
@@ -6984,6 +6961,231 @@ class PosStore extends ChangeNotifier {
     return invNo;
   }
 
+  PosOrder _parseOrderFromPayload(
+    Map<String, dynamic> p, {
+    String? fallbackId,
+    DateTime? fallbackCreatedAt,
+  }) {
+    final orderId = '${p['id'] ?? fallbackId ?? 'ORD-${++_ticketCounter}'}';
+    final ticketNumber =
+        '${p['ticket_number'] ?? p['order_code'] ?? orderId}'.trim();
+    final rawPays = (p['payments'] as List?) ?? const [];
+    var restoredPays = rawPays.whereType<Map>().map((pm) {
+      final rawMethod = '${pm['method'] ?? 'cash'}';
+      final rawWallet = pm['wallet_label'] as String?;
+      final method = MauritanianWallets.methodForWallet(rawWallet ?? rawMethod);
+      return PaymentEntry(
+        method: method,
+        walletLabel: rawWallet ??
+            (method == PaymentMethod.otherWallet ? rawMethod : null),
+        amountMru: ((pm['amount_mru'] ?? pm['amountMru'] ?? 0) as num).toDouble(),
+        reference: pm['reference'] as String?,
+        karniCustomerId: pm['karni_customer_id'] as String?,
+      );
+    }).toList();
+
+    final totalMru = ((p['total_mru'] ?? p['totalMru'] ?? 0) as num).toDouble();
+    if (restoredPays.isEmpty) {
+      final rawMethod = '${p['pay_method'] ?? p['payMethod'] ?? 'Cash'}';
+      final method = MauritanianWallets.methodForWallet(rawMethod);
+      restoredPays = [
+        PaymentEntry(
+          method: method,
+          walletLabel: method == PaymentMethod.otherWallet ? rawMethod : null,
+          amountMru: totalMru,
+        ),
+      ];
+    }
+
+    final rawLines = (p['items'] as List?) ?? const [];
+    final restoredLines = rawLines.whereType<Map>().map((lm) {
+      final pid = '${lm['product_id'] ?? ''}'.trim();
+      final sku = '${lm['sku'] ?? ''}'.trim();
+      final nameFr = '${lm['name_fr'] ?? lm['name'] ?? 'Article'}'.trim();
+      final matchedMenu = menuItems.cast<MenuItem?>().firstWhere(
+            (mi) =>
+                mi != null &&
+                ((pid.isNotEmpty && mi.id == pid) ||
+                    (sku.isNotEmpty && mi.sku == sku) ||
+                    mi.nameFr.trim().toLowerCase() == nameFr.toLowerCase()),
+            orElse: () => null,
+          );
+      final rawCatId = '${lm['category_id'] ?? ''}'.trim();
+      final catId = rawCatId.isNotEmpty
+          ? rawCatId
+          : (matchedMenu?.categoryId ??
+              (categories.isNotEmpty ? categories.first.id : ''));
+      final price =
+          ((lm['unit_price'] ?? lm['base_price'] ?? matchedMenu?.priceMru ?? 0)
+                  as num)
+              .toDouble();
+      return OrderItem(
+        lineId: 'LN-R-${_lineCounter++}',
+        item: MenuItem(
+          id: pid.isNotEmpty ? pid : (matchedMenu?.id ?? ''),
+          sku: sku.isNotEmpty ? sku : (matchedMenu?.sku ?? ''),
+          categoryId: catId,
+          nameFr: nameFr,
+          nameAr: '${lm['name_ar'] ?? matchedMenu?.nameAr ?? nameFr}',
+          nameEn: '${lm['name_en'] ?? matchedMenu?.nameEn ?? nameFr}',
+          priceMru: price,
+          kitchenStation:
+              '${lm['kitchen_station'] ?? matchedMenu?.kitchenStation ?? 'KITCHEN'}',
+          icon: matchedMenu?.icon ?? '🍽',
+        ),
+        quantity: ((lm['qty'] ?? 1) as num).toInt(),
+        isComp: lm['is_comp'] == true,
+        isTakeaway: lm['is_takeaway'] == true,
+        kitchenNote: '${lm['kitchen_note'] ?? ''}'.trim().isEmpty
+            ? null
+            : '${lm['kitchen_note']}'.trim(),
+        sentToKitchen: true,
+      );
+    }).toList();
+
+    final rawPaidAt = DateTime.tryParse('${p['paid_at'] ?? ''}');
+    final rawCreatedAt = DateTime.tryParse('${p['created_at'] ?? ''}');
+    final paidAt = (rawPaidAt ?? rawCreatedAt ?? fallbackCreatedAt ?? DateTime.now()).toLocal();
+    final createdAt = (rawCreatedAt ?? paidAt).toLocal();
+
+    final serviceMode = ServiceMode.fromString(
+      '${p['service_mode'] ?? p['channel'] ?? 'DINE_IN'}',
+    );
+    final rawDzName = '${p['delivery_zone'] ?? ''}'.trim();
+    DeliveryZone? dz;
+    if (rawDzName.isNotEmpty) {
+      dz = deliveryZones.cast<DeliveryZone?>().firstWhere(
+            (z) =>
+                z != null &&
+                (z.id == rawDzName ||
+                    z.nameFr.toLowerCase() == rawDzName.toLowerCase()),
+            orElse: () => DeliveryZone(
+              id: rawDzName,
+              nameFr: rawDzName,
+              nameAr: rawDzName,
+              nameEn: rawDzName,
+              feeMru: ((p['delivery_fee_mru'] ?? 0) as num).toDouble(),
+            ),
+          );
+    }
+
+    final rawTableCode = '${p['table_code'] ?? ''}'.trim();
+    final tableCode = (rawTableCode.isEmpty ||
+            rawTableCode.toUpperCase() == 'COMPTOIR' ||
+            serviceMode != ServiceMode.dineIn)
+        ? null
+        : rawTableCode;
+
+    return PosOrder(
+      id: orderId,
+      ticketNumber: ticketNumber,
+      tableId: p['table_id'] as String?,
+      tableCode: tableCode,
+      staffName: '${p['staff_name'] ?? 'Caisse'}',
+      items: restoredLines,
+      discountPercent: ((p['discount_percent'] ?? 0) as num).toDouble(),
+      arbounDepositMru:
+          ((p['arboun_deposit_mru'] ?? p['arboun_mru'] ?? 0) as num).toDouble(),
+      serviceMode: serviceMode,
+      deliveryZone: dz,
+      deliveryFeeMru: ((p['delivery_fee_mru'] ?? 0) as num).toDouble(),
+      customerName: '${p['customer_name'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${p['customer_name']}'.trim(),
+      customerPhone: '${p['customer_phone'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${p['customer_phone']}'.trim(),
+      deliveryAddress: '${p['delivery_address'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${p['delivery_address']}'.trim(),
+      deliveryDriverName: '${p['delivery_driver'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${p['delivery_driver']}'.trim(),
+      orderComment: '${p['notes'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${p['notes']}'.trim(),
+      payments: restoredPays,
+      status: 'paid',
+      createdAt: createdAt,
+      paidAt: paidAt,
+      isTraining: p['is_training'] == true,
+    );
+  }
+
+  void _mergeCloudOrdersAndRemakes(Map<String, dynamic> data) {
+    final rawOrders = data['orders'];
+    if (rawOrders is List && rawOrders.isNotEmpty) {
+      for (final raw in rawOrders.whereType<Map>()) {
+        final m = raw.cast<String, dynamic>();
+        final ord = _parseOrderFromPayload(m);
+        if (ord.items.isEmpty) continue;
+        final existingIdx = _completedOrders.indexWhere(
+          (o) => o.ticketNumber == ord.ticketNumber || o.id == ord.id,
+        );
+        if (existingIdx == -1) {
+          _completedOrders.add(ord);
+        } else {
+          final prev = _completedOrders[existingIdx];
+          final hasMissingCategories =
+              prev.items.any((l) => l.item.categoryId.isEmpty);
+          if (hasMissingCategories) {
+            _completedOrders[existingIdx] = ord.copyWith(
+              ticketNumber: prev.ticketNumber,
+            );
+          }
+        }
+      }
+      _completedOrders.sort(
+        (a, b) => (b.paidAt ?? b.createdAt).compareTo(a.paidAt ?? a.createdAt),
+      );
+    }
+
+    final rawRemakes = data['remakes'];
+    if (rawRemakes is List && rawRemakes.isNotEmpty) {
+      for (final raw in rawRemakes.whereType<Map>()) {
+        final m = raw.cast<String, dynamic>();
+        final id = '${m['id'] ?? ''}';
+        final ticket = '${m['orderTicket'] ?? m['ticket'] ?? '-'}';
+        final type = '${m['type'] ?? 'remake'}'.toLowerCase();
+        final itemName = '${m['itemName'] ?? m['item'] ?? 'Article'}';
+        final qty = ((m['quantity'] ?? m['qty'] ?? 1) as num).toInt();
+        final amt = ((m['amountMru'] ?? m['amount_mru'] ?? 0) as num).toDouble();
+        final createdAt =
+            (DateTime.tryParse('${m['createdAt'] ?? m['created_at'] ?? ''}') ??
+                    DateTime.now())
+                .toLocal();
+
+        final exists = _remakeRecords.any(
+          (r) =>
+              (id.isNotEmpty && r.id == id) ||
+              (r.orderTicket == ticket &&
+                  r.type == type &&
+                  r.itemName == itemName &&
+                  (r.amountMru - amt).abs() < 0.01),
+        );
+        if (!exists) {
+          _remakeRecords.add(
+            ReturnRemakeCompRecord(
+              id: id.isNotEmpty
+                  ? id
+                  : 'RRC-${createdAt.millisecondsSinceEpoch}',
+              type: type,
+              orderTicket: ticket,
+              itemName: itemName,
+              quantity: qty,
+              amountMru: amt,
+              reason: '${m['reason'] ?? ''}',
+              staffName: '${m['staffName'] ?? 'Caisse'}',
+              approvedBy: '${m['approvedBy'] ?? m['approved_by'] ?? 'Caisse'}',
+              createdAt: createdAt,
+            ),
+          );
+        }
+      }
+      _remakeRecords.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+  }
+
   /// Full audit timeline combining live [auditEvents] + historical [remakeRecords] & [completedOrders].
   List<({
     DateTime timestamp,
@@ -6994,18 +7196,33 @@ class PosStore extends ChangeNotifier {
   })> get fullAuditTimeline {
     final out = List.of(auditEvents);
     final existingKeys = <String>{
-      for (final e in out) '${e.action}|${e.ticketNumber}|${e.timestamp.minute}',
+      for (final e in out) '${e.action}|${e.ticketNumber}',
     };
+    for (final o in _completedOrders) {
+      if (o.isTraining) continue;
+      final dt = (o.paidAt ?? o.createdAt).toLocal();
+      final k = 'VENTE|${o.ticketNumber}';
+      if (existingKeys.add(k)) {
+        out.add((
+          timestamp: dt,
+          action: 'VENTE',
+          staffName: o.cashierName ?? o.staffName,
+          ticketNumber: o.ticketNumber,
+          comment:
+              '${o.tableCode != null ? 'Table N°${o.tableCode}, ' : (o.customerName?.isNotEmpty == true ? '${o.customerName}, ' : '')}Montant : ${o.netTotal.toStringAsFixed(0)} MRU',
+        ));
+      }
+    }
     for (final r in _remakeRecords) {
       final act = switch (r.type) {
         'comp' => 'OFFERT',
         'return' || 'void_kitchen' => 'ANNULATION',
         _ => 'REMAKE',
       };
-      final k = '$act|${r.orderTicket}|${r.createdAt.minute}';
+      final k = '$act|${r.orderTicket}|${r.itemName}';
       if (existingKeys.add(k)) {
         out.add((
-          timestamp: r.createdAt,
+          timestamp: r.createdAt.toLocal(),
           action: act,
           staffName: r.staffName,
           ticketNumber: r.orderTicket,

@@ -27,10 +27,16 @@ class ReportsAuditView extends StatefulWidget {
 class _ReportsAuditViewState extends State<ReportsAuditView> {
   late int _tabIndex; // 0 = Aperçu & Facturation, 1 = Journal Audit, 2 = Graphiques, 3 = Exportation
 
+  // Unified Period & Date-Range selector across ALL 4 tabs
+  // today | yesterday | week | month | year | all | custom
+  String _period = 'today';
+  DateTime _fromDate = DateTime(
+      DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  DateTime _toDate = DateTime.now();
+
   // Tab 0 — Aperçu des ventes & Facturation tickets
   String _salesStatusFilter = 'all'; // all | open | closed
   String _salesStaffFilter = 'ALL';
-  String _salesPeriod = 'today'; // today | week | month | all
   String _salesQuery = '';
   String? _selectedOrderId;
   final Set<String> _checkedOrderIds = {};
@@ -38,15 +44,11 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
   // Tab 1 — Journal d'audit
   String _auditStaffFilter = 'ALL';
   String _auditActionFilter = 'ALL';
-  String _auditPeriod = 'today';
 
   // Tab 2 — Statistiques graphiques
-  String _chartType = 'hourly'; // hourly | weekday | family | channel | monthly | seller
+  String _chartType = 'hourly'; // hourly | weekday | family | channel | monthly | yearly | seller
 
   // Tab 3 — Exportation rapports
-  DateTime _exportFrom = DateTime(
-      DateTime.now().year, DateTime.now().month, DateTime.now().day);
-  DateTime _exportTo = DateTime.now();
   bool _expPayments = true;
   bool _expSellers = true;
   bool _expArticles = true;
@@ -59,6 +61,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
   void initState() {
     super.initState();
     _tabIndex = widget.initialTab;
+    Future.microtask(() => widget.store.fetchBackOfficeData());
   }
 
   void _toast(String msg) {
@@ -66,38 +69,203 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  String _fmtDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  String _fmtDate(DateTime d) {
+    final loc = d.toLocal();
+    return '${loc.day.toString().padLeft(2, '0')}/${loc.month.toString().padLeft(2, '0')}/${loc.year}';
+  }
 
-  String _fmtDateTime(DateTime d) =>
-      '${_fmtDate(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _fmtDateTime(DateTime d) {
+    final loc = d.toLocal();
+    return '${_fmtDate(loc)} ${loc.hour.toString().padLeft(2, '0')}:${loc.minute.toString().padLeft(2, '0')}';
+  }
 
-  bool _inPeriod(DateTime dt, String period) {
+  void _applyPresetPeriod(String preset) {
     final now = DateTime.now();
-    if (period == 'today') {
-      return dt.year == now.year && dt.month == now.month && dt.day == now.day;
-    }
-    if (period == 'week') {
-      return now.difference(dt).inDays <= 7;
-    }
-    if (period == 'month') {
-      return dt.year == now.year && dt.month == now.month;
-    }
-    return true;
+    final todayStart = DateTime(now.year, now.month, now.day);
+    setState(() {
+      _period = preset;
+      switch (preset) {
+        case 'today':
+          _fromDate = todayStart;
+          _toDate = todayStart;
+        case 'yesterday':
+          final y = todayStart.subtract(const Duration(days: 1));
+          _fromDate = y;
+          _toDate = y;
+        case 'week':
+          _fromDate = todayStart.subtract(const Duration(days: 6));
+          _toDate = todayStart;
+        case 'month':
+          _fromDate = todayStart.subtract(const Duration(days: 29));
+          _toDate = todayStart;
+        case 'year':
+          _fromDate = todayStart.subtract(const Duration(days: 364));
+          _toDate = todayStart;
+        case 'all':
+          _fromDate = DateTime(2024, 1, 1);
+          _toDate = todayStart;
+      }
+    });
+  }
+
+  bool _inSelectedPeriod(DateTime rawDt) {
+    if (_period == 'all') return true;
+    final dt = rawDt.toLocal();
+    final d0 = DateTime(_fromDate.year, _fromDate.month, _fromDate.day);
+    final d1 = DateTime(_toDate.year, _toDate.month, _toDate.day);
+    final start = d0.isBefore(d1) ? d0 : d1;
+    final end = d0.isBefore(d1)
+        ? DateTime(d1.year, d1.month, d1.day, 23, 59, 59, 999)
+        : DateTime(d0.year, d0.month, d0.day, 23, 59, 59, 999);
+    return !dt.isBefore(start) && !dt.isAfter(end);
   }
 
   String _esc(String s) => const HtmlEscape().convert(s);
 
-  List<PosOrder> _ordersInExportRange(PosStore store) {
-    final start =
-        DateTime(_exportFrom.year, _exportFrom.month, _exportFrom.day);
-    final end = DateTime(
-        _exportTo.year, _exportTo.month, _exportTo.day, 23, 59, 59);
+  List<PosOrder> _ordersInSelectedPeriod(PosStore store) {
     return store.completedOrders.where((o) {
       if (o.isTraining) return false;
       final dt = o.paidAt ?? o.createdAt;
-      return !dt.isBefore(start) && !dt.isAfter(end);
+      return _inSelectedPeriod(dt);
     }).toList();
+  }
+
+  Widget _buildUnifiedPeriodBar(PosStore store, PosPalette p) {
+    const presets = <(String, String)>[
+      ('today', "Aujourd'hui"),
+      ('yesterday', 'Hier'),
+      ('week', 'Semaine (7j)'),
+      ('month', 'Mois (30j)'),
+      ('year', 'Année (365j)'),
+      ('all', 'Tout'),
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: p.border),
+      ),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Icon(Icons.date_range_rounded, size: 17, color: p.primary),
+          Text(
+            'Période :',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: p.textPrimary,
+            ),
+          ),
+          for (final pr in presets)
+            ChoiceChip(
+              key: Key('reports_period_${pr.$1}'),
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              selected: _period == pr.$1,
+              onSelected: (_) => _applyPresetPeriod(pr.$1),
+              label: Text(pr.$2, style: const TextStyle(fontSize: 11.5)),
+            ),
+          OutlinedButton.icon(
+            key: const Key('reports_pick_single_day_btn'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _fromDate,
+                firstDate: DateTime(2024),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) {
+                final day = DateTime(picked.year, picked.month, picked.day);
+                setState(() {
+                  _period = 'custom';
+                  _fromDate = day;
+                  _toDate = day;
+                });
+              }
+            },
+            icon: const Icon(Icons.today_rounded, size: 14),
+            label: const Text('Jour précis', style: TextStyle(fontSize: 11.5)),
+          ),
+          OutlinedButton.icon(
+            key: const Key('reports_pick_from_btn'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _fromDate,
+                firstDate: DateTime(2024),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) {
+                final day = DateTime(picked.year, picked.month, picked.day);
+                setState(() {
+                  _period = 'custom';
+                  _fromDate = day;
+                  if (_toDate.isBefore(day)) {
+                    _toDate = day;
+                  }
+                });
+              }
+            },
+            icon: const Icon(Icons.calendar_today_rounded, size: 13),
+            label: Text(
+              'Du : ${_fmtDate(_fromDate)}',
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+            ),
+          ),
+          OutlinedButton.icon(
+            key: const Key('reports_pick_to_btn'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _toDate,
+                firstDate: DateTime(2024),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) {
+                final day = DateTime(picked.year, picked.month, picked.day);
+                setState(() {
+                  _period = 'custom';
+                  _toDate = day;
+                  if (_fromDate.isAfter(day)) {
+                    _fromDate = day;
+                  }
+                });
+              }
+            },
+            icon: const Icon(Icons.event_rounded, size: 13),
+            label: Text(
+              'Au : ${_fmtDate(_toDate)}',
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Actualiser l\'historique depuis le serveur',
+            visualDensity: VisualDensity.compact,
+            onPressed: () {
+              store.fetchCloudCatalog();
+              store.fetchBackOfficeData();
+              _toast('Synchronisation de l\'historique des ventes lancée...');
+            },
+            icon: Icon(Icons.sync_rounded, size: 18, color: p.primary),
+          ),
+        ],
+      ),
+    );
   }
 
   // =========================================================================
@@ -261,7 +429,9 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              _buildUnifiedPeriodBar(store, p),
+              const SizedBox(height: 10),
               Expanded(
                 child: switch (_tabIndex) {
                   0 => _buildSalesOverviewTab(store, p),
@@ -303,7 +473,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
     final filtered = combined.where((entry) {
       final o = entry.order;
       final dt = o.paidAt ?? o.createdAt;
-      if (!_inPeriod(dt, _salesPeriod)) return false;
+      if (!_inSelectedPeriod(dt)) return false;
       final seller = (o.cashierName ?? o.staffName).trim();
       if (_salesStaffFilter != 'ALL' && seller != _salesStaffFilter) {
         return false;
@@ -637,18 +807,6 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
               label: Text('Clôturées (${closedOrders.length})'),
             ),
             DropdownButton<String>(
-              value: _salesPeriod,
-              items: const [
-                DropdownMenuItem(value: 'today', child: Text('Aujourd\'hui')),
-                DropdownMenuItem(value: 'week', child: Text('7 jours')),
-                DropdownMenuItem(value: 'month', child: Text('Ce mois')),
-                DropdownMenuItem(value: 'all', child: Text('Toute période')),
-              ],
-              onChanged: (v) {
-                if (v != null) setState(() => _salesPeriod = v);
-              },
-            ),
-            DropdownButton<String>(
               value: allSellers.contains(_salesStaffFilter)
                   ? _salesStaffFilter
                   : 'ALL',
@@ -730,7 +888,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
     ];
 
     final filtered = allEvents.where((e) {
-      if (!_inPeriod(e.timestamp, _auditPeriod)) return false;
+      if (!_inSelectedPeriod(e.timestamp)) return false;
       if (_auditStaffFilter != 'ALL' && e.staffName != _auditStaffFilter) {
         return false;
       }
@@ -780,19 +938,6 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => _auditActionFilter = v);
-                  },
-                ),
-                DropdownButton<String>(
-                  value: _auditPeriod,
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'today', child: Text('Aujourd\'hui')),
-                    DropdownMenuItem(value: 'week', child: Text('7 jours')),
-                    DropdownMenuItem(value: 'month', child: Text('Ce mois')),
-                    DropdownMenuItem(value: 'all', child: Text('Tout')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => _auditPeriod = v);
                   },
                 ),
               ],
@@ -961,17 +1106,17 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
   }
 
   // =========================================================================
-  // TAB 2 — STATISTIQUES GRAPHIQUES (6 GRAPHES CA)
+  // TAB 2 — STATISTIQUES GRAPHIQUES (7 GRAPHES CA FILTRÉS PAR PÉRIODE)
   // =========================================================================
   Widget _buildGraphicalStatsTab(PosStore store, PosPalette p) {
-    final orders =
-        store.completedOrders.where((o) => !o.isTraining).toList();
+    final orders = _ordersInSelectedPeriod(store);
     final buckets = <String, double>{};
 
     if (_chartType == 'hourly') {
       for (final o in orders) {
-        final h = (o.paidAt ?? o.createdAt).hour;
-        final label = '${h.toString().padLeft(2, '0')}h - ${(h + 1).toString().padLeft(2, '0')}h';
+        final h = (o.paidAt ?? o.createdAt).toLocal().hour;
+        final label =
+            '${h.toString().padLeft(2, '0')}h - ${(h + 1).toString().padLeft(2, '0')}h';
         buckets[label] = (buckets[label] ?? 0) + o.netTotal;
       }
     } else if (_chartType == 'weekday') {
@@ -980,15 +1125,20 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
         buckets[d] = 0;
       }
       for (final o in orders) {
-        final wd = (o.paidAt ?? o.createdAt).weekday; // 1..7
+        final wd = (o.paidAt ?? o.createdAt).toLocal().weekday; // 1..7
         final key = days[(wd - 1).clamp(0, 6)];
         buckets[key] = (buckets[key] ?? 0) + o.netTotal;
       }
     } else if (_chartType == 'family') {
-      final catNames = {for (final c in store.categories) c.id: c.label(store.lang)};
+      final catNames = {
+        for (final c in store.categories) c.id: c.label(store.lang)
+      };
       for (final o in orders) {
         for (final line in o.items) {
-          final k = catNames[line.item.categoryId] ?? line.item.categoryId;
+          final k = catNames[line.item.categoryId] ??
+              (line.item.categoryId.isNotEmpty
+                  ? line.item.categoryId
+                  : 'Sans famille');
           buckets[k] = (buckets[k] ?? 0) + line.lineTotal;
         }
       }
@@ -1008,8 +1158,14 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
         'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'
       ];
       for (final o in orders) {
-        final dt = o.paidAt ?? o.createdAt;
+        final dt = (o.paidAt ?? o.createdAt).toLocal();
         final k = '${months[dt.month - 1]} ${dt.year}';
+        buckets[k] = (buckets[k] ?? 0) + o.netTotal;
+      }
+    } else if (_chartType == 'yearly') {
+      for (final o in orders) {
+        final dt = (o.paidAt ?? o.createdAt).toLocal();
+        final k = 'Année ${dt.year}';
         buckets[k] = (buckets[k] ?? 0) + o.netTotal;
       }
     } else {
@@ -1021,14 +1177,20 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
     }
 
     final entries = buckets.entries.toList();
-    if (_chartType != 'weekday' && _chartType != 'hourly') {
+    if (_chartType != 'weekday' &&
+        _chartType != 'hourly' &&
+        _chartType != 'yearly') {
       entries.sort((a, b) => b.value.compareTo(a.value));
-    } else if (_chartType == 'hourly') {
+    } else if (_chartType == 'hourly' || _chartType == 'yearly') {
       entries.sort((a, b) => a.key.compareTo(b.key));
     }
     final maxVal =
         entries.fold<double>(0, (m, e) => e.value > m ? e.value : m);
     final sumVal = entries.fold<double>(0, (s, e) => s + e.value);
+    final totalPeriodMru =
+        orders.fold<double>(0, (s, o) => s + o.netTotal);
+    final avgBasket =
+        orders.isEmpty ? 0.0 : totalPeriodMru / orders.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1063,13 +1225,60 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
               label: const Text('📈 Évolution CA Mensuel'),
             ),
             ChoiceChip(
+              selected: _chartType == 'yearly',
+              onSelected: (_) => setState(() => _chartType = 'yearly'),
+              label: const Text('📆 Évolution CA Annuel'),
+            ),
+            ChoiceChip(
               selected: _chartType == 'seller',
               onSelected: (_) => setState(() => _chartType = 'seller'),
               label: const Text('👤 Résultats par Vendeur'),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: p.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Wrap(
+            spacing: 18,
+            runSpacing: 6,
+            children: [
+              Text(
+                'Période : ${_period == 'all' ? 'Toutes les ventes' : 'Du ${_fmtDate(_fromDate)} au ${_fmtDate(_toDate)}'}',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: p.textPrimary),
+              ),
+              Text(
+                'Tickets : ${orders.length}',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: p.primary),
+              ),
+              Text(
+                'CA Total : ${totalPeriodMru.toStringAsFixed(0)} MRU',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: p.primary),
+              ),
+              Text(
+                'Panier moyen : ${avgBasket.toStringAsFixed(0)} MRU',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: p.textMuted),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -1146,7 +1355,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
   String _buildExportCsv(PosStore store, List<PosOrder> orders) {
     final buf = StringBuffer();
     buf.writeln(
-        'FULL-TEK RESTO · EXPORT RAPPORTS (${_fmtDate(_exportFrom)} au ${_fmtDate(_exportTo)})');
+        'FULL-TEK RESTO · EXPORT RAPPORTS (${_fmtDate(_fromDate)} au ${_fmtDate(_toDate)})');
     buf.writeln('Restaurant;${store.tenantName}');
     buf.writeln('');
 
@@ -1258,7 +1467,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
 <div class="header">
   <div>
     <h1>${_esc(store.tenantName)} · Rapport de Gestion</h1>
-    <div class="meta">Période : Du ${_fmtDate(_exportFrom)} au ${_fmtDate(_exportTo)}</div>
+    <div class="meta">Période : Du ${_fmtDate(_fromDate)} au ${_fmtDate(_toDate)}</div>
   </div>
   <div style="text-align:right;">
     <div style="font-size:15px;font-weight:900;color:#059669;">CA : ${sum.toStringAsFixed(0)} MRU</div>
@@ -1323,7 +1532,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
   }
 
   Widget _buildExportReportsTab(PosStore store, PosPalette p) {
-    final orders = _ordersInExportRange(store);
+    final orders = _ordersInSelectedPeriod(store);
     final totalMru = orders.fold<double>(0, (s, o) => s + o.netTotal);
 
     return SingleChildScrollView(
@@ -1347,60 +1556,6 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
                     color: p.textPrimary),
               ),
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _exportFrom,
-                        firstDate: DateTime(2024),
-                        lastDate: DateTime(2030),
-                      );
-                      if (picked != null) setState(() => _exportFrom = picked);
-                    },
-                    icon: const Icon(Icons.calendar_today_rounded, size: 15),
-                    label: Text('Du : ${_fmtDate(_exportFrom)}'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _exportTo,
-                        firstDate: DateTime(2024),
-                        lastDate: DateTime(2030),
-                      );
-                      if (picked != null) setState(() => _exportTo = picked);
-                    },
-                    icon: const Icon(Icons.event_rounded, size: 15),
-                    label: Text('Jusqu\'au : ${_fmtDate(_exportTo)}'),
-                  ),
-                  ActionChip(
-                    label: const Text('Aujourd\'hui'),
-                    onPressed: () {
-                      final now = DateTime.now();
-                      setState(() {
-                        _exportFrom = DateTime(now.year, now.month, now.day);
-                        _exportTo = now;
-                      });
-                    },
-                  ),
-                  ActionChip(
-                    label: const Text('Ce mois'),
-                    onPressed: () {
-                      final now = DateTime.now();
-                      setState(() {
-                        _exportFrom = DateTime(now.year, now.month, 1);
-                        _exportTo = now;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -1408,7 +1563,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  'Périmètre sélectionné : ${orders.length} ticket(s) clôturé(s) · CA total : ${totalMru.toStringAsFixed(0)} MRU',
+                  'Périmètre sélectionné (${_period == 'all' ? 'Toute période' : 'Du ${_fmtDate(_fromDate)} au ${_fmtDate(_toDate)}'}) : ${orders.length} ticket(s) clôturé(s) · CA total : ${totalMru.toStringAsFixed(0)} MRU',
                   style: TextStyle(
                       fontWeight: FontWeight.w900, color: p.primary),
                 ),
@@ -1473,7 +1628,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
                     onPressed: () {
                       final csv = _buildExportCsv(store, orders);
                       final ok = downloadTextFile(
-                        'rapports_fulltek_${_fmtDate(_exportFrom).replaceAll('/', '-')}.csv',
+                        'rapports_fulltek_${_fmtDate(_fromDate).replaceAll('/', '-')}.csv',
                         csv,
                       );
                       _toast(ok
@@ -1492,7 +1647,7 @@ class _ReportsAuditViewState extends State<ReportsAuditView> {
                     onPressed: () {
                       final html = _buildExportPdfHtml(store, orders);
                       final ok = printReportA4Html(
-                        'Rapports Full-Tek · ${_fmtDate(_exportFrom)}',
+                        'Rapports Full-Tek · ${_fmtDate(_fromDate)}',
                         html,
                       );
                       _toast(ok

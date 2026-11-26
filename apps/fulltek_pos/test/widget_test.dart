@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fulltek_pos/main.dart';
 import 'package:fulltek_pos/models/pos_models.dart';
+import 'package:fulltek_pos/services/http_bridge.dart';
 import 'package:fulltek_pos/services/receipt_formatter.dart';
 import 'package:fulltek_pos/state/pos_store.dart';
 import 'package:fulltek_pos/theme/fulltek_themes.dart';
@@ -465,6 +467,110 @@ void main() {
 
       final actions = store.fullAuditTimeline.map((e) => e.action).toSet();
       expect(actions, containsAll(['EDITION NOTE', 'OUVERTURE TIROIR', 'VENTE', 'FACTURATION']));
+    });
+
+    test('Hydratation Cloud des ventes historiques (Hier, Semaine, Mois, Année)', () async {
+      final now = DateTime.now();
+      final yesterday = now.subtract(const Duration(days: 1));
+      final fiveDaysAgo = now.subtract(const Duration(days: 5));
+      final twentyDaysAgo = now.subtract(const Duration(days: 20));
+
+      final store = PosStore(
+        enablePersistence: false,
+        httpRequest: (method, url, {headers, body}) async {
+          if (url.endsWith('/api/pos/backoffice/summary')) {
+            return HttpBridgeResponse(
+              200,
+              jsonEncode({
+                'ok': true,
+                'suppliers': [],
+                'purchases': [],
+                'expenses': [],
+                'invoices': [],
+                'orders': [
+                  {
+                    'id': 'ORD-CLOUD-101',
+                    'ticket_number': 'FT-HIER-01',
+                    'staff_name': 'Fatimetou',
+                    'service_mode': 'DINE_IN',
+                    'total_mru': 650,
+                    'pay_method': 'Cash',
+                    'created_at': yesterday.toUtc().toIso8601String(),
+                    'paid_at': yesterday.toUtc().toIso8601String(),
+                    'items': [
+                      {
+                        'name': 'Méchoui Royal',
+                        'qty': 1,
+                        'unit_price': 650,
+                      },
+                    ],
+                  },
+                  {
+                    'id': 'ORD-CLOUD-102',
+                    'ticket_number': 'FT-SEM-02',
+                    'staff_name': 'Mariatta',
+                    'service_mode': 'TAKEAWAY',
+                    'total_mru': 400,
+                    'pay_method': 'Bankily',
+                    'created_at': fiveDaysAgo.toUtc().toIso8601String(),
+                    'paid_at': fiveDaysAgo.toUtc().toIso8601String(),
+                    'items': [
+                      {
+                        'name': 'Chawarma',
+                        'qty': 2,
+                        'unit_price': 200,
+                      },
+                    ],
+                  },
+                  {
+                    'id': 'ORD-CLOUD-103',
+                    'ticket_number': 'FT-MOIS-03',
+                    'staff_name': 'Med Lemine',
+                    'service_mode': 'DELIVERY',
+                    'delivery_zone': 'Tevragh Zeina',
+                    'total_mru': 1200,
+                    'pay_method': 'Masrvi',
+                    'created_at': twentyDaysAgo.toUtc().toIso8601String(),
+                    'paid_at': twentyDaysAgo.toUtc().toIso8601String(),
+                    'items': [
+                      {
+                        'name': 'Thieboudienne',
+                        'qty': 2,
+                        'unit_price': 600,
+                      },
+                    ],
+                  },
+                ],
+                'remakes': [
+                  {
+                    'id': 'RRC-CLOUD-1',
+                    'type': 'comp',
+                    'orderTicket': 'FT-HIER-01',
+                    'itemName': 'Thé Ataya',
+                    'quantity': 1,
+                    'amountMru': 100,
+                    'reason': 'Offert client fidèle',
+                    'staffName': 'Fatimetou',
+                    'approvedBy': 'Gérant',
+                    'createdAt': yesterday.toUtc().toIso8601String(),
+                  },
+                ],
+              }),
+            );
+          }
+          return const HttpBridgeResponse(200, '{}');
+        },
+      );
+      store.cloudJwtToken = 'test-jwt';
+      store.accountOffline = false;
+      await store.fetchBackOfficeData();
+
+      final tickets = store.completedOrders.map((o) => o.ticketNumber).toSet();
+      expect(tickets, containsAll(['FT-HIER-01', 'FT-SEM-02', 'FT-MOIS-03']));
+      expect(
+        store.fullAuditTimeline.map((e) => e.ticketNumber),
+        containsAll(['FT-HIER-01', 'FT-SEM-02', 'FT-MOIS-03']),
+      );
     });
   });
 }
