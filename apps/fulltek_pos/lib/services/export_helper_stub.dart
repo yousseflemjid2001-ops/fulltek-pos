@@ -3,3 +3,7 @@ bool platformDownloadTextFile(String filename, String content,
     false;
 
 bool platformPrintReportA4Html(String title, String bodyHtml) => false;
+
+bool platformOpenExternalUrl(String url) => false;
+
+Future<String?> platformRequestCurrentGpsMapsUrl() async => null;

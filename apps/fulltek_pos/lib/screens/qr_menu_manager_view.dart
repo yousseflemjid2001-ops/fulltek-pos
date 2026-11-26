@@ -615,6 +615,80 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
                                     TextStyle(fontSize: 12, color: p.textMuted),
                               ),
                             ],
+                            if (mode == 'delivery' &&
+                                (PosOrder.extractGpsMapsUrl(
+                                            '${o['gpsUrl'] ?? o['deliveryAddress'] ?? ''}') !=
+                                        null ||
+                                    '${o['deliveryAddress'] ?? ''}'
+                                        .trim()
+                                        .isNotEmpty)) ...[
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                children: [
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      foregroundColor: p.success,
+                                      side: BorderSide(color: p.success),
+                                    ),
+                                    onPressed: () {
+                                      final exact = PosOrder.extractGpsMapsUrl(
+                                          '${o['gpsUrl'] ?? o['deliveryAddress'] ?? ''}');
+                                      final url = exact ??
+                                          'https://maps.google.com/?q=${Uri.encodeComponent('${o['deliveryAddress'] ?? ''} ${o['deliveryZone'] ?? 'Nouakchott'}')}';
+                                      openExternalUrl(url);
+                                    },
+                                    icon: const Icon(Icons.location_on_rounded,
+                                        size: 15),
+                                    label: const Text(
+                                      '📍 Ouvrir Position GPS (Google Maps)',
+                                      style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800),
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      foregroundColor: p.primary,
+                                      side: BorderSide(color: p.primary),
+                                    ),
+                                    onPressed: () {
+                                      final exact = PosOrder.extractGpsMapsUrl(
+                                          '${o['gpsUrl'] ?? o['deliveryAddress'] ?? ''}');
+                                      final gpsUrl = exact ??
+                                          'https://maps.google.com/?q=${Uri.encodeComponent('${o['deliveryAddress'] ?? ''} ${o['deliveryZone'] ?? 'Nouakchott'}')}';
+                                      final msg = [
+                                        '🛵 *LIVRAISON · $code*',
+                                        '👤 Client : ${o['customerName'] ?? ''}',
+                                        '📞 Tél : ${o['customerPhone'] ?? ''}',
+                                        '🏘️ Zone : ${o['deliveryZone'] ?? ''}',
+                                        if ('${o['deliveryAddress'] ?? ''}'
+                                            .trim()
+                                            .isNotEmpty)
+                                          '🏠 Adresse : ${o['deliveryAddress']}',
+                                        '📍 Position GPS : $gpsUrl',
+                                        '💰 Total : ${total.toStringAsFixed(0)} MRU',
+                                      ].join('\n');
+                                      openExternalUrl(
+                                        'https://wa.me/?text=${Uri.encodeComponent(msg)}',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                        Icons.share_location_rounded,
+                                        size: 15),
+                                    label: const Text(
+                                      '📲 Envoyer GPS au Livreur (WhatsApp)',
+                                      style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                             const SizedBox(height: 8),
                             ...items.map((it) {
                               final m = (it as Map).cast<String, dynamic>();

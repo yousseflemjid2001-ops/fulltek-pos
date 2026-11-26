@@ -446,6 +446,33 @@ void main() {
       final kdsTicket = store.sendActiveOrderToKitchen();
       expect(kdsTicket, contains('Client: Karim'));
       expect(kdsTicket, contains('Tel: 36322225'));
+
+      // GPS extraction & WhatsApp driver share on Delivery order
+      final delivOrder = PosOrder(
+        id: 'ORD-GPS-1',
+        ticketNumber: 'QR-99002',
+        staffName: 'Caisse',
+        serviceMode: ServiceMode.delivery,
+        deliveryZone: DeliveryZone.nouakchottPresets.first,
+        customerName: 'Sidi',
+        customerPhone: '46112233',
+        deliveryAddress:
+            'Près Pharmacie · 📍 GPS: https://maps.google.com/?q=18.094512,-15.978421',
+        items: store.activeOrder!.items,
+        createdAt: DateTime.now(),
+      );
+      expect(
+        delivOrder.gpsMapsUrl,
+        'https://maps.google.com/?q=18.094512,-15.978421',
+      );
+      expect(delivOrder.cleanDeliveryAddress, 'Près Pharmacie');
+      expect(delivOrder.whatsappDriverShareUrl, contains('wa.me'));
+      final receipt80 = ReceiptFormatter.formatOrderReceipt80mm(order: delivOrder);
+      expect(receipt80, contains('Adresse: Près Pharmacie'));
+      expect(
+        receipt80,
+        contains('GPS: https://maps.google.com/?q=18.094512,-15.978421'),
+      );
     });
 
     test('Journal Audit caisse (Mouchard) & Facturation tickets A4', () {

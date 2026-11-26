@@ -109,3 +109,30 @@ bool platformPrintReportA4Html(String title, String bodyHtml) {
     return false;
   }
 }
+
+bool platformOpenExternalUrl(String url) {
+  try {
+    if (url.trim().isEmpty) return false;
+    html.window.open(url.trim(), '_blank');
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<String?> platformRequestCurrentGpsMapsUrl() async {
+  try {
+    final pos = await html.window.navigator.geolocation.getCurrentPosition(
+      enableHighAccuracy: true,
+      timeout: const Duration(seconds: 12),
+      maximumAge: Duration.zero,
+    );
+    final coords = pos.coords;
+    final lat = coords?.latitude;
+    final lng = coords?.longitude;
+    if (lat == null || lng == null) return null;
+    return 'https://maps.google.com/?q=${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}';
+  } catch (_) {
+    return null;
+  }
+}

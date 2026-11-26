@@ -1235,6 +1235,64 @@ class PosOrder {
   double get totalPaid => payments.fold(0.0, (s, p) => s + p.amountMru);
   double get changeDue => totalPaid > netTotal ? totalPaid - netTotal : 0;
 
+  static String? extractGpsMapsUrl(String? rawAddress) {
+    final s = (rawAddress ?? '').trim();
+    if (s.isEmpty) return null;
+    final urlMatch = RegExp(
+      r'https?:\/\/(?:www\.)?(?:maps\.google\.com|google\.com\/maps|goo\.gl\/maps|maps\.app\.goo\.gl)\S*',
+      caseSensitive: false,
+    ).firstMatch(s);
+    if (urlMatch != null) return urlMatch.group(0);
+    final coordsMatch = RegExp(
+      r'(-?\d{1,2}\.\d{3,8})\s*,\s*(-?\d{1,3}\.\d{3,8})',
+    ).firstMatch(s);
+    if (coordsMatch != null) {
+      return 'https://maps.google.com/?q=${coordsMatch.group(1)},${coordsMatch.group(2)}';
+    }
+    return null;
+  }
+
+  /// Direct Google Maps URL if the delivery address contains a GPS link or lat,lng coordinates.
+  String? get gpsMapsUrl => extractGpsMapsUrl(deliveryAddress);
+
+  /// Clean landmark/street address with the raw GPS URL stripped out for compact display.
+  String get cleanDeliveryAddress {
+    final raw = (deliveryAddress ?? '').trim();
+    if (raw.isEmpty) return '';
+    return raw
+        .replaceAll(RegExp(r'\s*·?\s*📍?\s*GPS:\s*https?:\/\/\S+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'https?:\/\/(?:www\.)?(?:maps\.google\.com|google\.com\/maps|goo\.gl\/maps|maps\.app\.goo\.gl)\S*', caseSensitive: false), '')
+        .trim();
+  }
+
+  /// Opens either the exact GPS pin or a Google Maps search for the customer's address/zone in Nouakchott.
+  String get googleMapsSearchUrl {
+    final exact = gpsMapsUrl;
+    if (exact != null && exact.isNotEmpty) return exact;
+    final q = [
+      if (cleanDeliveryAddress.isNotEmpty) cleanDeliveryAddress,
+      if (deliveryZone != null) deliveryZone!.nameFr,
+      'Nouakchott',
+    ].join(', ');
+    return 'https://maps.google.com/?q=${Uri.encodeComponent(q)}';
+  }
+
+  /// WhatsApp link to send the full delivery sheet + GPS pin to the delivery driver.
+  String get whatsappDriverShareUrl {
+    final lines = <String>[
+      '🛵 *LIVRAISON · $ticketNumber*',
+      if (customerName != null && customerName!.trim().isNotEmpty)
+        '👤 Client : ${customerName!.trim()}',
+      if (customerPhone != null && customerPhone!.trim().isNotEmpty)
+        '📞 Tél : ${customerPhone!.trim()}',
+      if (deliveryZone != null) '🏘️ Zone : ${deliveryZone!.nameFr}',
+      if (cleanDeliveryAddress.isNotEmpty) '🏠 Repère : $cleanDeliveryAddress',
+      '📍 Position GPS : $googleMapsSearchUrl',
+      '💰 Total à encaisser : ${netTotal.toStringAsFixed(0)} MRU',
+    ];
+    return 'https://wa.me/?text=${Uri.encodeComponent(lines.join('\n'))}';
+  }
+
   PosOrder copyWith({
     String? ticketNumber,
     String? tableId,

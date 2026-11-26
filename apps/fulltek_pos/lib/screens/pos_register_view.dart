@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/pos_models.dart';
+import '../services/export_helper.dart';
 import '../state/pos_store.dart';
 import '../theme/fulltek_themes.dart';
 import '../widgets/dish_image.dart';
@@ -555,10 +557,93 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     key: const Key('delivery_address_input'),
                     controller: addrCtrl,
                     maxLines: 2,
+                    onChanged: (_) => setD(() {}),
                     decoration: const InputDecoration(
-                      labelText: 'Quartier / Point de repère',
+                      labelText: 'Quartier / Point de repère / Lien GPS',
+                      hintText: 'Ex: Près Pharmacie ou lien Google Maps / 18.094,-15.978',
                       prefixIcon: Icon(Icons.place_outlined),
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      ActionChip(
+                        key: const Key('capture_delivery_gps_btn'),
+                        visualDensity: VisualDensity.compact,
+                        avatar: Icon(Icons.my_location_rounded,
+                            size: 15, color: p.primary),
+                        label: const Text(
+                          'Capteur GPS',
+                          style: TextStyle(
+                              fontSize: 11.5, fontWeight: FontWeight.w800),
+                        ),
+                        onPressed: () async {
+                          final url = await requestCurrentGpsMapsUrl();
+                          if (url != null) {
+                            setD(() {
+                              final cur = addrCtrl.text.trim();
+                              if (!cur.contains(url)) {
+                                addrCtrl.text = cur.isEmpty
+                                    ? '📍 GPS: $url'
+                                    : '$cur · 📍 GPS: $url';
+                              }
+                            });
+                          } else if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Autorisez la localisation GPS dans le navigateur ou collez le lien WhatsApp du client.'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      ActionChip(
+                        key: const Key('paste_delivery_gps_btn'),
+                        visualDensity: VisualDensity.compact,
+                        avatar: Icon(Icons.content_paste_rounded,
+                            size: 15, color: p.accent),
+                        label: const Text(
+                          'Coller position WhatsApp',
+                          style: TextStyle(
+                              fontSize: 11.5, fontWeight: FontWeight.w800),
+                        ),
+                        onPressed: () async {
+                          final data = await Clipboard.getData('text/plain');
+                          final txt = data?.text?.trim() ?? '';
+                          if (txt.isNotEmpty) {
+                            setD(() {
+                              final cur = addrCtrl.text.trim();
+                              addrCtrl.text =
+                                  cur.isEmpty ? txt : '$cur · $txt';
+                            });
+                          }
+                        },
+                      ),
+                      if (PosOrder.extractGpsMapsUrl(addrCtrl.text) != null)
+                        ActionChip(
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: p.success.withValues(alpha: 0.16),
+                          side: BorderSide(color: p.success),
+                          avatar: Icon(Icons.map_rounded,
+                              size: 15, color: p.success),
+                          label: Text(
+                            'Ouvrir GPS Maps ↗',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                              color: p.success,
+                            ),
+                          ),
+                          onPressed: () {
+                            final url =
+                                PosOrder.extractGpsMapsUrl(addrCtrl.text);
+                            if (url != null) openExternalUrl(url);
+                          },
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -3226,6 +3311,125 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w800,
                                       color: p.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          key: const Key('cart_delivery_open_gps_btn'),
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: () {
+                            if (order != null &&
+                                (order.gpsMapsUrl != null ||
+                                    order.cleanDeliveryAddress.isNotEmpty ||
+                                    order.deliveryZone != null)) {
+                              openExternalUrl(order.googleMapsSearchUrl);
+                            } else {
+                              _openDeliveryClientDriverDialog();
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: order?.gpsMapsUrl != null
+                                  ? p.success.withValues(alpha: 0.16)
+                                  : p.surface,
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: order?.gpsMapsUrl != null
+                                    ? p.success
+                                    : p.border,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.location_on_rounded,
+                                  size: 15,
+                                  color: order?.gpsMapsUrl != null
+                                      ? p.success
+                                      : p.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    order?.gpsMapsUrl != null
+                                        ? 'GPS Client ↗'
+                                        : 'Carte GPS',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      color: order?.gpsMapsUrl != null
+                                          ? p.success
+                                          : p.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: InkWell(
+                          key: const Key('cart_delivery_share_driver_btn'),
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: () async {
+                            if (order == null) return;
+                            await Clipboard.setData(
+                              ClipboardData(text: order.googleMapsSearchUrl),
+                            );
+                            final opened =
+                                openExternalUrl(order.whatsappDriverShareUrl);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(opened
+                                      ? '📲 Fiche livraison + Position GPS prête à envoyer au livreur sur WhatsApp !'
+                                      : '📍 Lien GPS copié dans le presse-papiers : ${order.googleMapsSearchUrl}'),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: p.primary.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                  color: p.primary.withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.share_location_rounded,
+                                    size: 15, color: p.primary),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    'GPS → Livreur',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      color: p.primary,
                                     ),
                                   ),
                                 ),

@@ -6,3 +6,7 @@ bool downloadTextFile(String filename, String content, {String mimeType = 'text/
 
 bool printReportA4Html(String title, String bodyHtml) =>
     platformPrintReportA4Html(title, bodyHtml);
+
+bool openExternalUrl(String url) => platformOpenExternalUrl(url);
+
+Future<String?> requestCurrentGpsMapsUrl() => platformRequestCurrentGpsMapsUrl();

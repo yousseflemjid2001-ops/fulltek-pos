@@ -576,6 +576,18 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
       <div id="deliveryFields" class="hidden">
         <select id="zoneSelect" class="field" onchange="renderCartSheet()"></select>
         <input id="custAddr" class="field" placeholder="Adresse / Quartier / Repère *" />
+        <div style="margin-bottom:8px;">
+          <button type="button" id="shareGpsBtn" class="action-chip" style="width:100%;justify-content:center;display:flex;align-items:center;gap:6px;padding:10px 14px;border-color:rgba(16,185,129,0.45);background:rgba(16,185,129,0.12);color:var(--primary);font-size:13px;" onclick="shareMyGpsLocation()">
+            📍 <span id="shareGpsLabel">Partager ma position GPS exacte</span>
+          </button>
+          <div id="gpsStatusBox" class="hidden" style="margin-top:6px;padding:8px 11px;border-radius:10px;background:rgba(16,185,129,0.14);border:1px solid rgba(16,185,129,0.35);font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span id="gpsStatusText" style="font-weight:800;color:var(--primary);"></span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <a id="gpsMapLink" href="#" target="_blank" rel="noopener" style="color:var(--gold);font-weight:800;text-decoration:underline;">Google Maps ↗</a>
+              <button type="button" class="action-chip" style="padding:3px 8px;font-size:11px;" onclick="clearGpsLocation()">✕</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="cartItemsList"></div>
       <input id="orderNote" class="field" style="margin-top:10px;" placeholder="Note cuisine globale (ex: sans piment, bien cuit...)" />
@@ -594,6 +606,49 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
     let serviceMode = INITIAL_TABLE ? 'dine_in' : 'takeaway';
     let activeOrderCode = localStorage.getItem('ft_qr_order_' + TENANT_CODE) || '';
     let pollTimer = null;
+    let deliveryGps = null; // { lat, lng, url }
+
+    function shareMyGpsLocation() {
+      const btn = document.getElementById('shareGpsBtn');
+      const lbl = document.getElementById('shareGpsLabel');
+      if (!navigator.geolocation) {
+        showToast(lang === 'fr' ? 'Géolocalisation non supportée par ce navigateur.' : 'الموقع الجغرافي غير مدعوم في هذا المتصفح');
+        return;
+      }
+      btn.disabled = true;
+      lbl.textContent = lang === 'fr' ? 'Localisation GPS en cours...' : 'جاري تحديد موقعك...';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          btn.disabled = false;
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          const url = 'https://maps.google.com/?q=' + lat + ',' + lng;
+          deliveryGps = { lat, lng, url };
+          lbl.textContent = lang === 'fr' ? 'Actualiser ma position GPS' : 'تحديث موقعي الجغرافي GPS';
+          const box = document.getElementById('gpsStatusBox');
+          box.classList.remove('hidden');
+          document.getElementById('gpsStatusText').textContent =
+            (lang === 'fr' ? '✅ Position GPS prête (' : '✅ تم تحديد الموقع (') + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')';
+          document.getElementById('gpsMapLink').href = url;
+          showToast(lang === 'fr' ? '📍 Position GPS jointe à votre commande !' : '📍 تم إرفاق موقعك الجغرافي بالطلب!');
+        },
+        (err) => {
+          btn.disabled = false;
+          lbl.textContent = lang === 'fr' ? 'Partager ma position GPS exacte' : 'مشاركة موقعي الجغرافي GPS';
+          showToast(lang === 'fr'
+            ? 'Autorisez la localisation GPS dans votre navigateur ou collez un lien Maps dans Adresse.'
+            : 'يرجى السماح بتحديد الموقع الجغرافي في المتصفح');
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    }
+
+    function clearGpsLocation() {
+      deliveryGps = null;
+      document.getElementById('gpsStatusBox').classList.add('hidden');
+      document.getElementById('shareGpsLabel').textContent =
+        lang === 'fr' ? 'Partager ma position GPS exacte' : 'مشاركة موقعي الجغرافي GPS';
+    }
 
     function toggleTheme() {
       const root = document.documentElement;
@@ -623,6 +678,12 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
       document.getElementById('btnCallWaiter').textContent = lang === 'fr' ? '🔔 Serveur' : '🔔 نداء النادل';
       document.getElementById('btnCallBill').textContent = lang === 'fr' ? '🧾 Addition' : '🧾 الحساب';
       document.getElementById('cartActionLabel').textContent = lang === 'fr' ? 'Voir ma commande' : 'عرض طلبي';
+      const gpsLbl = document.getElementById('shareGpsLabel');
+      if (gpsLbl) {
+        gpsLbl.textContent = deliveryGps
+          ? (lang === 'fr' ? 'Actualiser ma position GPS' : 'تحديث موقعي الجغرافي GPS')
+          : (lang === 'fr' ? 'Partager ma position GPS exacte' : 'مشاركة موقعي الجغرافي GPS');
+      }
       if (menuData?.settings) {
         document.getElementById('welcomeMsg').textContent = lang === 'ar'
           ? (menuData.settings.welcomeAr || '')
@@ -862,7 +923,11 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
       const customerName = (document.getElementById('custName').value || '').trim();
       const customerPhone = (document.getElementById('custPhone').value || '').trim();
       const deliveryZone = document.getElementById('zoneSelect').value || '';
-      const deliveryAddress = (document.getElementById('custAddr').value || '').trim();
+      const rawAddr = (document.getElementById('custAddr').value || '').trim();
+      const deliveryGpsUrl = (serviceMode === 'delivery' && deliveryGps && deliveryGps.url) ? deliveryGps.url : '';
+      const deliveryAddress = (serviceMode === 'delivery' && deliveryGpsUrl)
+        ? (rawAddr ? (rawAddr.includes(deliveryGpsUrl) ? rawAddr : rawAddr + ' · 📍 GPS: ' + deliveryGpsUrl) : '📍 GPS: ' + deliveryGpsUrl)
+        : rawAddr;
       const notes = (document.getElementById('orderNote').value || '').trim();
 
       if (serviceMode !== 'dine_in' && (!customerName || !customerPhone)) {
@@ -875,7 +940,19 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
         const res = await fetch('/public/orders/' + encodeURIComponent(TENANT_CODE), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serviceMode, tableName, customerName, customerPhone, deliveryZone, deliveryAddress, notes, items }),
+          body: JSON.stringify({
+            serviceMode,
+            tableName,
+            customerName,
+            customerPhone,
+            deliveryZone,
+            deliveryAddress,
+            deliveryLat: deliveryGps ? deliveryGps.lat : undefined,
+            deliveryLng: deliveryGps ? deliveryGps.lng : undefined,
+            deliveryGpsUrl: deliveryGpsUrl || undefined,
+            notes,
+            items,
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erreur envoi');
@@ -1032,7 +1109,19 @@ async function handlePublicQrRoute({
     const customerName = String(b.customerName || '').trim();
     const customerPhone = String(b.customerPhone || '').trim();
     const deliveryZone = String(b.deliveryZone || '').trim();
-    const deliveryAddress = String(b.deliveryAddress || '').trim();
+    let deliveryAddress = String(b.deliveryAddress || '').trim();
+    const latNum = Number(b.deliveryLat);
+    const lngNum = Number(b.deliveryLng);
+    const explicitGpsUrl = String(b.deliveryGpsUrl || '').trim();
+    const resolvedGpsUrl = explicitGpsUrl ||
+      (Number.isFinite(latNum) && Number.isFinite(lngNum) && (latNum !== 0 || lngNum !== 0)
+        ? `https://maps.google.com/?q=${latNum.toFixed(6)},${lngNum.toFixed(6)}`
+        : '');
+    if (serviceMode === 'delivery' && resolvedGpsUrl && !deliveryAddress.includes(resolvedGpsUrl)) {
+      deliveryAddress = deliveryAddress
+        ? `${deliveryAddress} · 📍 GPS: ${resolvedGpsUrl}`
+        : `📍 GPS: ${resolvedGpsUrl}`;
+    }
     const notes = String(b.notes || '').trim();
 
     // Server-side price verification
@@ -1275,6 +1364,15 @@ async function handlePosQrRoute({
       WHERE oi.order_id = ?
     `);
 
+    const extractGpsUrl = (addr) => {
+      const s = String(addr || '');
+      const mUrl = s.match(/https?:\/\/(?:www\.)?(?:maps\.google\.com|google\.com\/maps|goo\.gl\/maps|maps\.app\.goo\.gl)\S*/i);
+      if (mUrl) return mUrl[0];
+      const mCoords = s.match(/(-?\d{1,2}\.\d{3,8})\s*,\s*(-?\d{1,3}\.\d{3,8})/);
+      if (mCoords) return `https://maps.google.com/?q=${mCoords[1]},${mCoords[2]}`;
+      return '';
+    };
+
     const formattedOrders = orders.map((o) => ({
       id: o.id,
       orderCode: o.order_code,
@@ -1288,6 +1386,7 @@ async function handlePosQrRoute({
       customerName: o.customer_name || '',
       customerPhone: o.customer_phone || '',
       deliveryAddress: o.delivery_address || '',
+      gpsUrl: extractGpsUrl(o.delivery_address),
       notes: o.notes || '',
       createdAt: o.created_at,
       items: itemStmt.all(o.id).map((it) => ({

@@ -104,12 +104,14 @@ class ReceiptFormatter {
       buf.writeln('Tel: ${order.customerPhone!.trim()}');
     }
     if (order.serviceMode == ServiceMode.delivery) {
-      if (order.deliveryAddress != null &&
-          order.deliveryAddress!.trim().isNotEmpty) {
-        for (final l in _wrapLines('Adresse: ${order.deliveryAddress!.trim()}',
+      if (order.cleanDeliveryAddress.isNotEmpty) {
+        for (final l in _wrapLines('Adresse: ${order.cleanDeliveryAddress}',
             indent: '')) {
           buf.writeln(l);
         }
+      }
+      if (order.gpsMapsUrl != null && order.gpsMapsUrl!.isNotEmpty) {
+        buf.writeln('GPS: ${order.gpsMapsUrl!}');
       }
       if (order.deliveryDriverName != null &&
           order.deliveryDriverName!.trim().isNotEmpty) {
@@ -311,6 +313,17 @@ class ReceiptFormatter {
     if (order.customerPhone != null &&
         order.customerPhone!.trim().isNotEmpty) {
       buf.writeln('Tel: ${order.customerPhone!.trim()}');
+    }
+    if (order.serviceMode == ServiceMode.delivery) {
+      if (order.cleanDeliveryAddress.isNotEmpty) {
+        for (final l
+            in _wrapLines('Adresse: ${order.cleanDeliveryAddress}', indent: '')) {
+          buf.writeln(l);
+        }
+      }
+      if (order.gpsMapsUrl != null && order.gpsMapsUrl!.isNotEmpty) {
+        buf.writeln('GPS: ${order.gpsMapsUrl!}');
+      }
     }
     buf.writeln(_line());
 

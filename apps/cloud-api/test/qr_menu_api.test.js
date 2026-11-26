@@ -152,6 +152,33 @@ test('QR Menu Public Web App, Online Order, Waiter Call & POS Incoming Flow', as
     assert.equal(tr.status, nextStatus);
   }
 
+  // 8b. Customer places Delivery order with GPS Geolocation sharing (lat/lng)
+  const delivRes = await fetch(`${baseUrl}/public/orders/${tenant.tenantCode}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      serviceMode: 'delivery',
+      customerName: 'Sidi GPS',
+      customerPhone: '46112233',
+      deliveryZone: 'Tevragh Zeina',
+      deliveryAddress: 'Près Pharmacie',
+      deliveryLat: 18.094512,
+      deliveryLng: -15.978421,
+      items: [{ productId: firstProd.id, qty: 1 }],
+    }),
+  });
+  assert.equal(delivRes.status, 201);
+  const delivCreated = await delivRes.json();
+  const incDeliv = await (
+    await fetch(`${baseUrl}/api/pos/qr/incoming`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  ).json();
+  const foundDeliv = incDeliv.orders.find((o) => o.orderCode === delivCreated.orderCode);
+  assert.ok(foundDeliv);
+  assert.equal(foundDeliv.gpsUrl, 'https://maps.google.com/?q=18.094512,-15.978421');
+  assert.match(foundDeliv.deliveryAddress, /https:\/\/maps\.google\.com\/\?q=18\.094512,-15\.978421/);
+
   // 9. POS toggles allowOrdering = false -> public order returns 403
   const setRes = await fetch(`${baseUrl}/api/pos/qr/settings`, {
     method: 'PUT',
