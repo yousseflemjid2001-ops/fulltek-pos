@@ -26,6 +26,7 @@ const {
 } = require('./auth');
 const { importCatalog } = require('./catalogImport');
 const { handleCommercialRoute, ensureCommercialDefaults } = require('./commercial');
+const { handlePublicQrRoute, handlePosQrRoute } = require('./qrMenu');
 
 const DEFAULT_ENABLED_THEMES = ['01', '04', '06', '07', '11'];
 const DEFAULT_PAY_METHODS = ['Cash', 'Bankily', 'Masrivi', 'Sedad', 'Bimbank', 'Click', 'Karni'];
@@ -1215,6 +1216,22 @@ function createApp(options = {}) {
 
       let m;
 
+      // 2a. Public QR Menu Web App (/m/:tenantCode) & Public Ordering APIs (/public/*)
+      if (p.startsWith('/m/') || p.startsWith('/public/')) {
+        const handledQr = await handlePublicQrRoute({
+          req,
+          res,
+          url,
+          pathname: p,
+          database,
+          sendJson,
+          readJsonBody,
+          DEFAULT_DELIVERY_ZONES,
+          standardLimit,
+        });
+        if (handledQr) return;
+      }
+
       // 2b. Centralized Tenant JWT Auth Guard for ALL /api/pos/* routes
       let currentTenant = null;
       if (p === '/api/pos' || p.startsWith('/api/pos/')) {
@@ -1223,6 +1240,21 @@ function createApp(options = {}) {
           sendJson,
         });
         if (!currentTenant) return;
+
+        // 2b-qr. POS QR Menu Settings, Incoming QR Orders & Waiter Alerts
+        if (p.startsWith('/api/pos/qr/')) {
+          const handledPosQr = await handlePosQrRoute({
+            req,
+            res,
+            pathname: p,
+            database,
+            currentTenant,
+            sendJson,
+            readJsonBody,
+            standardLimit,
+          });
+          if (handledPosQr) return;
+        }
       }
 
       // 2c. GET /api/pos/catalog — Full POS Bootstrap Catalog (Tenant-scoped)

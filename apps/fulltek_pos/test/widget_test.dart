@@ -5,6 +5,7 @@ import 'package:fulltek_pos/models/pos_models.dart';
 import 'package:fulltek_pos/services/receipt_formatter.dart';
 import 'package:fulltek_pos/state/pos_store.dart';
 import 'package:fulltek_pos/theme/fulltek_themes.dart';
+import 'package:fulltek_pos/widgets/qr_code_widget.dart';
 import 'package:fulltek_pos/widgets/touch_keyboard.dart';
 
 void main() {
@@ -358,6 +359,48 @@ void main() {
       expect(boStock.can(PosPermission.accessBackOffice), true);
       expect(boStock.can(PosPermission.boSuppliersPurchases), true);
       expect(boStock.can(PosPermission.boAccounting), false);
+    });
+
+    test('Menu QR Code encoder, SVG generation & incoming QR order import', () async {
+      final store = PosStore(enablePersistence: false);
+      expect(store.loginWithPin('7410'), true);
+
+      final genUrl = store.qrMenuUrl();
+      final tableUrl = store.qrMenuUrl(tableCode: 'T1');
+      expect(genUrl, contains('/m/'));
+      expect(tableUrl, contains('?table=T1'));
+
+      final matrix = QrCodeEncoder.encode(tableUrl);
+      expect(matrix.size, greaterThanOrEqualTo(21));
+      final svg = matrix.toSvg(pixelSize: 200);
+      expect(svg, contains('<svg'));
+      expect(svg, contains('<path'));
+
+      final firstItem = store.menuItems.first;
+      store.incomingQrOrders = [
+        {
+          'orderCode': 'QR-99001',
+          'serviceMode': 'dine_in',
+          'tableName': store.tables.first.code,
+          'notes': 'Sans piment',
+          'totalMru': firstItem.priceMru * 3,
+          'items': [
+            {
+              'sku': firstItem.sku,
+              'nameFr': firstItem.nameFr,
+              'qty': 3,
+              'unitPrice': firstItem.priceMru,
+            },
+          ],
+        },
+      ];
+      expect(store.incomingQrTotalCount, 1);
+      final accepted =
+          await store.acceptIncomingQrOrder(store.incomingQrOrders.first);
+      expect(accepted, true);
+      expect(store.incomingQrTotalCount, 0);
+      expect(store.activeOrder, isNotNull);
+      expect(store.activeOrder!.items.first.quantity, 3);
     });
   });
 }

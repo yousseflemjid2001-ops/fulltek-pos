@@ -6523,4 +6523,245 @@ class PosStore extends ChangeNotifier {
       ],
     ];
   }
+
+  // =========================================================================
+  // MENU QR CODE, COMMANDE EN LIGNE & APPELS SERVEUR
+  // =========================================================================
+
+  bool qrMenuEnabled = true;
+  bool qrAllowOrdering = true;
+  bool qrRequirePosValidation = true;
+  String qrWhatsappNumber = '';
+  String qrWelcomeFr =
+      'Bienvenue ! Scannez, choisissez et commandez en un clic.';
+  String qrWelcomeAr = 'مرحباً بكم! تصفحوا القائمة واطلبوا بضغطة زر.';
+  bool isLoadingQr = false;
+
+  List<Map<String, dynamic>> incomingQrOrders = [];
+  List<Map<String, dynamic>> incomingQrAlerts = [];
+
+  int get incomingQrTotalCount =>
+      incomingQrOrders.length + incomingQrAlerts.length;
+
+  /// Generates the live public Menu QR URL for this restaurant (general or table-specific).
+  String qrMenuUrl({String? tableCode}) {
+    final base = apiBaseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    final slug = tenantCode.trim().isNotEmpty ? tenantCode.trim() : 'TNT-1001';
+    final root = '$base/m/${Uri.encodeComponent(slug)}';
+    final t = tableCode?.trim() ?? '';
+    if (t.isEmpty) return root;
+    return '$root?table=${Uri.encodeComponent(t)}';
+  }
+
+  Future<void> fetchQrMenuSettings() async {
+    if (cloudJwtToken == null || cloudJwtToken!.isEmpty) return;
+    try {
+      final res = await _httpRequest(
+        'GET',
+        '$apiBaseUrl/api/pos/qr/settings',
+        headers: {'Authorization': 'Bearer $cloudJwtToken'},
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final s = (data['settings'] as Map?)?.cast<String, dynamic>();
+        if (s != null) {
+          qrMenuEnabled = s['enabled'] != false;
+          qrAllowOrdering = s['allowOrdering'] != false;
+          qrRequirePosValidation = s['requirePosValidation'] != false;
+          qrWhatsappNumber = '${s['whatsappNumber'] ?? ''}';
+          qrWelcomeFr = '${s['welcomeFr'] ?? qrWelcomeFr}';
+          qrWelcomeAr = '${s['welcomeAr'] ?? qrWelcomeAr}';
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<bool> saveQrMenuSettings({
+    bool? enabled,
+    bool? allowOrdering,
+    bool? requirePosValidation,
+    String? whatsappNumber,
+    String? welcomeFr,
+    String? welcomeAr,
+  }) async {
+    if (enabled != null) qrMenuEnabled = enabled;
+    if (allowOrdering != null) qrAllowOrdering = allowOrdering;
+    if (requirePosValidation != null) {
+      qrRequirePosValidation = requirePosValidation;
+    }
+    if (whatsappNumber != null) qrWhatsappNumber = whatsappNumber.trim();
+    if (welcomeFr != null) qrWelcomeFr = welcomeFr.trim();
+    if (welcomeAr != null) qrWelcomeAr = welcomeAr.trim();
+    notifyListeners();
+
+    if (cloudJwtToken == null || cloudJwtToken!.isEmpty) return true;
+    try {
+      final res = await _httpRequest(
+        'PUT',
+        '$apiBaseUrl/api/pos/qr/settings',
+        headers: {
+          'Authorization': 'Bearer $cloudJwtToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'enabled': qrMenuEnabled,
+          'allowOrdering': qrAllowOrdering,
+          'requirePosValidation': qrRequirePosValidation,
+          'whatsappNumber': qrWhatsappNumber,
+          'welcomeFr': qrWelcomeFr,
+          'welcomeAr': qrWelcomeAr,
+        }),
+      );
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> fetchIncomingQrActivity() async {
+    if (cloudJwtToken == null || cloudJwtToken!.isEmpty) return;
+    isLoadingQr = true;
+    try {
+      final res = await _httpRequest(
+        'GET',
+        '$apiBaseUrl/api/pos/qr/incoming',
+        headers: {'Authorization': 'Bearer $cloudJwtToken'},
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        incomingQrOrders = ((data['orders'] as List?) ?? const [])
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .toList();
+        incomingQrAlerts = ((data['alerts'] as List?) ?? const [])
+            .map((e) => (e as Map).cast<String, dynamic>())
+            .toList();
+      }
+    } catch (_) {
+      // keep previous list if offline
+    } finally {
+      isLoadingQr = false;
+      notifyListeners();
+    }
+  }
+
+  /// Accepts an incoming QR order on the cloud API AND imports it into the local POS
+  /// (opening the matching table or Takeaway/Delivery order) so it is ready for Kitchen & Checkout.
+  Future<bool> acceptIncomingQrOrder(Map<String, dynamic> qrOrder) async {
+    final code = '${qrOrder['orderCode'] ?? ''}'.trim();
+    if (code.isEmpty) return false;
+
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty) {
+      try {
+        await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/qr/orders/${Uri.encodeComponent(code)}/accept',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+      } catch (_) {}
+    }
+
+    // Import into local POS active order
+    final modeStr = '${qrOrder['serviceMode'] ?? 'dine_in'}';
+    final tableName = '${qrOrder['tableName'] ?? ''}'.trim();
+    if (modeStr == 'dine_in' && tableName.isNotEmpty) {
+      final matchedTable = tables.cast<DiningTable?>().firstWhere(
+            (t) =>
+                t != null &&
+                t.code.toLowerCase() == tableName.toLowerCase(),
+            orElse: () => null,
+          );
+      if (matchedTable != null) {
+        openOrSelectTable(matchedTable.id);
+      } else {
+        _serviceMode = ServiceMode.dineIn;
+        startCounterOrder();
+      }
+    } else if (modeStr == 'delivery') {
+      _serviceMode = ServiceMode.delivery;
+      startCounterOrder();
+      final dzName = '${qrOrder['deliveryZone'] ?? ''}'.trim();
+      final matchedZone = deliveryZones.cast<DeliveryZone?>().firstWhere(
+            (z) => z != null && z.nameFr.toLowerCase() == dzName.toLowerCase(),
+            orElse: () => deliveryZones.isNotEmpty ? deliveryZones.first : null,
+          );
+      setDeliveryInfo(
+        zone: matchedZone,
+        customerName: '${qrOrder['customerName'] ?? ''}'.trim(),
+        customerPhone: '${qrOrder['customerPhone'] ?? ''}'.trim(),
+        deliveryAddress: '${qrOrder['deliveryAddress'] ?? ''}'.trim(),
+      );
+    } else {
+      _serviceMode = ServiceMode.takeaway;
+      startCounterOrder();
+    }
+
+    final note = '${qrOrder['notes'] ?? ''}'.trim();
+    if (note.isNotEmpty) {
+      setActiveOrderComment('QR $code · $note');
+    }
+
+    final rawItems = (qrOrder['items'] as List?) ?? const [];
+    for (final raw in rawItems) {
+      final m = (raw as Map).cast<String, dynamic>();
+      final sku = '${m['sku'] ?? ''}'.trim();
+      final nameFr = '${m['nameFr'] ?? ''}'.trim();
+      final qty = (m['qty'] is num) ? (m['qty'] as num).toInt() : 1;
+      final itemNote = '${m['kitchenNote'] ?? ''}'.trim();
+
+      final matched = menuItems.cast<MenuItem?>().firstWhere(
+            (mi) =>
+                mi != null &&
+                ((sku.isNotEmpty && mi.sku == sku) ||
+                    (nameFr.isNotEmpty &&
+                        mi.nameFr.toLowerCase() == nameFr.toLowerCase())),
+            orElse: () => null,
+          );
+      if (matched != null) {
+        addItemToActiveOrder(
+          matched,
+          note: itemNote.isNotEmpty ? itemNote : null,
+        );
+        if (qty > 1 && activeOrder != null && activeOrder!.items.isNotEmpty) {
+          setLineQuantity(activeOrder!.items.last.lineId, qty);
+        }
+      }
+    }
+
+    incomingQrOrders.removeWhere((o) => '${o['orderCode']}' == code);
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> rejectIncomingQrOrder(String orderCode) async {
+    final code = orderCode.trim();
+    if (code.isEmpty) return false;
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty) {
+      try {
+        await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/qr/orders/${Uri.encodeComponent(code)}/reject',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+      } catch (_) {}
+    }
+    incomingQrOrders.removeWhere((o) => '${o['orderCode']}' == code);
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> ackQrAlert(int alertId) async {
+    if (cloudJwtToken != null && cloudJwtToken!.isNotEmpty) {
+      try {
+        await _httpRequest(
+          'POST',
+          '$apiBaseUrl/api/pos/qr/alerts/$alertId/ack',
+          headers: {'Authorization': 'Bearer $cloudJwtToken'},
+        );
+      } catch (_) {}
+    }
+    incomingQrAlerts.removeWhere((a) => (a['id'] as num?)?.toInt() == alertId);
+    notifyListeners();
+    return true;
+  }
 }

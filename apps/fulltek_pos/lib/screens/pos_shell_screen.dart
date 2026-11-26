@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/pos_models.dart';
 import '../services/fullscreen_helper.dart';
@@ -14,6 +15,7 @@ import 'kds_view.dart';
 import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
 import 'pos_register_view.dart';
+import 'qr_menu_manager_view.dart';
 
 class PosShellScreen extends StatefulWidget {
   final PosStore store;
@@ -26,6 +28,76 @@ class PosShellScreen extends StatefulWidget {
 class _PosShellScreenState extends State<PosShellScreen> {
   String _activeViewId = 'pos';
   bool _isFullscreen = isFullscreenActive();
+  Timer? _qrPollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.store.cloudJwtToken != null &&
+        widget.store.cloudJwtToken!.isNotEmpty) {
+      Future.microtask(() => widget.store.fetchIncomingQrActivity());
+      _qrPollTimer = Timer.periodic(
+        const Duration(seconds: 20),
+        (_) => widget.store.fetchIncomingQrActivity(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _qrPollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _openQrMenuModal() {
+    final store = widget.store;
+    final hasIncoming = store.incomingQrTotalCount > 0;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(20),
+        child: SizedBox(
+          width: 1020,
+          height: 680,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code_2_rounded),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Menu QR & Commandes en Ligne',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: QrMenuManagerView(
+                  store: store,
+                  initialTab: hasIncoming ? 1 : 0,
+                  onOrderAccepted: () {
+                    Navigator.of(ctx).pop();
+                    if (mounted) setState(() => _activeViewId = 'pos');
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   String _defaultViewForRole(PosRole? role) {
     return switch (role) {
@@ -258,6 +330,19 @@ class _PosShellScreenState extends State<PosShellScreen> {
                               onTap: () {
                                 Navigator.of(ctx).pop();
                                 showXzReportSettingsDialog(context, store);
+                              },
+                            ),
+                            _buildFunctionTile(
+                              p: p,
+                              icon: Icons.qr_code_2_rounded,
+                              title: 'Menu QR & Codes Tables',
+                              subtitle: store.incomingQrTotalCount > 0
+                                  ? '${store.incomingQrTotalCount} nouvelle(s) demande(s) QR !'
+                                  : 'QR général, chevalets A4 & commandes en ligne',
+                              color: const Color(0xFF10B981),
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                _openQrMenuModal();
                               },
                             ),
                             _buildFunctionTile(
@@ -1294,6 +1379,46 @@ class _PosShellScreenState extends State<PosShellScreen> {
               ],
             ],
             const SizedBox(width: 4),
+            // Live incoming QR Orders & Waiter Calls alert pill (appears immediately when > 0)
+            if (store.incomingQrTotalCount > 0) ...[
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    key: const Key('open_qr_menu_btn'),
+                    tooltip:
+                        'Menu QR · ${store.incomingQrTotalCount} nouvelle(s) demande(s)',
+                    style: IconButton.styleFrom(
+                      backgroundColor: p.danger.withValues(alpha: 0.18),
+                      foregroundColor: p.danger,
+                    ),
+                    onPressed: _openQrMenuModal,
+                    icon: const Icon(Icons.qr_code_2_rounded, size: 19),
+                  ),
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: p.danger,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${store.incomingQrTotalCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 4),
+            ],
             // Compact In-app Zoom menu (like browser zoom: 80% .. 130%)
             PopupMenuButton<double>(
               key: const Key('zoom_menu_btn'),

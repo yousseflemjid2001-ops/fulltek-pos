@@ -9,6 +9,7 @@ import 'closing_z_view.dart';
 import 'karni_view.dart';
 import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
+import 'qr_menu_manager_view.dart';
 import 'team_profiles_view.dart';
 
 /// Full-Tek Resto Back-Office ERP Complet :
@@ -176,6 +177,18 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
             icon: Icons.inventory_2_rounded,
             permission: PosPermission.boMenuStock,
             view: MenuStockView(store: store),
+          ),
+          (
+            id: 'qr_menu',
+            label: 'Menu QR & Commande en Ligne',
+            icon: Icons.qr_code_2_rounded,
+            permission: PosPermission.boMenuStock,
+            view: QrMenuManagerView(
+              store: store,
+              onOrderAccepted: () {
+                if (mounted) Navigator.of(context).pop();
+              },
+            ),
           ),
           (
             id: 'sales',
