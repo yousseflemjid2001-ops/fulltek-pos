@@ -3,5 +3,6 @@ bool platformPrint80mm(
   String receiptText, {
   String? logoDataUrl,
   String logoPosition = 'center',
+  bool isKitchenTicket = false,
 }) =>
     false;

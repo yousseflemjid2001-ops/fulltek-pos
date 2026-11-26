@@ -287,5 +287,77 @@ void main() {
         ctrl.dispose();
       },
     );
+
+    test('Bouton Quantite, Offert (Article & Tout le ticket) dans X/Z, et Profils Back-Office', () {
+      final store = PosStore(enablePersistence: false);
+      expect(store.loginWithPin('7410'), true); // Owner
+
+      // 1. Bouton Quantite: setLineQuantity sets exact quantity directly & is modifiable (10 -> 7)
+      final item1 = store.menuItems.first;
+      final item2 = store.menuItems[1];
+      store.addItemToActiveOrder(item1);
+      store.addItemToActiveOrder(item2);
+      final line1 = store.activeOrder!.items.first;
+      expect(store.setLineQuantity(line1.lineId, 10), true);
+      expect(store.activeOrder!.items.first.quantity, 10);
+      expect(store.setLineQuantity(line1.lineId, 7), true);
+      expect(store.activeOrder!.items.first.quantity, 7);
+
+      // 2. Partial Comp (1 article) + Whole-ticket Comp with auto-close
+      expect(
+        store.recordOrderCompOrReturn(
+          type: 'comp',
+          reason: 'Geste VIP',
+          lineIds: [line1.lineId],
+          wholeOrder: false,
+        ),
+        true,
+      );
+      expect(store.activeOrder!.items.first.isComp, true);
+      expect(store.unclosedCompCount, 7);
+
+      // Now offer the remaining item as whole-ticket comp + auto-close
+      expect(
+        store.recordOrderCompOrReturn(
+          type: 'comp',
+          reason: 'Offert Direction',
+          wholeOrder: true,
+          autoCloseCompOrder: true,
+        ),
+        true,
+      );
+      expect(store.unclosedCompCount, 8);
+      expect(store.unclosedCompTotalMru, greaterThan(0));
+
+      // 3. Rapport X & Cloture Z both include Offerts (Comp) + detail section
+      final xReport = store.generateReportX80mm();
+      expect(xReport, contains('Offerts (Comp):'));
+      expect(xReport, contains('DETAIL OFFRES (OFFERTS)'));
+      expect(xReport, contains('Geste VIP'));
+
+      final z = store.submitBlindClosingZ(
+        countedCashMru: 0,
+        countedBankilyMru: 0,
+        countedMasriviMru: 0,
+        countedSedadMru: 0,
+        countedBimbankMru: 0,
+        countedClickMru: 0,
+      );
+      final zReport = store.formatClosingZ80mm(z);
+      expect(zReport, contains('Offerts (Comp):'));
+      expect(zReport, contains('DETAIL OFFRES (OFFERTS)'));
+
+      // 4. Back-Office Profiles & granular module permissions
+      final boAccountant =
+          store.profiles.firstWhere((p) => p.id == 'prof-bo-accountant');
+      final boStock =
+          store.profiles.firstWhere((p) => p.id == 'prof-bo-stock');
+      expect(boAccountant.can(PosPermission.accessBackOffice), true);
+      expect(boAccountant.can(PosPermission.boAccounting), true);
+      expect(boAccountant.can(PosPermission.boSuppliersPurchases), false);
+      expect(boStock.can(PosPermission.accessBackOffice), true);
+      expect(boStock.can(PosPermission.boSuppliersPurchases), true);
+      expect(boStock.can(PosPermission.boAccounting), false);
+    });
   });
 }

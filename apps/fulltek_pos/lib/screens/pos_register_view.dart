@@ -27,6 +27,205 @@ class PosRegisterView extends StatefulWidget {
 class _PosRegisterViewState extends State<PosRegisterView> {
   String _selectedCategoryId = 'all';
   String _query = '';
+  String? _selectedLineId;
+
+  Future<void> _openQuantityDialog(OrderItem line) async {
+    final store = widget.store;
+    final p = FullTekThemes.paletteOf(context);
+    String digits = '';
+    String? error;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          final currentVal = digits.isEmpty ? '${line.quantity}' : digits;
+          void tapDigit(String d) {
+            setD(() {
+              error = null;
+              if (digits.length < 4) digits += d;
+            });
+          }
+
+          void applyQty(int qty) {
+            if (qty <= 0) {
+              setD(() => error = 'Quantité minimale : 1');
+              return;
+            }
+            final ok = store.setLineQuantity(line.lineId, qty);
+            if (!ok) {
+              setD(() => error = store.lastVoidError ??
+                  'Impossible de modifier la quantité.');
+              return;
+            }
+            Navigator.of(ctx).pop();
+          }
+
+          Widget numBtn(String label, {VoidCallback? onTap, Color? bg}) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: SizedBox(
+                  height: 46,
+                  child: ElevatedButton(
+                    key: Key('qty_pad_$label'),
+                    onPressed: onTap ?? () => tapDigit(label),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: bg ?? p.surfaceAlt,
+                      foregroundColor: p.textPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: p.border),
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
+            backgroundColor: p.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: p.border),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Quantité · ${line.item.label(store.lang)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w900,
+                    color: p.textPrimary,
+                  ),
+                ),
+                Text(
+                  'Prix unitaire : ${line.unitPriceWithModifiers.toStringAsFixed(0)} MRU',
+                  style: TextStyle(fontSize: 12, color: p.textMuted),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 310,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: p.surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: p.primary, width: 1.5),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Quantité :',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: p.textMuted,
+                          ),
+                        ),
+                        Text(
+                          currentVal,
+                          key: const Key('qty_dialog_display'),
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: p.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [2, 3, 5, 10, 15, 20]
+                        .map((preset) => ActionChip(
+                              key: Key('qty_preset_$preset'),
+                              label: Text(
+                                '×$preset',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800),
+                              ),
+                              onPressed: () => applyQty(preset),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(children: [numBtn('1'), numBtn('2'), numBtn('3')]),
+                  Row(children: [numBtn('4'), numBtn('5'), numBtn('6')]),
+                  Row(children: [numBtn('7'), numBtn('8'), numBtn('9')]),
+                  Row(children: [
+                    numBtn('C',
+                        bg: p.danger.withValues(alpha: 0.14),
+                        onTap: () => setD(() {
+                              digits = '';
+                              error = null;
+                            })),
+                    numBtn('0'),
+                    numBtn('⌫',
+                        bg: p.warning.withValues(alpha: 0.14),
+                        onTap: () => setD(() {
+                              error = null;
+                              if (digits.isNotEmpty) {
+                                digits =
+                                    digits.substring(0, digits.length - 1);
+                              }
+                            })),
+                  ]),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: p.danger,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(store.i18n.t('cancel')),
+              ),
+              ElevatedButton.icon(
+                key: const Key('confirm_qty_btn'),
+                onPressed: () {
+                  final parsed = int.tryParse(currentVal) ?? line.quantity;
+                  applyQty(parsed);
+                },
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('Valider'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   List<MenuItem> get _filteredItems {
     final q = _query.trim().toLowerCase();
@@ -1003,6 +1202,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
       context,
       title: '${store.i18n.t('kitchen_sent')} · Mise en attente',
       receiptText: kdsTicket,
+      isKitchenTicket: true,
     );
   }
 
@@ -1146,6 +1346,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
         title: '❌ Annulation commande (Cuisine)',
         subtitle: 'À remettre en cuisine · Trace enregistrée dans l\'historique',
         receiptText: result,
+        isKitchenTicket: true,
       );
     }
   }
@@ -1331,6 +1532,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
         title: '❌ Ticket d\'annulation cuisine',
         subtitle: 'À remettre en cuisine · Trace enregistrée dans l\'historique',
         receiptText: cancelTicket,
+        isKitchenTicket: true,
       );
     }
   }
@@ -2919,30 +3121,57 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                         Divider(height: 1, color: p.border),
                     itemBuilder: (context, idx) {
                       final line = items[idx];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 30,
-                              alignment: Alignment.center,
-                              margin: const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                color: p.surfaceAlt,
-                                borderRadius: BorderRadius.circular(9),
-                                border: Border.all(
-                                    color: p.primary.withValues(alpha: 0.3)),
-                              ),
-                              child: Text(
-                                '${line.quantity}',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: p.primary,
+                      final isSelected = _selectedLineId == line.lineId;
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () =>
+                            setState(() => _selectedLineId = line.lineId),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 4),
+                          decoration: isSelected
+                              ? BoxDecoration(
+                                  color: p.primary.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                )
+                              : null,
+                          child: Row(
+                            children: [
+                              Tooltip(
+                                message: 'Toucher pour saisir la quantité',
+                                child: InkWell(
+                                  key: Key('line_qty_btn_${line.lineId}'),
+                                  borderRadius: BorderRadius.circular(9),
+                                  onTap: () {
+                                    setState(
+                                        () => _selectedLineId = line.lineId);
+                                    _openQuantityDialog(line);
+                                  },
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                        minWidth: 34, minHeight: 32),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6),
+                                    alignment: Alignment.center,
+                                    margin: const EdgeInsets.only(right: 10),
+                                    decoration: BoxDecoration(
+                                      color: p.primary.withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(9),
+                                      border: Border.all(
+                                          color:
+                                              p.primary.withValues(alpha: 0.5)),
+                                    ),
+                                    child: Text(
+                                      '${line.quantity}',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: p.primary,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3106,63 +3335,104 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             ),
                           ],
                         ),
+                        ),
                       );
                     },
                   ),
           ),
 
           if (items.isNotEmpty) ...[
-            InkWell(
-              key: const Key('order_comment_btn'),
-              borderRadius: BorderRadius.circular(10),
-              onTap: _openOrderCommentDialog,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                margin: const EdgeInsets.only(bottom: 7),
-                decoration: BoxDecoration(
-                  color: (order?.orderComment ?? '').trim().isNotEmpty
-                      ? p.warning.withValues(alpha: 0.14)
-                      : p.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: (order?.orderComment ?? '').trim().isNotEmpty
-                        ? p.warning
-                        : p.border,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 16,
-                      color: (order?.orderComment ?? '').trim().isNotEmpty
-                          ? p.warning
-                          : p.textMuted,
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        (order?.orderComment ?? '').trim().isNotEmpty
-                            ? '💬 ${order!.orderComment!.trim()}'
-                            : 'Ajouter un commentaire cuisine...',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight:
-                              (order?.orderComment ?? '').trim().isNotEmpty
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      key: const Key('order_comment_btn'),
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: _openOrderCommentDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
                           color: (order?.orderComment ?? '').trim().isNotEmpty
-                              ? p.warning
-                              : p.textMuted,
+                              ? p.warning.withValues(alpha: 0.14)
+                              : p.surfaceAlt,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color:
+                                (order?.orderComment ?? '').trim().isNotEmpty
+                                    ? p.warning
+                                    : p.border,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 16,
+                              color:
+                                  (order?.orderComment ?? '').trim().isNotEmpty
+                                      ? p.warning
+                                      : p.textMuted,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                (order?.orderComment ?? '').trim().isNotEmpty
+                                    ? '💬 ${order!.orderComment!.trim()}'
+                                    : 'Ajouter un commentaire cuisine...',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: (order?.orderComment ?? '')
+                                          .trim()
+                                          .isNotEmpty
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: (order?.orderComment ?? '')
+                                          .trim()
+                                          .isNotEmpty
+                                      ? p.warning
+                                      : p.textMuted,
+                                ),
+                              ),
+                            ),
+                            Icon(Icons.edit_rounded,
+                                size: 14, color: p.textMuted),
+                          ],
                         ),
                       ),
                     ),
-                    Icon(Icons.edit_rounded, size: 14, color: p.textMuted),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    key: const Key('cart_qty_btn'),
+                    onPressed: () {
+                      final target = items.firstWhere(
+                        (l) => l.lineId == _selectedLineId,
+                        orElse: () => items.last,
+                      );
+                      _openQuantityDialog(target);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      side: BorderSide(color: p.primary, width: 1.4),
+                      foregroundColor: p.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.dialpad_rounded, size: 16),
+                    label: const Text(
+                      'Quantité',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -3330,16 +3600,45 @@ class _PosRegisterViewState extends State<PosRegisterView> {
           ),
           const SizedBox(height: 8),
 
-          // Primary Checkout Button
-          ElevatedButton.icon(
-            key: const Key('open_checkout_btn'),
-            onPressed: canPay ? _openCheckout : null,
-            icon: const Icon(Icons.point_of_sale_rounded),
-            label: Text(
-              '${i18n.t('checkout').toUpperCase()} · ${(order?.netTotal ?? 0).toStringAsFixed(0)} ${i18n.t('mru')}',
-              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+          // Primary Checkout Button (or Close 0 MRU Comp Ticket)
+          if (items.isNotEmpty && (order?.netTotal ?? 0) <= 0.01)
+            ElevatedButton.icon(
+              key: const Key('close_comp_ticket_btn'),
+              onPressed: store.canCurrent(PosPermission.checkout)
+                  ? () {
+                      final closed = store.completeCheckout(const []);
+                      if (closed != null && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '🎁 Ticket ${closed.ticketNumber} clôturé (OFFERT · 0 MRU)',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: p.success,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.card_giftcard_rounded),
+              label: const Text(
+                'CLÔTURER OFFERT · 0 MRU',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              key: const Key('open_checkout_btn'),
+              onPressed: canPay ? _openCheckout : null,
+              icon: const Icon(Icons.point_of_sale_rounded),
+              label: Text(
+                '${i18n.t('checkout').toUpperCase()} · ${(order?.netTotal ?? 0).toStringAsFixed(0)} ${i18n.t('mru')}',
+                style:
+                    const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+              ),
             ),
-          ),
         ],
       ),
     );

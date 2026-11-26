@@ -38,9 +38,39 @@ enum PosPermission {
   manageProfilesUsers,
   syncCloud,
   accessBackOffice,
+  // Granular Back-Office ERP module permissions
+  boDashboard,
+  boSuppliersPurchases,
+  boB2bInvoices,
+  boRecipesFoodCost,
+  boInventoryWaste,
+  boAccounting,
+  boTreasuryZ,
+  boMenuStock,
+  boSalesJournal,
+  boKarni,
+  boProfilesUsers,
 }
 
 extension PosPermissionMeta on PosPermission {
+  static const List<PosPermission> backOfficeModulePermissions = [
+    PosPermission.boDashboard,
+    PosPermission.boSuppliersPurchases,
+    PosPermission.boB2bInvoices,
+    PosPermission.boRecipesFoodCost,
+    PosPermission.boInventoryWaste,
+    PosPermission.boAccounting,
+    PosPermission.boTreasuryZ,
+    PosPermission.boMenuStock,
+    PosPermission.boSalesJournal,
+    PosPermission.boKarni,
+    PosPermission.boProfilesUsers,
+  ];
+
+  bool get isBackOfficePermission =>
+      this == PosPermission.accessBackOffice ||
+      backOfficeModulePermissions.contains(this);
+
   String get labelFr => switch (this) {
         PosPermission.openTable => 'Ouverture de table',
         PosPermission.serveTable => 'Servir table / Envoi cuisine',
@@ -59,6 +89,17 @@ extension PosPermissionMeta on PosPermission {
         PosPermission.manageProfilesUsers => 'Profils, Utilisateurs & Badges',
         PosPermission.syncCloud => 'Synchronisation Cloud',
         PosPermission.accessBackOffice => 'Accès Back-Office (Gestion & Contrôle)',
+        PosPermission.boDashboard => 'BO · Tableau de Bord & KPIs',
+        PosPermission.boSuppliersPurchases => 'BO · Fournisseurs & Achats',
+        PosPermission.boB2bInvoices => 'BO · Facturation B2B / Traiteur',
+        PosPermission.boRecipesFoodCost => 'BO · Fiches Techniques & Marges',
+        PosPermission.boInventoryWaste => 'BO · Inventaire & Pertes Stock',
+        PosPermission.boAccounting => 'BO · Comptabilité, TVA & Grand Livre',
+        PosPermission.boTreasuryZ => 'BO · Trésorerie Multi-Comptes & Z',
+        PosPermission.boMenuStock => 'BO · Menu, Familles & Suppléments',
+        PosPermission.boSalesJournal => 'BO · Journal des Ventes Caisse',
+        PosPermission.boKarni => 'BO · Clients & Carnet Karni',
+        PosPermission.boProfilesUsers => 'BO · Profils, Utilisateurs & Fiscalité',
       };
 }
 
@@ -113,6 +154,11 @@ class PosProfile {
       final found = PosPermission.values.where((e) => e.name == '$p');
       if (found.isNotEmpty) perms.add(found.first);
     }
+    // Legacy compatibility: profiles saved before granular BO permissions keep all BO modules
+    if (perms.contains(PosPermission.accessBackOffice) &&
+        !PosPermissionMeta.backOfficeModulePermissions.any(perms.contains)) {
+      perms.addAll(PosPermissionMeta.backOfficeModulePermissions);
+    }
     return PosProfile(
       id: '${json['id'] ?? ''}',
       name: '${json['name'] ?? role.fr}',
@@ -143,6 +189,17 @@ class RbacMatrix {
       PosPermission.manageProfilesUsers,
       PosPermission.syncCloud,
       PosPermission.accessBackOffice,
+      PosPermission.boDashboard,
+      PosPermission.boSuppliersPurchases,
+      PosPermission.boB2bInvoices,
+      PosPermission.boRecipesFoodCost,
+      PosPermission.boInventoryWaste,
+      PosPermission.boAccounting,
+      PosPermission.boTreasuryZ,
+      PosPermission.boMenuStock,
+      PosPermission.boSalesJournal,
+      PosPermission.boKarni,
+      PosPermission.boProfilesUsers,
     },
     PosRole.adminSite: {
       PosPermission.openTable,
@@ -162,6 +219,17 @@ class RbacMatrix {
       PosPermission.manageProfilesUsers,
       PosPermission.syncCloud,
       PosPermission.accessBackOffice,
+      PosPermission.boDashboard,
+      PosPermission.boSuppliersPurchases,
+      PosPermission.boB2bInvoices,
+      PosPermission.boRecipesFoodCost,
+      PosPermission.boInventoryWaste,
+      PosPermission.boAccounting,
+      PosPermission.boTreasuryZ,
+      PosPermission.boMenuStock,
+      PosPermission.boSalesJournal,
+      PosPermission.boKarni,
+      PosPermission.boProfilesUsers,
     },
     PosRole.manager: {
       PosPermission.openTable,
@@ -179,6 +247,16 @@ class RbacMatrix {
       PosPermission.viewStats,
       PosPermission.manageMenuStock,
       PosPermission.syncCloud,
+      PosPermission.accessBackOffice,
+      PosPermission.boDashboard,
+      PosPermission.boSuppliersPurchases,
+      PosPermission.boB2bInvoices,
+      PosPermission.boRecipesFoodCost,
+      PosPermission.boInventoryWaste,
+      PosPermission.boTreasuryZ,
+      PosPermission.boMenuStock,
+      PosPermission.boSalesJournal,
+      PosPermission.boKarni,
     },
     PosRole.cashier: {
       PosPermission.openTable,
@@ -202,11 +280,26 @@ class RbacMatrix {
       PosPermission.manageReservations,
     },
     PosRole.kitchen: {},
-    PosRole.stockKeeper: {PosPermission.manageMenuStock},
+    PosRole.stockKeeper: {
+      PosPermission.manageMenuStock,
+      PosPermission.accessBackOffice,
+      PosPermission.boDashboard,
+      PosPermission.boSuppliersPurchases,
+      PosPermission.boRecipesFoodCost,
+      PosPermission.boInventoryWaste,
+      PosPermission.boMenuStock,
+    },
     PosRole.accountant: {
       PosPermission.closeCashZ,
       PosPermission.viewStats,
       PosPermission.syncCloud,
+      PosPermission.accessBackOffice,
+      PosPermission.boDashboard,
+      PosPermission.boB2bInvoices,
+      PosPermission.boAccounting,
+      PosPermission.boTreasuryZ,
+      PosPermission.boSalesJournal,
+      PosPermission.boKarni,
     },
     PosRole.delivery: {PosPermission.takeOrders},
   };

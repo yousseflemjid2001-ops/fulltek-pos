@@ -570,6 +570,7 @@ void showReceiptPreviewDialog(
   String? subtitle,
   String? logoDataUrl,
   String logoPosition = 'center',
+  bool isKitchenTicket = false,
 }) {
   final p = FullTekThemes.paletteOf(context);
   final logoBytes = _decodeLogoBytes(logoDataUrl);
@@ -629,11 +630,12 @@ void showReceiptPreviewDialog(
               SelectableText(
                 receiptText,
                 key: const Key('receipt_80mm_text'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
-                  fontSize: 12,
-                  height: 1.35,
-                  color: Color(0xFF1C1917),
+                  fontSize: isKitchenTicket ? 15.5 : 12,
+                  fontWeight: isKitchenTicket ? FontWeight.w900 : FontWeight.w500,
+                  height: isKitchenTicket ? 1.42 : 1.35,
+                  color: const Color(0xFF000000),
                 ),
               ),
             ],
@@ -648,9 +650,10 @@ void showReceiptPreviewDialog(
             receiptText,
             logoDataUrl: logoDataUrl,
             logoPosition: logoPosition,
+            isKitchenTicket: isKitchenTicket,
           ),
           icon: const Icon(Icons.print_rounded, size: 17),
-          label: const Text('Imprimer 80mm'),
+          label: Text(isKitchenTicket ? 'Imprimer Cuisine 80mm' : 'Imprimer 80mm'),
         ),
         ElevatedButton(
           onPressed: () => Navigator.of(ctx).pop(),

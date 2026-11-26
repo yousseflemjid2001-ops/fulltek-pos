@@ -386,18 +386,64 @@ class _ClosingZViewState extends State<ClosingZView> {
               const SizedBox(height: 16),
               Divider(color: p.border),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Icon(Icons.history_rounded, size: 17, color: p.danger),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Historique Annulations Cuisine & Retours (${store.remakeRecords.length})',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: p.textPrimary,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history_rounded, size: 17, color: p.danger),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Offerts, Retours & Annulations (${store.remakeRecords.length})',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: p.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
+                  if (store.unclosedCompCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: p.success.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: p.success.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        '🎁 Offerts : ${store.unclosedCompCount} art. · ${store.unclosedCompTotalMru.toStringAsFixed(0)} MRU',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: p.success,
+                        ),
+                      ),
+                    ),
+                  if (store.unclosedReturnCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: p.danger.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: p.danger.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        '↩️ Retours/Annul. : ${store.unclosedReturnCount} art. · ${store.unclosedReturnTotalMru.toStringAsFixed(0)} MRU',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: p.danger,
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -408,6 +454,7 @@ class _ClosingZViewState extends State<ClosingZView> {
                   'comp' => 'OFFERT',
                   _ => 'REMAKE',
                 };
+                final badgeColor = r.type == 'comp' ? p.success : p.danger;
                 final hm =
                     '${r.createdAt.hour.toString().padLeft(2, '0')}:${r.createdAt.minute.toString().padLeft(2, '0')}';
                 return Container(
@@ -419,7 +466,9 @@ class _ClosingZViewState extends State<ClosingZView> {
                     border: Border.all(
                       color: r.type == 'void_kitchen'
                           ? p.danger.withValues(alpha: 0.4)
-                          : p.border,
+                          : (r.type == 'comp'
+                              ? p.success.withValues(alpha: 0.4)
+                              : p.border),
                     ),
                   ),
                   child: Column(
@@ -431,7 +480,7 @@ class _ClosingZViewState extends State<ClosingZView> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: p.danger.withValues(alpha: 0.14),
+                              color: badgeColor.withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -439,7 +488,7 @@ class _ClosingZViewState extends State<ClosingZView> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
-                                color: p.danger,
+                                color: badgeColor,
                               ),
                             ),
                           ),

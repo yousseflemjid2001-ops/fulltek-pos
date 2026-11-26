@@ -375,12 +375,19 @@ class ReceiptFormatter {
     required PosOrder order,
     required List<OrderItem> newItems,
   }) {
-    final buf = StringBuffer();
-    buf.writeln(_line('*'));
-    if (order.isTraining) {
-      buf.writeln(_center('*** FORMATION ***'));
+    const kWidth = 30;
+    String kLine([String ch = '-']) => ch * kWidth;
+    String kPad(String left, String right) {
+      final sp = kWidth - left.length - right.length;
+      return sp >= 1 ? '$left${' ' * sp}$right' : '$left $right';
     }
-    buf.writeln(_center('*** BON CUISINE / KDS ***'));
+
+    final buf = StringBuffer();
+    buf.writeln(kLine('='));
+    if (order.isTraining) {
+      buf.writeln('*** FORMATION ***');
+    }
+    buf.writeln('*** BON CUISINE / KDS ***');
     final targetLabel = switch (order.serviceMode) {
       ServiceMode.dineIn =>
         order.tableCode != null ? 'TABLE: ${order.tableCode}' : 'COMPTOIR',
@@ -389,12 +396,12 @@ class ReceiptFormatter {
       ServiceMode.delivery =>
         'LIVRAISON - ${order.deliveryZone?.nameFr ?? 'Nouakchott'}',
     };
-    buf.writeln(_padRow(targetLabel, order.ticketNumber));
+    buf.writeln(kPad(targetLabel, order.ticketNumber));
     final kitchenServer =
         (order.serverName != null && order.serverName!.trim().isNotEmpty)
             ? order.serverName!.trim()
             : order.staffName;
-    buf.writeln(_padRow(
+    buf.writeln(kPad(
       'Serveur: $kitchenServer',
       '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
     ));
@@ -412,24 +419,29 @@ class ReceiptFormatter {
       }
     }
     if (order.orderComment != null && order.orderComment!.trim().isNotEmpty) {
-      buf.writeln(_line());
-      for (final l in _wrapLines('*** COMMENTAIRE: ${order.orderComment!.trim()} ***',
-          indent: '')) {
-        buf.writeln(l);
-      }
+      buf.writeln(kLine());
+      buf.writeln('COMMENTAIRE: ${order.orderComment!.trim()}');
     }
-    buf.writeln(_line());
+    buf.writeln(kLine('='));
     for (final i in newItems) {
-      buf.writeln('[${i.item.kitchenStation}] ${i.quantity}x ${i.item.nameFr}');
-      buf.writeln('   ${i.item.nameAr}');
+      final takeawayTag =
+          (i.isTakeaway && order.serviceMode != ServiceMode.takeaway)
+              ? ' [EMPORTER]'
+              : '';
+      buf.writeln(
+          '[${i.item.kitchenStation}] ${i.quantity}x ${i.item.nameFr.toUpperCase()}$takeawayTag');
+      if (i.item.nameAr.trim().isNotEmpty) {
+        buf.writeln('   ${i.item.nameAr}');
+      }
       for (final m in i.selectedModifiers) {
         buf.writeln('   + ${m.nameFr}');
       }
       if (i.kitchenNote != null && i.kitchenNote!.isNotEmpty) {
-        buf.writeln('   >>> NOTE: ${i.kitchenNote}');
+        buf.writeln('   >>> ${i.kitchenNote}');
       }
+      buf.writeln(kLine('-'));
     }
-    buf.writeln(_line('*'));
+    buf.writeln(kLine('='));
     return buf.toString();
   }
 
@@ -494,6 +506,12 @@ class ReceiptFormatter {
     Map<String, double> otherWallets = const {},
     required double karniMru,
     double walletCashbackMru = 0,
+    int compCount = 0,
+    double compTotalMru = 0,
+    int returnCount = 0,
+    double returnTotalMru = 0,
+    List<({String label, int qty, double amountMru, String reason})> compDetails =
+        const [],
     String restaurantName = 'FULL-TEK RESTO POS',
     bool showByFamily = false,
     bool showByArticle = false,
@@ -526,7 +544,14 @@ class ReceiptFormatter {
     buf.writeln('Perimetre: $scopeLabel');
     buf.writeln(_padRow('Tickets encaisses:', '$ordersCount'));
     buf.writeln(_padRow('Tables en cours:', '$openTablesCount'));
-    buf.writeln(_padRow('Annulations/Offerts:', '$remakesCount'));
+    buf.writeln(_padRow('Offerts (Comp):',
+        '$compCount (${formatMru(compTotalMru)})'));
+    buf.writeln(_padRow('Retours/Annul.:',
+        '$returnCount (${formatMru(returnTotalMru)})'));
+    if (remakesCount > compCount + returnCount) {
+      buf.writeln(_padRow(
+          'Remakes cuisine:', '${remakesCount - compCount - returnCount}'));
+    }
     buf.writeln(_line());
     buf.writeln(_padRow('Especes (Cash):', formatMru(cashMru)));
     if (walletCashbackMru > 0) {
@@ -545,6 +570,7 @@ class ReceiptFormatter {
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL ENCAISSE (X):', formatMru(total)));
     buf.writeln(_line('='));
+    _appendCompDetailsSection(buf, compDetails);
     _appendBreakdownSections(
       buf,
       showByFamily: showByFamily,
@@ -557,6 +583,24 @@ class ReceiptFormatter {
     buf.writeln(_center('COMPTEURS NON REMIS A ZERO'));
     buf.writeln(_line('='));
     return buf.toString();
+  }
+
+  static void _appendCompDetailsSection(
+    StringBuffer buf,
+    List<({String label, int qty, double amountMru, String reason})> compDetails,
+  ) {
+    if (compDetails.isEmpty) return;
+    buf.writeln(_center('--- DETAIL OFFRES (OFFERTS) ---'));
+    for (final c in compDetails) {
+      final name = c.label.length > 20
+          ? '${c.label.substring(0, 18)}..'
+          : c.label;
+      buf.writeln(_padRow('${c.qty}x $name', '-${formatMru(c.amountMru)}'));
+      if (c.reason.trim().isNotEmpty) {
+        buf.writeln('   Motif: ${c.reason.trim()}');
+      }
+    }
+    buf.writeln(_line());
   }
 
   static void _appendBreakdownSections(
@@ -615,6 +659,12 @@ class ReceiptFormatter {
 
   static String formatClosingZReport(
     CashClosingZ z, {
+    int compCount = 0,
+    double compTotalMru = 0,
+    int returnCount = 0,
+    double returnTotalMru = 0,
+    List<({String label, int qty, double amountMru, String reason})> compDetails =
+        const [],
     bool showByFamily = false,
     bool showByArticle = false,
     bool showByCustomer = false,
@@ -630,7 +680,14 @@ class ReceiptFormatter {
     buf.writeln(_padRow('ID:', z.id));
     buf.writeln(_padRow('Caissier:', z.cashierName));
     buf.writeln(_padRow('Commandes:', '${z.ordersCount}'));
-    buf.writeln(_padRow('Remakes/Offerts:', '${z.remakesCount}'));
+    buf.writeln(_padRow('Offerts (Comp):',
+        '$compCount (${formatMru(compTotalMru)})'));
+    buf.writeln(_padRow('Retours/Annul.:',
+        '$returnCount (${formatMru(returnTotalMru)})'));
+    if (z.remakesCount > compCount + returnCount) {
+      buf.writeln(_padRow(
+          'Remakes cuisine:', '${z.remakesCount - compCount - returnCount}'));
+    }
     buf.writeln(_line());
     buf.writeln(_padRow('Especes comptees:', formatMru(z.countedCashMru)));
     buf.writeln(_padRow('Especes theoriques:', formatMru(z.expectedCashMru)));
@@ -655,6 +712,7 @@ class ReceiptFormatter {
     buf.writeln(_line('='));
     buf.writeln(_padRow('TOTAL CA JOUR:', formatMru(z.totalExpectedMru)));
     buf.writeln(_line('='));
+    _appendCompDetailsSection(buf, compDetails);
     _appendBreakdownSections(
       buf,
       showByFamily: showByFamily,

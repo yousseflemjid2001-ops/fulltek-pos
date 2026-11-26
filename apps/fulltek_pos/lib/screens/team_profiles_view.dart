@@ -8,7 +8,12 @@ import '../theme/fulltek_themes.dart';
 
 class TeamProfilesView extends StatefulWidget {
   final PosStore store;
-  const TeamProfilesView({super.key, required this.store});
+  final bool backOfficeMode;
+  const TeamProfilesView({
+    super.key,
+    required this.store,
+    this.backOfficeMode = false,
+  });
 
   @override
   State<TeamProfilesView> createState() => _TeamProfilesViewState();
@@ -17,6 +22,7 @@ class TeamProfilesView extends StatefulWidget {
 class _TeamProfilesViewState extends State<TeamProfilesView> {
   int _subTab = 0; // 0 = Profils & Droits, 1 = Utilisateurs & Badges, 2 = Infos Restaurant
   String? _selectedProfileId;
+  String _userScopeFilter = 'all'; // all | backoffice | pos_only
 
   late final TextEditingController _restNameCtrl;
   late final TextEditingController _restNameArCtrl;
@@ -403,12 +409,40 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        prof.name,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: p.textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              prof.name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (prof.can(PosPermission.accessBackOffice))
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF7C3AED)
+                                    .withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFF7C3AED)
+                                      .withValues(alpha: 0.45),
+                                ),
+                              ),
+                              child: Text(
+                                'BO ${PosPermissionMeta.backOfficeModulePermissions.where(prof.can).length}/${PosPermissionMeta.backOfficeModulePermissions.length}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF7C3AED),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       Text(
                         '${prof.permissions.length}/${PosPermission.values.length} options · $usersCount utilisateur(s)',
@@ -500,8 +534,16 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: ListView(
-              children: PosPermission.values.map((perm) {
+            child: Builder(builder: (_) {
+              final posPerms = PosPermission.values
+                  .where((e) => !e.isBackOfficePermission)
+                  .toList();
+              final boPerms = [
+                PosPermission.accessBackOffice,
+                ...PosPermissionMeta.backOfficeModulePermissions,
+              ];
+
+              Widget buildPermSwitch(PosPermission perm) {
                 final enabled = activeProfile.can(perm);
                 return SwitchListTile(
                   key: Key('perm_toggle_${activeProfile.id}_${perm.name}'),
@@ -509,20 +551,37 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
                   title: Text(
                     perm.labelFr,
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: p.textPrimary,
+                      fontWeight: perm == PosPermission.accessBackOffice
+                          ? FontWeight.w900
+                          : FontWeight.w700,
+                      color: perm == PosPermission.accessBackOffice
+                          ? const Color(0xFF7C3AED)
+                          : p.textPrimary,
                     ),
                   ),
                   value: enabled,
                   onChanged: activeProfile.isMaster
                       ? null
                       : (v) {
-                          final next =
-                              Set<PosPermission>.from(activeProfile.permissions);
+                          final next = Set<PosPermission>.from(
+                              activeProfile.permissions);
                           if (v) {
                             next.add(perm);
+                            if (PosPermissionMeta.backOfficeModulePermissions
+                                .contains(perm)) {
+                              next.add(PosPermission.accessBackOffice);
+                            }
+                            if (perm == PosPermission.accessBackOffice &&
+                                !PosPermissionMeta.backOfficeModulePermissions
+                                    .any(next.contains)) {
+                              next.add(PosPermission.boDashboard);
+                            }
                           } else {
                             next.remove(perm);
+                            if (perm == PosPermission.accessBackOffice) {
+                              next.removeAll(PosPermissionMeta
+                                  .backOfficeModulePermissions);
+                            }
                           }
                           store.saveProfile(
                             existingId: activeProfile.id,
@@ -532,8 +591,103 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
                           );
                         },
                 );
-              }).toList(),
-            ),
+              }
+
+              Widget sectionBanner(
+                String title,
+                IconData icon,
+                Color color, {
+                Widget? trailing,
+              }) {
+                return Container(
+                  margin: const EdgeInsets.only(top: 6, bottom: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: color.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 17, color: color),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                      ?trailing,
+                    ],
+                  ),
+                );
+              }
+
+              final boSection = <Widget>[
+                sectionBanner(
+                  'Droits Back-Office ERP (Modules autorisés)',
+                  Icons.admin_panel_settings_rounded,
+                  const Color(0xFF7C3AED),
+                  trailing: activeProfile.isMaster
+                      ? null
+                      : TextButton(
+                          onPressed: () {
+                            final allBoEnabled = PosPermissionMeta
+                                .backOfficeModulePermissions
+                                .every(activeProfile.can);
+                            final next = Set<PosPermission>.from(
+                                activeProfile.permissions);
+                            if (allBoEnabled) {
+                              next.remove(PosPermission.accessBackOffice);
+                              next.removeAll(PosPermissionMeta
+                                  .backOfficeModulePermissions);
+                            } else {
+                              next.add(PosPermission.accessBackOffice);
+                              next.addAll(PosPermissionMeta
+                                  .backOfficeModulePermissions);
+                            }
+                            store.saveProfile(
+                              existingId: activeProfile.id,
+                              name: activeProfile.name,
+                              baseRole: activeProfile.baseRole,
+                              permissions: next,
+                            );
+                          },
+                          child: Text(
+                            PosPermissionMeta.backOfficeModulePermissions
+                                    .every(activeProfile.can)
+                                ? 'Tout retirer'
+                                : 'Tout cocher BO',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                ),
+                ...boPerms.map(buildPermSwitch),
+              ];
+
+              final posSection = <Widget>[
+                sectionBanner(
+                  'Droits Caisse POS (Salle, Vente & Encaissement)',
+                  Icons.point_of_sale_rounded,
+                  p.primary,
+                ),
+                ...posPerms.map(buildPermSwitch),
+              ];
+
+              return ListView(
+                children: widget.backOfficeMode
+                    ? [...boSection, const SizedBox(height: 8), ...posSection]
+                    : [...posSection, const SizedBox(height: 8), ...boSection],
+              );
+            }),
           ),
         ],
       ),
@@ -560,61 +714,153 @@ class _TeamProfilesViewState extends State<TeamProfilesView> {
   }
 
   Widget _buildUsersList(PosStore store, PosPalette p) {
-    return ListView.separated(
-      itemCount: store.staff.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, idx) {
-        final u = store.staff[idx];
-        final prof = store.profileForStaff(u);
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: u.isActive ? p.border : p.danger),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: p.primary.withValues(alpha: 0.15),
-                child: Icon(Icons.person_rounded, color: p.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    final allUsers = store.staff;
+    bool hasBo(StaffMember u) {
+      final prof = store.profileForStaff(u);
+      return prof?.can(PosPermission.accessBackOffice) ??
+          RbacMatrix.can(u.role, PosPermission.accessBackOffice);
+    }
+
+    final boCount = allUsers.where(hasBo).length;
+    final posOnlyCount = allUsers.length - boCount;
+    final filtered = allUsers.where((u) {
+      if (_userScopeFilter == 'backoffice') return hasBo(u);
+      if (_userScopeFilter == 'pos_only') return !hasBo(u);
+      return true;
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ChoiceChip(
+              key: const Key('users_filter_all'),
+              selected: _userScopeFilter == 'all',
+              onSelected: (_) => setState(() => _userScopeFilter = 'all'),
+              label: Text('Tous (${allUsers.length})'),
+            ),
+            ChoiceChip(
+              key: const Key('users_filter_bo'),
+              selected: _userScopeFilter == 'backoffice',
+              onSelected: (_) =>
+                  setState(() => _userScopeFilter = 'backoffice'),
+              label: Text('Accès Back-Office ($boCount)'),
+            ),
+            ChoiceChip(
+              key: const Key('users_filter_pos'),
+              selected: _userScopeFilter == 'pos_only',
+              onSelected: (_) => setState(() => _userScopeFilter = 'pos_only'),
+              label: Text('Caisse uniquement ($posOnlyCount)'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: ListView.separated(
+            itemCount: filtered.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, idx) {
+              final u = filtered[idx];
+              final prof = store.profileForStaff(u);
+              final boAllowed = hasBo(u);
+              final boModulesCount = prof == null
+                  ? 0
+                  : PosPermissionMeta.backOfficeModulePermissions
+                      .where(prof.can)
+                      .length;
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: u.isActive ? p.border : p.danger),
+                ),
+                child: Row(
                   children: [
-                    Text(
-                      u.name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        color: p.textPrimary,
+                    CircleAvatar(
+                      backgroundColor: boAllowed
+                          ? const Color(0xFF7C3AED).withValues(alpha: 0.16)
+                          : p.primary.withValues(alpha: 0.15),
+                      child: Icon(
+                        boAllowed
+                            ? Icons.admin_panel_settings_rounded
+                            : Icons.person_rounded,
+                        color: boAllowed ? const Color(0xFF7C3AED) : p.primary,
                       ),
                     ),
-                    Text(
-                      'Profil: ${prof?.name ?? u.role.fr}  ·  Badge: ${u.badgeUid.isNotEmpty ? u.badgeUid : 'Non assigné'}',
-                      style: TextStyle(fontSize: 12, color: p.textMuted),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                u.name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                              if (boAllowed)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF7C3AED)
+                                        .withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: const Color(0xFF7C3AED)
+                                          .withValues(alpha: 0.45),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'BACK-OFFICE · $boModulesCount modules',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF7C3AED),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Profil: ${prof?.name ?? u.role.fr}  ·  Badge: ${u.badgeUid.isNotEmpty ? u.badgeUid : 'Non assigné'}',
+                            style: TextStyle(fontSize: 12, color: p.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: u.isActive,
+                      onChanged: u.role == PosRole.owner
+                          ? null
+                          : (v) => store.toggleStaffActive(u.id, v),
+                    ),
+                    IconButton(
+                      key: Key('edit_user_${u.id}'),
+                      tooltip: 'Modifier utilisateur / badge / profil',
+                      onPressed: () => _openUserDialog(existing: u),
+                      icon: const Icon(Icons.edit_outlined),
                     ),
                   ],
                 ),
-              ),
-              Switch(
-                value: u.isActive,
-                onChanged: u.role == PosRole.owner
-                    ? null
-                    : (v) => store.toggleStaffActive(u.id, v),
-              ),
-              IconButton(
-                key: Key('edit_user_${u.id}'),
-                tooltip: 'Modifier utilisateur / badge / profil',
-                onPressed: () => _openUserDialog(existing: u),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 

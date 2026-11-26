@@ -7,18 +7,23 @@ bool platformPrint80mm(
   String receiptText, {
   String? logoDataUrl,
   String logoPosition = 'center',
+  bool isKitchenTicket = false,
 }) {
   try {
     final escapedTitle = const HtmlEscape().convert(title);
     final escapedBody = const HtmlEscape().convert(receiptText);
-    final hasLogo =
-        logoDataUrl != null && logoDataUrl.trim().startsWith('data:image/');
+    final hasLogo = !isKitchenTicket &&
+        logoDataUrl != null &&
+        logoDataUrl.trim().startsWith('data:image/');
     final alignCss = logoPosition == 'left'
         ? 'left'
         : (logoPosition == 'right' ? 'right' : 'center');
     final logoBlock = hasLogo
         ? '<div class="logo-wrap" style="text-align:$alignCss;"><img src="$logoDataUrl" alt="Logo" /></div>'
         : '';
+    final fontSizeCss = isKitchenTicket ? '16px' : '12px';
+    final fontWeightCss = isKitchenTicket ? '900' : '500';
+    final lineHeightCss = isKitchenTicket ? '1.42' : '1.35';
     final docHtml = '''
 <!DOCTYPE html>
 <html lang="fr">
@@ -29,12 +34,14 @@ bool platformPrint80mm(
   @page { size: 80mm auto; margin: 3mm; }
   body {
     font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
-    line-height: 1.35;
+    font-size: $fontSizeCss;
+    font-weight: $fontWeightCss;
+    line-height: $lineHeightCss;
     width: 74mm;
     margin: 0 auto;
     color: #000;
     background: #fff;
+    -webkit-print-color-adjust: exact;
   }
   .logo-wrap {
     margin: 0 0 6px 0;
@@ -46,6 +53,9 @@ bool platformPrint80mm(
     filter: grayscale(100%) contrast(125%);
   }
   pre {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
     white-space: pre-wrap;
     word-break: break-word;
     margin: 0;

@@ -6,10 +6,12 @@ bool printThermal80mm(
   String receiptText, {
   String? logoDataUrl,
   String logoPosition = 'center',
+  bool isKitchenTicket = false,
 }) =>
     platformPrint80mm(
       title,
       receiptText,
       logoDataUrl: logoDataUrl,
       logoPosition: logoPosition,
+      isKitchenTicket: isKitchenTicket,
     );

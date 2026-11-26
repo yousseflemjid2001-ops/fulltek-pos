@@ -152,6 +152,20 @@ class PosStore extends ChangeNotifier {
         permissions: Set<PosPermission>.from(
             RbacMatrix.grants[PosRole.waiter] ?? const {}),
       ),
+      PosProfile(
+        id: 'prof-bo-accountant',
+        name: 'Back-Office · Comptable',
+        baseRole: PosRole.accountant,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.accountant] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-bo-stock',
+        name: 'Back-Office · Achats & Stock',
+        baseRole: PosRole.stockKeeper,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.stockKeeper] ?? const {}),
+      ),
     ];
   }
 
@@ -2299,6 +2313,71 @@ class PosStore extends ChangeNotifier {
     } else {
       items[idx] = currentLine.copyWith(quantity: nextQty);
     }
+    _openOrdersById[order.id] =
+        _withRecomputedDelivery(order.copyWith(items: items));
+    notifyListeners();
+    return true;
+  }
+
+  /// Directly sets the exact quantity of a cart line (e.g. via Bouton Quantité).
+  /// Preserves anti-fraud protection for lines already sent to kitchen.
+  bool setLineQuantity(String lineId, int newQty) {
+    final order = activeOrder;
+    if (order == null) return false;
+    final items = List<OrderItem>.from(order.items);
+    final idx = items.indexWhere((l) => l.lineId == lineId);
+    if (idx == -1) return false;
+    final currentLine = items[idx];
+
+    if (newQty == currentLine.quantity) return true;
+
+    if (newQty <= 0) {
+      if (currentLine.sentToKitchen) {
+        lastVoidError =
+            'Article déjà envoyé en cuisine : annulation autorisée uniquement avec motif et validation gérant.';
+        return false;
+      }
+      items.removeAt(idx);
+      _openOrdersById[order.id] =
+          _withRecomputedDelivery(order.copyWith(items: items));
+      notifyListeners();
+      return true;
+    }
+
+    if (currentLine.sentToKitchen) {
+      if (newQty < currentLine.quantity) {
+        lastVoidError =
+            'Article déjà envoyé en cuisine : annulation autorisée uniquement avec motif et validation gérant.';
+        return false;
+      }
+      final extra = newQty - currentLine.quantity;
+      final live = menuItems.cast<MenuItem?>().firstWhere(
+            (m) => m?.id == currentLine.item.id,
+            orElse: () => currentLine.item,
+          )!;
+      if (!live.available) return false;
+      items.add(OrderItem(
+        lineId: 'L-${_lineCounter++}',
+        item: live,
+        quantity: extra,
+        kitchenNote: currentLine.kitchenNote,
+        selectedModifiers: currentLine.selectedModifiers,
+        isTakeaway: currentLine.isTakeaway,
+        sentToKitchen: false,
+      ));
+      _openOrdersById[order.id] =
+          _withRecomputedDelivery(order.copyWith(items: items));
+      notifyListeners();
+      return true;
+    }
+
+    final live = menuItems.cast<MenuItem?>().firstWhere(
+          (m) => m?.id == currentLine.item.id,
+          orElse: () => currentLine.item,
+        )!;
+    if (newQty > currentLine.quantity && !live.available) return false;
+
+    items[idx] = currentLine.copyWith(quantity: newQty);
     _openOrdersById[order.id] =
         _withRecomputedDelivery(order.copyWith(items: items));
     notifyListeners();
@@ -4540,6 +4619,127 @@ class PosStore extends ChangeNotifier {
     return true;
   }
 
+  /// Multi-item OR whole-ticket Return / Remake / Offert (Comp).
+  /// When [wholeOrder] is true, applies to all eligible items in the active order.
+  /// If [autoCloseCompOrder] is true and the resulting netTotal == 0, closes the ticket cleanly.
+  bool recordOrderCompOrReturn({
+    required String type, // remake | return | comp
+    required String reason,
+    List<String>? lineIds,
+    bool wholeOrder = false,
+    bool autoCloseCompOrder = false,
+    String? managerPin,
+  }) {
+    final order = activeOrder;
+    if (order == null || order.items.isEmpty || reason.trim().isEmpty) {
+      return false;
+    }
+
+    String? approver;
+    if (canCurrent(PosPermission.voidOrComp)) {
+      approver = _currentStaff!.name;
+    } else if (managerPin != null) {
+      final mgr = verifyManagerPin(managerPin);
+      if (mgr == null) return false;
+      approver = mgr.name;
+    } else {
+      return false;
+    }
+
+    final targetIds = wholeOrder
+        ? order.items
+            .where((l) => type != 'comp' || !l.isComp)
+            .map((l) => l.lineId)
+            .toSet()
+        : (lineIds ?? const []).toSet();
+    if (targetIds.isEmpty) return false;
+
+    final nextItems = <OrderItem>[];
+    final affected = <OrderItem>[];
+    for (final line in order.items) {
+      if (!targetIds.contains(line.lineId)) {
+        nextItems.add(line);
+        continue;
+      }
+      if (type == 'comp' && line.isComp) {
+        nextItems.add(line);
+        continue;
+      }
+      affected.add(line);
+      if (type == 'return') {
+        // Removed from order
+      } else if (type == 'comp') {
+        nextItems.add(line.copyWith(isComp: true));
+      } else {
+        // remake: keep item in order
+        nextItems.add(line);
+      }
+    }
+    if (affected.isEmpty) return false;
+
+    final updatedOrder = _withRecomputedDelivery(
+      order.copyWith(
+        items: nextItems,
+        deliveryFeeMru:
+            (wholeOrder && type == 'comp') ? 0.0 : order.deliveryFeeMru,
+      ),
+    );
+    _openOrdersById[order.id] = updatedOrder;
+
+    if (!order.isTraining) {
+      final now = DateTime.now();
+      for (var i = 0; i < affected.length; i++) {
+        final line = affected[i];
+        if (type == 'remake') {
+          _todayRemakeWasteMru +=
+              _deductBomForOrderLine(line, order.serviceMode);
+        }
+        final rec = ReturnRemakeCompRecord(
+          id: 'RRC-${now.millisecondsSinceEpoch}-$i',
+          type: type,
+          orderTicket: order.ticketNumber,
+          itemName: wholeOrder
+              ? '${line.item.nameFr} (Ticket offert)'
+              : line.item.nameFr,
+          quantity: line.quantity,
+          amountMru: line.unitPriceWithModifiers * line.quantity,
+          reason: reason.trim(),
+          staffName: _currentStaff?.name ?? 'Staff',
+          approvedBy: approver,
+          createdAt: now,
+        );
+        _remakeRecords.insert(0, rec);
+        _enqueueSync(
+          entityType: 'remake',
+          summary: '${type.toUpperCase()} · ${rec.itemName} (${rec.reason})',
+          payload: {
+            'id': rec.id,
+            'type': rec.type,
+            'ticket': rec.orderTicket,
+            'item': rec.itemName,
+            'sku': line.item.sku,
+            'qty': line.quantity,
+            'amount_mru': rec.amountMru,
+            'reason': rec.reason,
+            'approved_by': rec.approvedBy,
+            'whole_order': wholeOrder,
+          },
+        );
+      }
+    }
+
+    if (autoCloseCompOrder &&
+        type == 'comp' &&
+        updatedOrder.items.isNotEmpty &&
+        updatedOrder.netTotal <= 0.01) {
+      completeCheckout(const []);
+      return true;
+    }
+
+    notifyListeners();
+    return true;
+  }
+
   /// Split bill by selected line IDs -> creates a separate paid/open sub-order
   PosOrder? splitSelectedLines(Set<String> lineIds) {
     final order = activeOrder;
@@ -4985,13 +5185,74 @@ class PosStore extends ChangeNotifier {
         List<({String name, int qty, double totalMru})> byFamily,
         List<({String name, int qty, double totalMru})> byArticle,
         List<({String name, int ordersCount, double totalMru})> byCustomer,
+        int compCount,
+        double compTotalMru,
+        int returnCount,
+        double returnTotalMru,
+        List<({String label, int qty, double amountMru, String reason})>
+            compDetails,
       })> _zBreakdownsById = {};
+
+  ({
+    int compCount,
+    double compTotalMru,
+    int returnCount,
+    double returnTotalMru,
+    List<({String label, int qty, double amountMru, String reason})>
+        compDetails,
+  }) _summarizeRemakes(List<ReturnRemakeCompRecord> list) {
+    int compCount = 0;
+    double compTotal = 0.0;
+    int returnCount = 0;
+    double returnTotal = 0.0;
+    final compDetails =
+        <({String label, int qty, double amountMru, String reason})>[];
+    for (final r in list) {
+      if (r.type == 'comp') {
+        compCount += r.quantity;
+        compTotal += r.amountMru;
+        compDetails.add((
+          label: r.itemName,
+          qty: r.quantity,
+          amountMru: r.amountMru,
+          reason: r.reason,
+        ));
+      } else if (r.type == 'return' || r.type == 'void_kitchen') {
+        returnCount += r.quantity;
+        returnTotal += r.amountMru;
+      }
+    }
+    return (
+      compCount: compCount,
+      compTotalMru: compTotal,
+      returnCount: returnCount,
+      returnTotalMru: returnTotal,
+      compDetails: compDetails,
+    );
+  }
+
+  int get unclosedCompCount => _summarizeRemakes(_unclosedRemakes).compCount;
+  double get unclosedCompTotalMru =>
+      _summarizeRemakes(_unclosedRemakes).compTotalMru;
+  int get unclosedReturnCount =>
+      _summarizeRemakes(_unclosedRemakes).returnCount;
+  double get unclosedReturnTotalMru =>
+      _summarizeRemakes(_unclosedRemakes).returnTotalMru;
 
   ({
     List<({String name, int qty, double totalMru})> byFamily,
     List<({String name, int qty, double totalMru})> byArticle,
     List<({String name, int ordersCount, double totalMru})> byCustomer,
-  }) _computeXzBreakdown(List<PosOrder> orders) {
+    int compCount,
+    double compTotalMru,
+    int returnCount,
+    double returnTotalMru,
+    List<({String label, int qty, double amountMru, String reason})>
+        compDetails,
+  }) _computeXzBreakdown(
+    List<PosOrder> orders, {
+    List<ReturnRemakeCompRecord> remakes = const [],
+  }) {
     final catNames = <String, String>{
       for (final c in categories) c.id: c.label(lang),
     };
@@ -5064,10 +5325,16 @@ class PosStore extends ChangeNotifier {
         .toList()
       ..sort((a, b) => b.totalMru.compareTo(a.totalMru));
 
+    final rSum = _summarizeRemakes(remakes);
     return (
       byFamily: byFamily,
       byArticle: byArticle,
       byCustomer: byCustomer,
+      compCount: rSum.compCount,
+      compTotalMru: rSum.compTotalMru,
+      returnCount: rSum.returnCount,
+      returnTotalMru: rSum.returnTotalMru,
+      compDetails: rSum.compDetails,
     );
   }
 
@@ -5075,6 +5342,11 @@ class PosStore extends ChangeNotifier {
     final bd = _zBreakdownsById[z.id];
     return ReceiptFormatter.formatClosingZReport(
       z,
+      compCount: bd?.compCount ?? 0,
+      compTotalMru: bd?.compTotalMru ?? 0,
+      returnCount: bd?.returnCount ?? 0,
+      returnTotalMru: bd?.returnTotalMru ?? 0,
+      compDetails: bd?.compDetails ?? const [],
       showByFamily: xzShowByFamily,
       showByArticle: xzShowByArticle,
       showByCustomer: xzShowByCustomer,
@@ -5098,11 +5370,11 @@ class PosStore extends ChangeNotifier {
           }).toList(growable: false)
         : _unclosedRealOrders;
 
-    final remakes = filterByStaff
+    final remakesList = filterByStaff
         ? _unclosedRemakes
             .where((r) => r.staffName.trim().toLowerCase() == normTarget)
-            .length
-        : _unclosedRemakes.length;
+            .toList(growable: false)
+        : _unclosedRemakes;
 
     final openTables = filterByStaff
         ? waitingOrders.where((o) {
@@ -5111,13 +5383,13 @@ class PosStore extends ChangeNotifier {
           }).length
         : waitingOrders.length;
 
-    final breakdown = _computeXzBreakdown(orders);
+    final breakdown = _computeXzBreakdown(orders, remakes: remakesList);
 
     return ReceiptFormatter.formatReportX80mm(
       scopeLabel: filterByStaff ? 'X Caissier: $target' : 'X General (Tous)',
       ordersCount: orders.length,
       openTablesCount: openTables,
-      remakesCount: remakes,
+      remakesCount: remakesList.length,
       cashMru: _expectedForMethodInOrders(orders, PaymentMethod.cash),
       bankilyMru: _expectedForMethodInOrders(orders, PaymentMethod.bankily),
       masriviMru: _expectedForMethodInOrders(orders, PaymentMethod.masrivi),
@@ -5127,6 +5399,11 @@ class PosStore extends ChangeNotifier {
       otherWallets: _expectedOtherWalletsInOrders(orders),
       karniMru: _expectedForMethodInOrders(orders, PaymentMethod.karni),
       walletCashbackMru: walletCashbackGivenInOrders(orders),
+      compCount: breakdown.compCount,
+      compTotalMru: breakdown.compTotalMru,
+      returnCount: breakdown.returnCount,
+      returnTotalMru: breakdown.returnTotalMru,
+      compDetails: breakdown.compDetails,
       restaurantName: tenantName,
       showByFamily: xzShowByFamily,
       showByArticle: xzShowByArticle,
@@ -5227,11 +5504,13 @@ class PosStore extends ChangeNotifier {
       ordersCount: closedOrdersForZ.length,
       remakesCount: _unclosedRemakes.length,
     );
+    final closedRemakesForZ = List<ReturnRemakeCompRecord>.from(_unclosedRemakes);
     for (final o in closedOrdersForZ) {
       _closedOrderIdsInZ.add(o.id);
     }
     _lastZClosedAt = zTime;
-    _zBreakdownsById[z.id] = _computeXzBreakdown(closedOrdersForZ);
+    _zBreakdownsById[z.id] =
+        _computeXzBreakdown(closedOrdersForZ, remakes: closedRemakesForZ);
     _closingsZ.insert(0, z);
     _enqueueSync(
       entityType: 'closing_z',
@@ -5434,6 +5713,20 @@ class PosStore extends ChangeNotifier {
         baseRole: PosRole.waiter,
         permissions: Set<PosPermission>.from(
             RbacMatrix.grants[PosRole.waiter] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-bo-accountant',
+        name: 'Back-Office · Comptable',
+        baseRole: PosRole.accountant,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.accountant] ?? const {}),
+      ),
+      PosProfile(
+        id: 'prof-bo-stock',
+        name: 'Back-Office · Achats & Stock',
+        baseRole: PosRole.stockKeeper,
+        permissions: Set<PosPermission>.from(
+            RbacMatrix.grants[PosRole.stockKeeper] ?? const {}),
       ),
     ];
 

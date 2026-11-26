@@ -105,81 +105,108 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
         final wide = MediaQuery.of(context).size.width >= 960;
         final actor = widget.operatorStaff ?? store.currentStaff;
 
-        final sections = <({
+        final actorProfile =
+            actor != null ? store.profileForStaff(actor) : null;
+        bool canBo(PosPermission perm) {
+          if (actor == null) return true;
+          if (actor.role == PosRole.owner) return true;
+          if (actorProfile != null) return actorProfile.can(perm);
+          return RbacMatrix.can(actor.role, perm);
+        }
+
+        final allSections = <({
           String id,
           String label,
           IconData icon,
+          PosPermission permission,
           Widget view,
         })>[
           (
             id: 'dashboard',
             label: 'Tableau de Bord',
             icon: Icons.dashboard_rounded,
+            permission: PosPermission.boDashboard,
             view: OwnerDashboardView(store: store),
           ),
           (
             id: 'suppliers_purchases',
             label: 'Fournisseurs & Achats',
             icon: Icons.local_shipping_rounded,
+            permission: PosPermission.boSuppliersPurchases,
             view: _buildSuppliersAndPurchases(store, p),
           ),
           (
             id: 'b2b_invoices',
             label: 'Facturation B2B / Traiteur',
             icon: Icons.description_rounded,
+            permission: PosPermission.boB2bInvoices,
             view: _buildB2bInvoices(store, p),
           ),
           (
             id: 'recipes_foodcost',
             label: 'Fiches Techniques & Marges',
             icon: Icons.restaurant_menu_rounded,
+            permission: PosPermission.boRecipesFoodCost,
             view: _buildRecipesAndFoodCost(store, p),
           ),
           (
             id: 'inventory_waste',
             label: 'Inventaire & Pertes Stock',
             icon: Icons.fact_check_rounded,
+            permission: PosPermission.boInventoryWaste,
             view: _buildInventoryAndWaste(store, p),
           ),
           (
             id: 'accounting',
             label: 'Comptabilité, TVA & Grand Livre',
             icon: Icons.account_balance_rounded,
+            permission: PosPermission.boAccounting,
             view: _buildAccountingAndExpenses(store, p),
           ),
           (
             id: 'treasury_z',
             label: 'Trésorerie Multi-Comptes & Z',
             icon: Icons.account_balance_wallet_rounded,
+            permission: PosPermission.boTreasuryZ,
             view: _buildTreasuryAndClosings(store, p),
           ),
           (
             id: 'menu_stock',
             label: 'Menu, Familles & Suppléments',
             icon: Icons.inventory_2_rounded,
+            permission: PosPermission.boMenuStock,
             view: MenuStockView(store: store),
           ),
           (
             id: 'sales',
             label: 'Journal des Ventes Caisse',
             icon: Icons.receipt_long_rounded,
+            permission: PosPermission.boSalesJournal,
             view: _buildSalesJournal(store, p),
           ),
           (
             id: 'karni',
             label: 'Clients & Carnet Karni',
             icon: Icons.menu_book_rounded,
+            permission: PosPermission.boKarni,
             view: KarniView(store: store),
           ),
           (
             id: 'team_fiscal',
-            label: 'Équipe, Accès & Fiscalité',
-            icon: Icons.admin_panel_settings_rounded,
+            label: 'Profils & Utilisateurs Back-Office',
+            icon: Icons.manage_accounts_rounded,
+            permission: PosPermission.boProfilesUsers,
             view: _buildTeamAndFiscalSettings(store, p),
           ),
         ];
 
-        final safeIdx = _sectionIndex.clamp(0, sections.length - 1);
+        final sections = allSections
+            .where((s) => canBo(s.permission))
+            .toList(growable: false);
+        final effectiveSections =
+            sections.isNotEmpty ? sections : [allSections.first];
+
+        final safeIdx = _sectionIndex.clamp(0, effectiveSections.length - 1);
 
         Widget buildSidebar() {
           return Container(
@@ -251,9 +278,9 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
                   child: ListView.builder(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    itemCount: sections.length,
+                    itemCount: effectiveSections.length,
                     itemBuilder: (_, idx) {
-                      final s = sections[idx];
+                      final s = effectiveSections[idx];
                       final active = idx == safeIdx;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 2),
@@ -320,7 +347,7 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
             elevation: 0,
             shape: Border(bottom: BorderSide(color: p.border)),
             title: Text(
-              'Back-Office · ${sections[safeIdx].label}',
+              'Back-Office · ${effectiveSections[safeIdx].label}',
               style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 15.5,
@@ -351,7 +378,7 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
           body: Row(
             children: [
               if (wide) buildSidebar(),
-              Expanded(child: sections[safeIdx].view),
+              Expanded(child: effectiveSections[safeIdx].view),
             ],
           ),
         );
@@ -1726,7 +1753,7 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
         ),
         Expanded(
           child: _teamSubTab == 0
-              ? TeamProfilesView(store: store)
+              ? TeamProfilesView(store: store, backOfficeMode: true)
               : _buildFiscalIdentityForm(store, p),
         ),
       ],
