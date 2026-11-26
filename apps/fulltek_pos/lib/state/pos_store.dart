@@ -6865,6 +6865,20 @@ class PosStore extends ChangeNotifier {
         customerPhone: custPhone.isNotEmpty ? custPhone : cur.customerPhone,
         deliveryAddress: custAddr.isNotEmpty ? custAddr : cur.deliveryAddress,
       );
+      final payMethod = '${qrOrder['payMethod'] ?? 'PENDING'}'.trim();
+      final payRef = '${qrOrder['paymentRef'] ?? ''}'.trim();
+      final receiptUrl = '${qrOrder['paymentReceiptUrl'] ?? ''}'.trim();
+      if ((payMethod.isNotEmpty && payMethod.toUpperCase() != 'PENDING') ||
+          payRef.isNotEmpty ||
+          receiptUrl.isNotEmpty) {
+        final proof = (
+          method: payMethod.toUpperCase() == 'PENDING' ? 'En ligne' : payMethod,
+          ref: payRef,
+          receiptDataUrl: receiptUrl,
+        );
+        onlinePaymentProofsByKey[cur.id] = proof;
+        onlinePaymentProofsByKey[code] = proof;
+      }
     }
 
     incomingQrOrders.removeWhere((o) => '${o['orderCode']}' == code);
@@ -6907,6 +6921,9 @@ class PosStore extends ChangeNotifier {
   // =========================================================================
   // JOURNAL D'AUDIT CAISSE (MOUCHARD) & FACTURATION TICKETS
   // =========================================================================
+
+  final Map<String, ({String method, String ref, String receiptDataUrl})>
+      onlinePaymentProofsByKey = {};
 
   final List<({
     DateTime timestamp,

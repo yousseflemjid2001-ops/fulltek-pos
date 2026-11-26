@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/pos_models.dart';
@@ -3443,6 +3444,109 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                 ],
               ),
             ),
+          ],
+          if (order != null &&
+              (store.onlinePaymentProofsByKey[order.id] != null ||
+                  store.onlinePaymentProofsByKey[order.ticketNumber] != null)) ...[
+            const SizedBox(height: 6),
+            Builder(builder: (_) {
+              final proof = store.onlinePaymentProofsByKey[order.id] ??
+                  store.onlinePaymentProofsByKey[order.ticketNumber]!;
+              return InkWell(
+                key: const Key('cart_online_receipt_btn'),
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  Uint8List? bytes;
+                  if (proof.receiptDataUrl.startsWith('data:image/') &&
+                      proof.receiptDataUrl.contains(',')) {
+                    try {
+                      bytes =
+                          base64Decode(proof.receiptDataUrl.split(',').last);
+                    } catch (_) {}
+                  }
+                  showDialog<void>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: p.surface,
+                      title: Text(
+                          '🧾 Reçu Paiement En Ligne · ${order.ticketNumber}'),
+                      content: SizedBox(
+                        width: 400,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Mode : ${proof.method} · ${order.netTotal.toStringAsFixed(0)} MRU',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: p.success),
+                              ),
+                              if (proof.ref.isNotEmpty)
+                                Text('Réf : ${proof.ref}',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: p.textPrimary)),
+                              const SizedBox(height: 10),
+                              if (bytes != null)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.memory(bytes, fit: BoxFit.contain),
+                                )
+                              else
+                                Text('Aucune image jointe.',
+                                    style: TextStyle(color: p.textMuted)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      actions: [
+                        FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Fermer'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: p.success.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: p.success),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_rounded, size: 16, color: p.success),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '💳 Reçu ${proof.method} joint${proof.ref.isNotEmpty ? ' (${proof.ref})' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            color: p.success,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'Voir ↗',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: p.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
           ],
           const SizedBox(height: 8),
           Divider(height: 1, color: p.border),

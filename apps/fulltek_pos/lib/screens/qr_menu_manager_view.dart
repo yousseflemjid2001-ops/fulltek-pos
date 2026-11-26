@@ -463,6 +463,87 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
     );
   }
 
+  void _showPaymentProofDialog({
+    required String code,
+    required String method,
+    required String ref,
+    required String receiptDataUrl,
+    required double totalMru,
+  }) {
+    final p = FullTekThemes.paletteOf(context);
+    Uint8List? imgBytes;
+    if (receiptDataUrl.startsWith('data:image/') &&
+        receiptDataUrl.contains(',')) {
+      try {
+        imgBytes = base64Decode(receiptDataUrl.split(',').last);
+      } catch (_) {}
+    }
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: p.surface,
+        title: Text('🧾 Reçu Paiement en Ligne · $code'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: p.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: p.success.withValues(alpha: 0.4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mode : $method · Total : ${totalMru.toStringAsFixed(0)} MRU',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900, color: p.success),
+                      ),
+                      if (ref.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            'Référence / Transaction : $ref',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.textPrimary),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (imgBytes != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(imgBytes, fit: BoxFit.contain),
+                  )
+                else
+                  Text(
+                    'Aucune image de reçu jointe (référence saisie uniquement).',
+                    style: TextStyle(color: p.textMuted),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildIncomingTab(PosStore store, PosPalette p) {
     final ordersList = store.incomingQrOrdersForRegister;
     final alertsList = store.incomingQrAlertsForRegister;
@@ -687,6 +768,64 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
                                     ),
                                   ),
                                 ],
+                              ),
+                            ],
+                            if ('${o['payMethod'] ?? 'PENDING'}'
+                                        .toUpperCase() !=
+                                    'PENDING' ||
+                                '${o['paymentRef'] ?? ''}'.isNotEmpty ||
+                                o['hasReceipt'] == true) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: p.success.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: p.success.withValues(alpha: 0.45)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.verified_rounded,
+                                        size: 16, color: p.success),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        '💳 Paiement en ligne : ${o['payMethod'] ?? 'En ligne'}${'${o['paymentRef'] ?? ''}'.isNotEmpty ? ' · Réf: ${o['paymentRef']}' : ''}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                          color: p.success,
+                                        ),
+                                      ),
+                                    ),
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        foregroundColor: p.success,
+                                        side: BorderSide(color: p.success),
+                                      ),
+                                      onPressed: () => _showPaymentProofDialog(
+                                        code: code,
+                                        method: '${o['payMethod'] ?? 'En ligne'}',
+                                        ref: '${o['paymentRef'] ?? ''}',
+                                        receiptDataUrl:
+                                            '${o['paymentReceiptUrl'] ?? ''}',
+                                        totalMru: total,
+                                      ),
+                                      icon: const Icon(
+                                          Icons.receipt_long_rounded,
+                                          size: 14),
+                                      label: const Text(
+                                        'Voir Reçu',
+                                        style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w900),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                             const SizedBox(height: 8),

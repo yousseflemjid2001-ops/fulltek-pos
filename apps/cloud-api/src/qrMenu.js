@@ -58,6 +58,16 @@ function ensureQrMenuSchema(database) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS qr_payment_receipts (
+      order_id INTEGER PRIMARY KEY,
+      tenant_id INTEGER NOT NULL,
+      pay_method TEXT NOT NULL DEFAULT 'PENDING',
+      payment_ref TEXT NOT NULL DEFAULT '',
+      receipt_image_data TEXT NOT NULL DEFAULT '',
+      verified INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_qr_alerts_tenant_status
       ON qr_alerts (tenant_id, status, created_at DESC);
   `);
@@ -154,6 +164,11 @@ function buildPublicMenuPayload(database, tenant, DEFAULT_DELIVERY_ZONES) {
       ? parsedZones
       : DEFAULT_DELIVERY_ZONES;
 
+  const parsedPayMethods = parseJsonSafe(tenant.pay_methods_json, []);
+  const payMethods = Array.isArray(parsedPayMethods) && parsedPayMethods.length > 0
+    ? parsedPayMethods
+    : ['Cash', 'Bankily', 'Masrvi', 'Sedad', 'BIM-Bank', 'Click'];
+
   return {
     tenant: {
       tenantCode: tenant.tenant_code,
@@ -163,6 +178,7 @@ function buildPublicMenuPayload(database, tenant, DEFAULT_DELIVERY_ZONES) {
       address: tenant.address || '',
       phone: tenant.phone || '',
       freeDeliveryAboveMru: Number(tenant.free_delivery_above_mru ?? 1500),
+      payMethods,
     },
     settings,
     deliveryZones,
@@ -591,9 +607,41 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
       </div>
       <div id="cartItemsList"></div>
       <input id="orderNote" class="field" style="margin-top:10px;" placeholder="Note cuisine globale (ex: sans piment, bien cuit...)" />
+
+      <!-- Mode de paiement & Reçu de paiement en ligne -->
+      <div style="margin-top:10px;padding:10px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);">
+        <div id="paySectionTitle" style="font-size:12.5px;font-weight:900;margin-bottom:8px;">💳 Paiement</div>
+        <div class="mode-row" style="margin-bottom:8px;">
+          <button type="button" class="mode-btn active" data-paytype="later" onclick="setPaymentType('later')" id="payLaterBtn">💵 À la livraison / caisse</button>
+          <button type="button" class="mode-btn" data-paytype="online" onclick="setPaymentType('online')" id="payOnlineBtn">📱 Paiement en ligne</button>
+        </div>
+        <div id="onlinePayFields" class="hidden">
+          <div id="merchantPayInfo" style="font-size:11.5px;color:var(--primary);font-weight:800;margin-bottom:6px;"></div>
+          <select id="payWalletSelect" class="field"></select>
+          <input id="payRefInput" class="field" placeholder="N° de transaction / Référence (optionnel)" />
+          <label for="payReceiptFile" class="action-chip" style="width:100%;display:flex;justify-content:center;align-items:center;gap:6px;padding:10px;border:1.5px dashed rgba(16,185,129,0.55);background:rgba(16,185,129,0.10);color:var(--primary);cursor:pointer;font-size:12.5px;">
+            🧾 <span id="payReceiptBtnLabel">Joindre le reçu de paiement (capture d'écran)</span>
+          </label>
+          <input id="payReceiptFile" type="file" accept="image/*" class="hidden" onchange="onReceiptFilePicked(event)" />
+          <div id="payReceiptPreviewBox" class="hidden" style="margin-top:8px;display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--surface);">
+            <img id="payReceiptThumb" src="" alt="Reçu" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--border);" />
+            <div style="flex:1;min-width:0;">
+              <div id="payReceiptReadyLbl" style="font-size:12px;font-weight:900;color:var(--primary);">✅ Reçu joint</div>
+              <div style="font-size:11px;color:var(--muted);">Sera vérifié par la caisse</div>
+            </div>
+            <button type="button" class="action-chip" style="padding:4px 9px;font-size:11px;" onclick="clearReceiptFile()">✕</button>
+          </div>
+        </div>
+      </div>
+
       <div id="cartSummary" style="display:flex;justify-content:space-between;font-weight:900;font-size:17px;margin-top:10px;"></div>
       <button id="submitOrderBtn" class="submit-btn" onclick="submitOrder()">Confirmer la commande</button>
     </div>
+  </div>
+
+  <!-- Customer Online Receipt Modal -->
+  <div id="receiptModal" class="modal-bg hidden" onclick="if(event.target===this) closeReceiptModal()">
+    <div class="sheet" id="receiptSheetContent"></div>
   </div>
 
   <script>
@@ -607,6 +655,57 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
     let activeOrderCode = localStorage.getItem('ft_qr_order_' + TENANT_CODE) || '';
     let pollTimer = null;
     let deliveryGps = null; // { lat, lng, url }
+    let paymentType = 'later'; // later | online
+    let paymentReceiptDataUrl = '';
+    let lastTrackedOrder = null;
+
+    function setPaymentType(kind) {
+      paymentType = kind === 'online' ? 'online' : 'later';
+      document.querySelectorAll('[data-paytype]').forEach((b) => {
+        b.classList.toggle('active', b.dataset.paytype === paymentType);
+      });
+      const box = document.getElementById('onlinePayFields');
+      if (box) box.classList.toggle('hidden', paymentType !== 'online');
+    }
+
+    function onReceiptFilePicked(ev) {
+      const file = ev?.target?.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 900;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+            else { w = Math.round(w * maxDim / h); h = maxDim; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          paymentReceiptDataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          document.getElementById('payReceiptThumb').src = paymentReceiptDataUrl;
+          document.getElementById('payReceiptPreviewBox').classList.remove('hidden');
+          document.getElementById('payReceiptBtnLabel').textContent =
+            lang === 'fr' ? 'Changer le reçu joint' : 'تغيير إيصال الدفع';
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearReceiptFile() {
+      paymentReceiptDataUrl = '';
+      const inp = document.getElementById('payReceiptFile');
+      if (inp) inp.value = '';
+      document.getElementById('payReceiptPreviewBox').classList.add('hidden');
+      document.getElementById('payReceiptBtnLabel').textContent =
+        lang === 'fr' ? "Joindre le reçu de paiement (capture d'écran)" : 'إرفاق إيصال الدفع (لقطة شاشة)';
+    }
 
     function shareMyGpsLocation() {
       const btn = document.getElementById('shareGpsBtn');
@@ -717,6 +816,19 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
         zSel.innerHTML = (menuData.deliveryZones || []).map(z =>
           '<option value="' + escapeAttr(z.nameFr) + '" data-fee="' + Number(z.feeMru || 0) + '">' + escapeAttr(z.nameFr) + ' (+' + Number(z.feeMru || 0) + ' MRU)</option>'
         ).join('');
+        const wSel = document.getElementById('payWalletSelect');
+        if (wSel) {
+          const rawMethods = Array.isArray(menuData.tenant?.payMethods) ? menuData.tenant.payMethods : [];
+          const wallets = rawMethods.filter(m => !['cash', 'karni', 'especes'].includes(String(m).toLowerCase()));
+          const list = wallets.length > 0 ? wallets : ['Bankily', 'Masrvi', 'Sedad', 'BIM-Bank', 'Click'];
+          wSel.innerHTML = list.map(w => '<option value="' + escapeAttr(w) + '">📱 ' + escapeAttr(w) + '</option>').join('');
+        }
+        const mInfo = document.getElementById('merchantPayInfo');
+        if (mInfo) {
+          mInfo.textContent = menuData.tenant?.phone
+            ? 'Transférez sur le numéro du restaurant : ' + menuData.tenant.phone + ' puis joignez le reçu.'
+            : 'Effectuez votre transfert puis joignez la capture du reçu.';
+        }
         renderCats();
         renderGrid();
         setMode(serviceMode);
@@ -929,9 +1041,21 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
         ? (rawAddr ? (rawAddr.includes(deliveryGpsUrl) ? rawAddr : rawAddr + ' · 📍 GPS: ' + deliveryGpsUrl) : '📍 GPS: ' + deliveryGpsUrl)
         : rawAddr;
       const notes = (document.getElementById('orderNote').value || '').trim();
+      const payMethod = paymentType === 'online'
+        ? (document.getElementById('payWalletSelect')?.value || 'Bankily')
+        : 'PENDING';
+      const paymentRef = paymentType === 'online'
+        ? (document.getElementById('payRefInput')?.value || '').trim()
+        : '';
 
       if (serviceMode !== 'dine_in' && (!customerName || !customerPhone)) {
         showToast(lang === 'fr' ? 'Nom et téléphone requis.' : 'الاسم ورقم الهاتف مطلوبان');
+        return;
+      }
+      if (paymentType === 'online' && !paymentRef && !paymentReceiptDataUrl) {
+        showToast(lang === 'fr'
+          ? 'Veuillez joindre la capture du reçu ou saisir le N° de transaction.'
+          : 'يرجى إرفاق صورة إيصال الدفع أو إدخال رقم العملية.');
         return;
       }
       btn.disabled = true;
@@ -950,6 +1074,9 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
             deliveryLat: deliveryGps ? deliveryGps.lat : undefined,
             deliveryLng: deliveryGps ? deliveryGps.lng : undefined,
             deliveryGpsUrl: deliveryGpsUrl || undefined,
+            payMethod,
+            paymentRef,
+            paymentReceiptDataUrl: paymentType === 'online' ? paymentReceiptDataUrl : '',
             notes,
             items,
           }),
@@ -957,6 +1084,9 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erreur envoi');
         cart = {};
+        clearReceiptFile();
+        setPaymentType('later');
+        if (document.getElementById('payRefInput')) document.getElementById('payRefInput').value = '';
         activeOrderCode = data.orderCode;
         localStorage.setItem('ft_qr_order_' + TENANT_CODE, activeOrderCode);
         closeCart();
@@ -978,6 +1108,7 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
         const res = await fetch('/public/orders/' + encodeURIComponent(TENANT_CODE) + '/' + encodeURIComponent(activeOrderCode));
         if (!res.ok) return;
         const d = await res.json();
+        lastTrackedOrder = d;
         const box = document.getElementById('trackerBox');
         box.classList.remove('hidden');
         const stepIdx = { QR_PENDING: 1, OPEN: 2, KDS_PREP: 3, READY: 4, PAID: 4 }[d.status] || 1;
@@ -987,22 +1118,73 @@ function renderMobileMenuHtml({ tenant, initialTable }) {
         const stepsHtml = labels.map((lb, i) =>
           '<div class="step ' + (i + 1 <= stepIdx ? 'done' : '') + '"><div class="step-bar"></div>' + lb + '</div>'
         ).join('');
+        const payTag = (d.payMethod && d.payMethod !== 'PENDING')
+          ? '<span style="font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(16,185,129,0.16);color:var(--primary);font-weight:800;">💳 ' + escapeAttr(d.payMethod) + (d.hasReceipt ? ' · Reçu joint' : '') + '</span>'
+          : '';
         box.innerHTML =
-          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
             '<span style="font-size:12px;color:var(--muted);font-weight:800;">SUIVI · ' + escapeAttr(d.orderCode) + '</span>' +
+            payTag +
             '<b style="color:var(--primary);">' + Number(d.totalMru || 0).toFixed(0) + ' MRU</b>' +
           '</div>' +
           (d.status === 'CANCELLED'
             ? '<div style="color:var(--danger);font-weight:900;margin:10px 0;">❌ Commande annulée</div>'
             : '<div class="steps">' + stepsHtml + '</div>') +
-          ((d.status === 'PAID' || d.status === 'CANCELLED')
-            ? '<button class="action-chip" onclick="clearTracker()">Fermer</button>'
-            : '');
+          '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">' +
+            '<button class="action-chip gold" onclick="openReceiptModal()">🧾 ' + (lang === 'fr' ? 'Voir Reçu' : 'عرض الإيصال') + '</button>' +
+            ((d.status === 'PAID' || d.status === 'CANCELLED')
+              ? '<button class="action-chip" onclick="clearTracker()">Fermer</button>'
+              : '') +
+          '</div>';
         if (d.status !== 'PAID' && d.status !== 'CANCELLED') {
           clearTimeout(pollTimer);
           pollTimer = setTimeout(pollOrderStatus, 8000);
         }
       } catch {}
+    }
+
+    function openReceiptModal() {
+      const d = lastTrackedOrder;
+      if (!d) return;
+      const dtStr = d.createdAt ? new Date(d.createdAt).toLocaleString('fr-FR') : '';
+      const linesHtml = (d.items || []).map(it =>
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--border);font-size:13px;">' +
+          '<span><b>' + it.qty + 'x</b> ' + escapeAttr(it.nameFr) + '</span>' +
+          '<b>' + (Number(it.unitPrice || 0) * Number(it.qty || 1)).toFixed(0) + ' MRU</b>' +
+        '</div>'
+      ).join('');
+      const payLabel = (d.payMethod && d.payMethod !== 'PENDING')
+        ? escapeAttr(d.payMethod) + (d.paymentRef ? ' · Réf: ' + escapeAttr(d.paymentRef) : '')
+        : 'À régler à la livraison / caisse';
+      const proofHtml = d.receiptImageData
+        ? '<div style="margin-top:10px;"><div style="font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:4px;">Preuve de paiement jointe :</div><img src="' + d.receiptImageData + '" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid var(--border);object-fit:contain;" /></div>'
+        : '';
+      document.getElementById('receiptSheetContent').innerHTML =
+        '<div class="sheet-handle"></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<h3 style="margin:0;font-size:17px;font-weight:900;">🧾 Reçu · ' + escapeAttr(d.orderCode) + '</h3>' +
+          '<button class="action-chip" onclick="closeReceiptModal()">✕</button>' +
+        '</div>' +
+        '<div style="padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);margin-bottom:10px;">' +
+          '<div style="font-weight:900;font-size:14px;">' + escapeAttr(d.tenantName || menuData?.tenant?.name || '') + '</div>' +
+          '<div style="font-size:11.5px;color:var(--muted);">' + escapeAttr(dtStr) + ' · Mode: ' + escapeAttr(d.serviceMode) + '</div>' +
+          (d.customerName ? '<div style="font-size:12px;margin-top:4px;">👤 ' + escapeAttr(d.customerName) + (d.customerPhone ? ' · 📞 ' + escapeAttr(d.customerPhone) : '') + '</div>' : '') +
+          (d.deliveryAddress ? '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">📍 ' + escapeAttr(d.deliveryAddress) + '</div>' : '') +
+        '</div>' +
+        linesHtml +
+        (Number(d.deliveryFeeMru || 0) > 0
+          ? '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;color:var(--muted);"><span>Livraison (' + escapeAttr(d.deliveryZone || '') + ')</span><b>+' + Number(d.deliveryFeeMru).toFixed(0) + ' MRU</b></div>'
+          : '') +
+        '<div style="display:flex;justify-content:space-between;padding:10px 0 6px;font-size:17px;font-weight:900;">' +
+          '<span>TOTAL</span><span style="color:var(--primary);">' + Number(d.totalMru || 0).toFixed(0) + ' MRU</span>' +
+        '</div>' +
+        '<div style="padding:8px 10px;border-radius:10px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);font-size:12px;font-weight:800;color:var(--primary);">💳 Paiement : ' + payLabel + '</div>' +
+        proofHtml +
+        '<button class="submit-btn" style="margin-top:12px;" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>';
+      document.getElementById('receiptModal').classList.remove('hidden');
+    }
+    function closeReceiptModal() {
+      document.getElementById('receiptModal').classList.add('hidden');
     }
 
     function clearTracker() {
@@ -1095,7 +1277,7 @@ async function handlePublicQrRoute({
       sendJson(res, 403, { error: 'Commande en ligne désactivée (mode consultation seule).' });
       return true;
     }
-    const b = (await readJsonBody(req, standardLimit)) || {};
+    const b = (await readJsonBody(req, 2 * 1024 * 1024)) || {};
     const rawItems = Array.isArray(b.items) ? b.items : [];
     if (rawItems.length === 0) {
       sendJson(res, 400, { error: 'Le panier est vide.' });
@@ -1123,6 +1305,11 @@ async function handlePublicQrRoute({
         : `📍 GPS: ${resolvedGpsUrl}`;
     }
     const notes = String(b.notes || '').trim();
+    const rawPayMethod = String(b.payMethod || 'PENDING').trim();
+    const payMethod = rawPayMethod && rawPayMethod.toUpperCase() !== 'PENDING' ? rawPayMethod.slice(0, 40) : 'PENDING';
+    const paymentRef = String(b.paymentRef || '').trim().slice(0, 80);
+    const rawReceipt = String(b.paymentReceiptDataUrl || '').trim();
+    const receiptImageData = rawReceipt.startsWith('data:image/') && rawReceipt.length <= 1500000 ? rawReceipt : '';
 
     // Server-side price verification
     const resolvedItems = [];
@@ -1180,7 +1367,7 @@ async function handlePublicQrRoute({
           tenant_id, order_code, table_name, channel, service_mode, delivery_zone,
           delivery_fee_mru, status, pay_method, total_mru, discount_mru,
           customer_name, customer_phone, delivery_address, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, 0, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
       `)
       .run(
         tenant.id,
@@ -1191,6 +1378,7 @@ async function handlePublicQrRoute({
         deliveryZone,
         deliveryFeeMru,
         initialStatus,
+        payMethod,
         totalMru,
         customerName,
         customerPhone,
@@ -1200,6 +1388,15 @@ async function handlePublicQrRoute({
       );
 
     const orderId = Number(ins.lastInsertRowid);
+    if (payMethod !== 'PENDING' || paymentRef || receiptImageData) {
+      database
+        .prepare(`
+          INSERT OR REPLACE INTO qr_payment_receipts (
+            order_id, tenant_id, pay_method, payment_ref, receipt_image_data, verified, created_at
+          ) VALUES (?, ?, ?, ?, ?, 0, ?)
+        `)
+        .run(orderId, tenant.id, payMethod, paymentRef, receiptImageData, nowIso);
+    }
     const insItem = database.prepare(`
       INSERT INTO order_items (
         order_id, product_id, qty, unit_price, modifiers_json, kitchen_note, kitchen_station, kds_status
@@ -1237,12 +1434,41 @@ async function handlePublicQrRoute({
       sendJson(res, 404, { error: 'Commande introuvable' });
       return true;
     }
+    const receiptRow = database
+      .prepare('SELECT pay_method, payment_ref, receipt_image_data FROM qr_payment_receipts WHERE order_id = ? LIMIT 1')
+      .get(order.id);
+    const items = database
+      .prepare(`
+        SELECT oi.qty, oi.unit_price, p.name_fr, p.name_ar
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = ?
+      `)
+      .all(order.id)
+      .map((it) => ({
+        nameFr: it.name_fr || 'Article',
+        nameAr: it.name_ar || '',
+        qty: Number(it.qty || 1),
+        unitPrice: Number(it.unit_price || 0),
+      }));
     sendJson(res, 200, {
       orderCode: order.order_code,
       status: order.status,
       serviceMode: order.service_mode,
       tableName: order.table_name,
+      tenantName: tenant.name,
+      deliveryZone: order.delivery_zone || '',
+      deliveryFeeMru: Number(order.delivery_fee_mru || 0),
+      subtotalMru: Math.max(0, Number(order.total_mru || 0) - Number(order.delivery_fee_mru || 0)),
       totalMru: Number(order.total_mru || 0),
+      customerName: order.customer_name || '',
+      customerPhone: order.customer_phone || '',
+      deliveryAddress: order.delivery_address || '',
+      payMethod: receiptRow?.pay_method || order.pay_method || 'PENDING',
+      paymentRef: receiptRow?.payment_ref || '',
+      hasReceipt: Boolean(receiptRow?.receipt_image_data),
+      receiptImageData: receiptRow?.receipt_image_data || '',
+      items,
       createdAt: order.created_at,
     });
     return true;
@@ -1349,9 +1575,14 @@ async function handlePosQrRoute({
   if (req.method === 'GET' && pathname === '/api/pos/qr/incoming') {
     const orders = database
       .prepare(`
-        SELECT * FROM orders
-        WHERE tenant_id = ? AND status = 'QR_PENDING'
-        ORDER BY created_at DESC
+        SELECT o.*,
+               r.pay_method AS receipt_pay_method,
+               r.payment_ref AS receipt_ref,
+               r.receipt_image_data AS receipt_image_data
+        FROM orders o
+        LEFT JOIN qr_payment_receipts r ON r.order_id = o.id
+        WHERE o.tenant_id = ? AND o.status = 'QR_PENDING'
+        ORDER BY o.created_at DESC
         LIMIT 50
       `)
       .all(currentTenant.id);
@@ -1387,6 +1618,10 @@ async function handlePosQrRoute({
       customerPhone: o.customer_phone || '',
       deliveryAddress: o.delivery_address || '',
       gpsUrl: extractGpsUrl(o.delivery_address),
+      payMethod: o.receipt_pay_method || o.pay_method || 'PENDING',
+      paymentRef: o.receipt_ref || '',
+      hasReceipt: Boolean(o.receipt_image_data),
+      paymentReceiptUrl: o.receipt_image_data || '',
       notes: o.notes || '',
       createdAt: o.created_at,
       items: itemStmt.all(o.id).map((it) => ({

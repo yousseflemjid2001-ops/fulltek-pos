@@ -152,7 +152,8 @@ test('QR Menu Public Web App, Online Order, Waiter Call & POS Incoming Flow', as
     assert.equal(tr.status, nextStatus);
   }
 
-  // 8b. Customer places Delivery order with GPS Geolocation sharing (lat/lng)
+  // 8b. Customer places Delivery order with GPS Geolocation sharing (lat/lng) + Online Payment Receipt
+  const sampleReceipt = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   const delivRes = await fetch(`${baseUrl}/public/orders/${tenant.tenantCode}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -164,6 +165,9 @@ test('QR Menu Public Web App, Online Order, Waiter Call & POS Incoming Flow', as
       deliveryAddress: 'Près Pharmacie',
       deliveryLat: 18.094512,
       deliveryLng: -15.978421,
+      payMethod: 'Bankily',
+      paymentRef: 'BNK-778899',
+      paymentReceiptDataUrl: sampleReceipt,
       items: [{ productId: firstProd.id, qty: 1 }],
     }),
   });
@@ -178,6 +182,17 @@ test('QR Menu Public Web App, Online Order, Waiter Call & POS Incoming Flow', as
   assert.ok(foundDeliv);
   assert.equal(foundDeliv.gpsUrl, 'https://maps.google.com/?q=18.094512,-15.978421');
   assert.match(foundDeliv.deliveryAddress, /https:\/\/maps\.google\.com\/\?q=18\.094512,-15\.978421/);
+  assert.equal(foundDeliv.payMethod, 'Bankily');
+  assert.equal(foundDeliv.paymentRef, 'BNK-778899');
+  assert.equal(foundDeliv.hasReceipt, true);
+  assert.equal(foundDeliv.paymentReceiptUrl, sampleReceipt);
+
+  const trackDeliv = await (
+    await fetch(`${baseUrl}/public/orders/${tenant.tenantCode}/${delivCreated.orderCode}`)
+  ).json();
+  assert.equal(trackDeliv.payMethod, 'Bankily');
+  assert.equal(trackDeliv.hasReceipt, true);
+  assert.equal(trackDeliv.receiptImageData, sampleReceipt);
 
   // 9. POS toggles allowOrdering = false -> public order returns 403
   const setRes = await fetch(`${baseUrl}/api/pos/qr/settings`, {
