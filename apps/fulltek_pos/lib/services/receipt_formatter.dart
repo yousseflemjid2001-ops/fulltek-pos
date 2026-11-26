@@ -96,14 +96,14 @@ class ReceiptFormatter {
         'Livraison - ${order.deliveryZone?.nameFr ?? 'Nouakchott'}',
     };
     buf.writeln('Mode: $modeLabel');
+    if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
+      buf.writeln('Client: ${order.customerName!.trim()}');
+    }
+    if (order.customerPhone != null &&
+        order.customerPhone!.trim().isNotEmpty) {
+      buf.writeln('Tel: ${order.customerPhone!.trim()}');
+    }
     if (order.serviceMode == ServiceMode.delivery) {
-      if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
-        buf.writeln('Client: ${order.customerName!.trim()}');
-      }
-      if (order.customerPhone != null &&
-          order.customerPhone!.trim().isNotEmpty) {
-        buf.writeln('Tel: ${order.customerPhone!.trim()}');
-      }
       if (order.deliveryAddress != null &&
           order.deliveryAddress!.trim().isNotEmpty) {
         for (final l in _wrapLines('Adresse: ${order.deliveryAddress!.trim()}',
@@ -305,6 +305,13 @@ class ReceiptFormatter {
             : order.staffName;
     buf.writeln('Date: $dateStr');
     buf.writeln('Serveur: $effectiveServer');
+    if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
+      buf.writeln('Client: ${order.customerName!.trim()}');
+    }
+    if (order.customerPhone != null &&
+        order.customerPhone!.trim().isNotEmpty) {
+      buf.writeln('Tel: ${order.customerPhone!.trim()}');
+    }
     buf.writeln(_line());
 
     for (final line in order.items) {
@@ -405,18 +412,17 @@ class ReceiptFormatter {
       'Serveur: $kitchenServer',
       '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
     ));
-    if (order.serviceMode == ServiceMode.delivery) {
-      if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
-        buf.writeln('Client: ${order.customerName!.trim()}');
-      }
-      if (order.customerPhone != null &&
-          order.customerPhone!.trim().isNotEmpty) {
-        buf.writeln('Tel: ${order.customerPhone!.trim()}');
-      }
-      if (order.deliveryDriverName != null &&
-          order.deliveryDriverName!.trim().isNotEmpty) {
-        buf.writeln('Livreur: ${order.deliveryDriverName!.trim()}');
-      }
+    if (order.customerName != null && order.customerName!.trim().isNotEmpty) {
+      buf.writeln('Client: ${order.customerName!.trim()}');
+    }
+    if (order.customerPhone != null &&
+        order.customerPhone!.trim().isNotEmpty) {
+      buf.writeln('Tel: ${order.customerPhone!.trim()}');
+    }
+    if (order.serviceMode == ServiceMode.delivery &&
+        order.deliveryDriverName != null &&
+        order.deliveryDriverName!.trim().isNotEmpty) {
+      buf.writeln('Livreur: ${order.deliveryDriverName!.trim()}');
     }
     if (order.orderComment != null && order.orderComment!.trim().isNotEmpty) {
       buf.writeln(kLine());

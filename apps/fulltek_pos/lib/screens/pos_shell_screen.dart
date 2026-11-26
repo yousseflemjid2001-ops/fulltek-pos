@@ -50,7 +50,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
     super.dispose();
   }
 
-  void _openQrMenuModal() {
+  void _openQrMenuModal({int? forceTab}) {
     final store = widget.store;
     final hasIncoming = store.incomingQrTotalCount > 0;
     showDialog<void>(
@@ -70,7 +70,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'Menu QR & Commandes en Ligne',
+                        'Menu QR, Commandes en Ligne & Affectation Multi-Caisses',
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w900),
                       ),
@@ -86,7 +86,7 @@ class _PosShellScreenState extends State<PosShellScreen> {
               Expanded(
                 child: QrMenuManagerView(
                   store: store,
-                  initialTab: hasIncoming ? 1 : 0,
+                  initialTab: forceTab ?? (hasIncoming ? 1 : 0),
                   onOrderAccepted: () {
                     Navigator.of(ctx).pop();
                     if (mounted) setState(() => _activeViewId = 'pos');
@@ -344,6 +344,18 @@ class _PosShellScreenState extends State<PosShellScreen> {
                               onTap: () {
                                 Navigator.of(ctx).pop();
                                 _openQrMenuModal();
+                              },
+                            ),
+                            _buildFunctionTile(
+                              p: p,
+                              icon: Icons.point_of_sale_rounded,
+                              title: 'Affectation de cette Caisse',
+                              subtitle:
+                                  '${store.registerName} (Salle / Emporter / Livraison)',
+                              color: const Color(0xFFF59E0B),
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                _openQrMenuModal(forceTab: 2);
                               },
                             ),
                             _buildFunctionTile(

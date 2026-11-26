@@ -1712,29 +1712,30 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                     final chrono = mins < 60
                         ? '${mins < 0 ? 0 : mins}m'
                         : '${mins ~/ 60}h ${(mins % 60).toString().padLeft(2, '0')}m';
-                    final deliverySummary =
-                        o.serviceMode == ServiceMode.delivery
-                            ? [
-                                if (o.deliveryZone != null)
-                                  '📍 ${o.deliveryZone!.nameFr}',
-                                if ((o.customerName ?? '').trim().isNotEmpty)
-                                  '🧑 ${o.customerName!.trim()}',
-                                if ((o.customerPhone ?? '').trim().isNotEmpty)
-                                  '📞 ${o.customerPhone!.trim()}',
-                                if ((o.deliveryDriverName ?? '')
-                                    .trim()
-                                    .isNotEmpty)
-                                  '🏍️ ${o.deliveryDriverName!.trim()}',
-                              ].join(' · ')
-                            : '';
+                    final deliverySummary = [
+                      if (o.serviceMode == ServiceMode.delivery &&
+                          o.deliveryZone != null)
+                        '📍 ${o.deliveryZone!.nameFr}',
+                      if ((o.customerName ?? '').trim().isNotEmpty)
+                        '🧑 ${o.customerName!.trim()}',
+                      if ((o.customerPhone ?? '').trim().isNotEmpty)
+                        '📞 ${o.customerPhone!.trim()}',
+                      if (o.serviceMode == ServiceMode.delivery &&
+                          (o.deliveryDriverName ?? '').trim().isNotEmpty)
+                        '🏍️ ${o.deliveryDriverName!.trim()}',
+                    ].join(' · ');
+                    final isReady = o.status == 'ready';
                     return ListTile(
                       leading: Icon(
-                        o.serviceMode == ServiceMode.delivery
-                            ? Icons.delivery_dining_rounded
-                            : Icons.hourglass_top_rounded,
+                        isReady
+                            ? Icons.check_circle_rounded
+                            : (o.serviceMode == ServiceMode.delivery
+                                ? Icons.delivery_dining_rounded
+                                : Icons.hourglass_top_rounded),
+                        color: isReady ? p.success : null,
                       ),
                       title: Text(
-                        '$label · ${o.netTotal.toStringAsFixed(0)} MRU',
+                        '${o.ticketNumber} · $label · ${o.netTotal.toStringAsFixed(0)} MRU',
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
@@ -1754,6 +1755,33 @@ class _PosRegisterViewState extends State<PosRegisterView> {
                             icon: Icon(Icons.delete_outline_rounded,
                                 size: 19, color: p.danger),
                           ),
+                          if (!isReady) ...[
+                            OutlinedButton(
+                              onPressed: () async {
+                                await store.markOrderReadyForPickup(o.id);
+                                if (ctx.mounted) Navigator.of(ctx).pop();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          '✅ Commande ${o.ticketNumber} marquée PRÊTE (client notifié sur son suivi QR) !'),
+                                    ),
+                                  );
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: p.success,
+                                side: BorderSide(color: p.success),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                              ),
+                              child: const Text('✓ Prête',
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                            const SizedBox(width: 5),
+                          ],
                           OutlinedButton(
                             onPressed: () {
                               store.resumeWaitingOrder(o.id);
@@ -2755,7 +2783,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
             ],
           ),
           const SizedBox(height: 8),
-          // 3 Service Modes (Sur place | Emporter | Livraison) with generous touch height
+          // Service Modes allowed on this register (Sur place | Emporter | Livraison)
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -2764,7 +2792,7 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               border: Border.all(color: p.border),
             ),
             child: Row(
-              children: ServiceMode.values.map((m) {
+              children: store.allowedServiceModesForRegister.map((m) {
                 final active = store.serviceMode == m;
                 return Expanded(
                   child: InkWell(
@@ -2796,6 +2824,117 @@ class _PosRegisterViewState extends State<PosRegisterView> {
               }).toList(),
             ),
           ),
+          // Persistent Client Name & Phone bar for Emporter (and Sur place when customer info is attached)
+          if (store.serviceMode != ServiceMode.delivery &&
+              (store.serviceMode == ServiceMode.takeaway ||
+                  (order?.customerName ?? '').trim().isNotEmpty ||
+                  (order?.customerPhone ?? '').trim().isNotEmpty)) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    key: const Key('takeaway_client_btn'),
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: _openDeliveryClientDriverDialog,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: ((order?.customerName ?? '').trim().isNotEmpty ||
+                                (order?.customerPhone ?? '').trim().isNotEmpty)
+                            ? p.success.withValues(alpha: 0.12)
+                            : p.surfaceAlt,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color:
+                              ((order?.customerName ?? '').trim().isNotEmpty ||
+                                      (order?.customerPhone ?? '')
+                                          .trim()
+                                          .isNotEmpty)
+                                  ? p.success
+                                  : p.border,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.person_pin_circle_rounded,
+                            size: 16,
+                            color: ((order?.customerName ?? '')
+                                        .trim()
+                                        .isNotEmpty ||
+                                    (order?.customerPhone ?? '')
+                                        .trim()
+                                        .isNotEmpty)
+                                ? p.success
+                                : p.textMuted,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              ((order?.customerName ?? '').trim().isNotEmpty ||
+                                      (order?.customerPhone ?? '')
+                                          .trim()
+                                          .isNotEmpty)
+                                  ? '👤 ${(order?.customerName ?? '').trim()}${(order?.customerPhone ?? '').trim().isNotEmpty ? ' · 📞 ${order!.customerPhone!.trim()}' : ''}'
+                                  : '👤 Ajouter nom & téléphone client (Emporter)...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: ((order?.customerName ?? '')
+                                            .trim()
+                                            .isNotEmpty ||
+                                        (order?.customerPhone ?? '')
+                                            .trim()
+                                            .isNotEmpty)
+                                    ? p.textPrimary
+                                    : p.textMuted,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.edit_rounded,
+                              size: 14, color: p.textMuted),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (order != null &&
+                    order.status != 'ready' &&
+                    (order.ticketNumber.startsWith('QR-') ||
+                        order.items.any((i) => i.sentToKitchen))) ...[
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await store.markOrderReadyForPickup(order.id);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                '✅ Commande ${order.ticketNumber} marquée PRÊTE (client notifié) !'),
+                          ),
+                        );
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: p.success,
+                      side: BorderSide(color: p.success),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 7),
+                    ),
+                    icon: const Icon(Icons.check_circle_outline_rounded,
+                        size: 15),
+                    label: const Text('Prête',
+                        style: TextStyle(
+                            fontSize: 11.5, fontWeight: FontWeight.w900)),
+                  ),
+                ],
+              ],
+            ),
+          ],
           // Prominent quick-access banner whenever there are pending Deliveries / Takeaway / Waiting orders
           Builder(builder: (_) {
             final waitingAll = store.waitingOrders;

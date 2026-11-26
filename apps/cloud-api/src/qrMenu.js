@@ -1342,6 +1342,38 @@ async function handlePosQrRoute({
     return true;
   }
 
+  // POST /api/pos/qr/orders/:orderCode/status — Live progression (OPEN -> KDS_PREP -> READY -> PAID)
+  if (
+    req.method === 'POST' &&
+    (m = pathname.match(/^\/api\/pos\/qr\/orders\/([^/]+)\/status$/))
+  ) {
+    const orderCode = decodeURIComponent(m[1]);
+    const row = database
+      .prepare('SELECT id FROM orders WHERE tenant_id = ? AND order_code = ? LIMIT 1')
+      .get(currentTenant.id, orderCode);
+    if (!row) {
+      sendJson(res, 404, { error: 'Commande QR introuvable' });
+      return true;
+    }
+    const b = (await readJsonBody(req, standardLimit)) || {};
+    const allowed = ['QR_PENDING', 'OPEN', 'KDS_PREP', 'READY', 'PAID', 'CANCELLED'];
+    const nextStatus = String(b.status || '').trim().toUpperCase();
+    if (!allowed.includes(nextStatus)) {
+      sendJson(res, 400, { error: 'Statut invalide' });
+      return true;
+    }
+    database
+      .prepare('UPDATE orders SET status = ? WHERE id = ?')
+      .run(nextStatus, row.id);
+    if (nextStatus === 'READY' || nextStatus === 'PAID') {
+      database
+        .prepare("UPDATE order_items SET kds_status = 'READY' WHERE order_id = ?")
+        .run(row.id);
+    }
+    sendJson(res, 200, { ok: true, orderCode, status: nextStatus });
+    return true;
+  }
+
   // POST /api/pos/qr/orders/:orderCode/reject
   if (
     req.method === 'POST' &&

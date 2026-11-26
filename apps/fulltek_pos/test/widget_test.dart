@@ -380,8 +380,9 @@ void main() {
       store.incomingQrOrders = [
         {
           'orderCode': 'QR-99001',
-          'serviceMode': 'dine_in',
-          'tableName': store.tables.first.code,
+          'serviceMode': 'takeaway',
+          'customerName': 'Karim',
+          'customerPhone': '36322225',
           'notes': 'Sans piment',
           'totalMru': firstItem.priceMru * 3,
           'items': [
@@ -393,14 +394,56 @@ void main() {
             },
           ],
         },
+        {
+          'orderCode': 'QR-99002',
+          'serviceMode': 'delivery',
+          'customerName': 'Sidi',
+          'customerPhone': '46112233',
+          'deliveryZone': 'Tevragh Zeina',
+          'totalMru': firstItem.priceMru,
+          'items': [
+            {
+              'sku': firstItem.sku,
+              'nameFr': firstItem.nameFr,
+              'qty': 1,
+              'unitPrice': firstItem.priceMru,
+            },
+          ],
+        },
       ];
+
+      // Multi-Caisses: Poste Salle uniquement ignores takeaway & delivery QR orders
+      store.setRegisterChannelConfig(
+        name: 'Poste Salle',
+        dineIn: true,
+        takeaway: false,
+        delivery: false,
+      );
+      expect(store.incomingQrTotalCount, 0);
+
+      // Caisse Emporter uniquement sees only QR-99001 (takeaway)
+      store.setRegisterChannelConfig(
+        name: 'Caisse Emporter',
+        dineIn: false,
+        takeaway: true,
+        delivery: false,
+      );
       expect(store.incomingQrTotalCount, 1);
-      final accepted =
-          await store.acceptIncomingQrOrder(store.incomingQrOrders.first);
+
+      final accepted = await store
+          .acceptIncomingQrOrder(store.incomingQrOrdersForRegister.first);
       expect(accepted, true);
       expect(store.incomingQrTotalCount, 0);
       expect(store.activeOrder, isNotNull);
+      expect(store.activeOrder!.ticketNumber, 'QR-99001');
+      expect(store.activeOrder!.customerName, 'Karim');
+      expect(store.activeOrder!.customerPhone, '36322225');
       expect(store.activeOrder!.items.first.quantity, 3);
+
+      // Kitchen ticket & 80mm receipt both print Client & Tel even in Emporter mode
+      final kdsTicket = store.sendActiveOrderToKitchen();
+      expect(kdsTicket, contains('Client: Karim'));
+      expect(kdsTicket, contains('Tel: 36322225'));
     });
 
     test('Journal Audit caisse (Mouchard) & Facturation tickets A4', () {

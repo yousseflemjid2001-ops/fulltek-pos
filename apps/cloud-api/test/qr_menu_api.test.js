@@ -125,13 +125,32 @@ test('QR Menu Public Web App, Online Order, Waiter Call & POS Incoming Flow', as
   );
   assert.equal(ackRes.status, 200);
 
-  // 8. Customer tracks updated status -> OPEN
+  // 8. Customer tracks updated status -> OPEN -> KDS_PREP -> READY -> PAID
   const trackRes = await fetch(
     `${baseUrl}/public/orders/${tenant.tenantCode}/${created.orderCode}`
   );
   assert.equal(trackRes.status, 200);
   const tracked = await trackRes.json();
   assert.equal(tracked.status, 'OPEN');
+
+  for (const nextStatus of ['KDS_PREP', 'READY', 'PAID']) {
+    const stRes = await fetch(
+      `${baseUrl}/api/pos/qr/orders/${created.orderCode}/status`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      }
+    );
+    assert.equal(stRes.status, 200);
+    const tr = await (
+      await fetch(`${baseUrl}/public/orders/${tenant.tenantCode}/${created.orderCode}`)
+    ).json();
+    assert.equal(tr.status, nextStatus);
+  }
 
   // 9. POS toggles allowOrdering = false -> public order returns 403
   const setRes = await fetch(`${baseUrl}/api/pos/qr/settings`, {

@@ -202,6 +202,10 @@ class PosStore extends ChangeNotifier {
         'xzShowByArticle': xzShowByArticle,
         'xzShowByCustomer': xzShowByCustomer,
         'uiZoom': uiZoom,
+        'registerName': registerName,
+        'registerHandlesDineIn': registerHandlesDineIn,
+        'registerHandlesTakeaway': registerHandlesTakeaway,
+        'registerHandlesDelivery': registerHandlesDelivery,
         'deliveryZones': deliveryZones.map((z) => z.toJson()).toList(),
         'cloudJwtToken': cloudJwtToken,
         'enabledThemeCodes': enabledThemeCodes,
@@ -310,6 +314,26 @@ class PosStore extends ChangeNotifier {
         }
         if (map['uiZoom'] is num) {
           uiZoom = (map['uiZoom'] as num).toDouble().clamp(0.80, 1.30);
+        }
+        if (map['registerName'] is String &&
+            '${map['registerName']}'.trim().isNotEmpty) {
+          registerName = '${map['registerName']}'.trim();
+        }
+        if (map['registerHandlesDineIn'] is bool) {
+          registerHandlesDineIn = map['registerHandlesDineIn'] == true;
+        }
+        if (map['registerHandlesTakeaway'] is bool) {
+          registerHandlesTakeaway = map['registerHandlesTakeaway'] == true;
+        }
+        if (map['registerHandlesDelivery'] is bool) {
+          registerHandlesDelivery = map['registerHandlesDelivery'] == true;
+        }
+        if (!registerHandlesDineIn &&
+            !registerHandlesTakeaway &&
+            !registerHandlesDelivery) {
+          registerHandlesDineIn = true;
+          registerHandlesTakeaway = true;
+          registerHandlesDelivery = true;
         }
         if (map['freeDeliveryAboveMru'] is num) {
           freeDeliveryAboveMru = (map['freeDeliveryAboveMru'] as num).toDouble();
@@ -2746,12 +2770,15 @@ class PosStore extends ChangeNotifier {
     return tickets.join('\n');
   }
 
-  /// All open orders that are waiting (sent to kitchen or attached to an occupied table).
+  /// All open orders that are waiting (sent to kitchen or attached to an occupied table)
+  /// and belong to a channel handled by this register.
   List<PosOrder> get waitingOrders {
     return _openOrdersById.values
         .where((o) =>
             o.items.isNotEmpty &&
+            registerAllowsServiceMode(o.serviceMode) &&
             (o.status == 'waiting_kitchen' ||
+                o.status == 'ready' ||
                 o.tableId != null ||
                 o.items.any((i) => i.sentToKitchen)))
         .toList();
@@ -2957,6 +2984,7 @@ class PosStore extends ChangeNotifier {
     );
 
     notifyListeners();
+    updateCloudQrOrderStatus(order.ticketNumber, 'KDS_PREP');
     return ReceiptFormatter.formatKitchenTicket(order: order, newItems: unsent);
   }
 
@@ -2984,6 +3012,10 @@ class PosStore extends ChangeNotifier {
     );
     _kdsTickets[idx] = nextTicket;
     notifyListeners();
+
+    if (allReady) {
+      updateCloudQrOrderStatus(ticket.orderCode, 'READY');
+    }
 
     if (!ticket.isTraining) {
       _enqueueSync(
@@ -4890,6 +4922,7 @@ class PosStore extends ChangeNotifier {
     _orderFoodCostById[closed.id] = orderFoodCost;
 
     _completedOrders.insert(0, closed);
+    updateCloudQrOrderStatus(closed.ticketNumber, 'PAID');
 
     logAuditEvent(
       action: 'VENTE',
@@ -6546,8 +6579,61 @@ class PosStore extends ChangeNotifier {
   }
 
   // =========================================================================
-  // MENU QR CODE, COMMANDE EN LIGNE & APPELS SERVEUR
+  // MULTI-CAISSES (AFFECTATION CANAUX PAR CAISSE : SALLE / EMPORTER / LIVRAISON)
+  // & MENU QR CODE, COMMANDE EN LIGNE & APPELS SERVEUR
   // =========================================================================
+
+  String registerName = 'Caisse Principale (Tous canaux)';
+  bool registerHandlesDineIn = true;
+  bool registerHandlesTakeaway = true;
+  bool registerHandlesDelivery = true;
+
+  bool registerAllowsServiceMode(ServiceMode mode) => switch (mode) {
+        ServiceMode.dineIn => registerHandlesDineIn,
+        ServiceMode.takeaway => registerHandlesTakeaway,
+        ServiceMode.delivery => registerHandlesDelivery,
+      };
+
+  bool registerAllowsQrMode(String modeStr) => switch (modeStr.trim().toLowerCase()) {
+        'delivery' => registerHandlesDelivery,
+        'takeaway' => registerHandlesTakeaway,
+        _ => registerHandlesDineIn,
+      };
+
+  List<ServiceMode> get allowedServiceModesForRegister {
+    final out = <ServiceMode>[
+      if (registerHandlesDineIn) ServiceMode.dineIn,
+      if (registerHandlesTakeaway) ServiceMode.takeaway,
+      if (registerHandlesDelivery) ServiceMode.delivery,
+    ];
+    return out.isNotEmpty ? out : ServiceMode.values;
+  }
+
+  void setRegisterChannelConfig({
+    String? name,
+    bool? dineIn,
+    bool? takeaway,
+    bool? delivery,
+  }) {
+    if (name != null && name.trim().isNotEmpty) {
+      registerName = name.trim();
+    }
+    final nextDine = dineIn ?? registerHandlesDineIn;
+    final nextTake = takeaway ?? registerHandlesTakeaway;
+    final nextDeliv = delivery ?? registerHandlesDelivery;
+    // Prevent turning off all 3 channels
+    if (!nextDine && !nextTake && !nextDeliv) return;
+    registerHandlesDineIn = nextDine;
+    registerHandlesTakeaway = nextTake;
+    registerHandlesDelivery = nextDeliv;
+
+    if (!registerAllowsServiceMode(_serviceMode)) {
+      final firstAllowed = allowedServiceModesForRegister.first;
+      setServiceMode(firstAllowed);
+    } else {
+      notifyListeners();
+    }
+  }
 
   bool qrMenuEnabled = true;
   bool qrAllowOrdering = true;
@@ -6561,8 +6647,15 @@ class PosStore extends ChangeNotifier {
   List<Map<String, dynamic>> incomingQrOrders = [];
   List<Map<String, dynamic>> incomingQrAlerts = [];
 
+  List<Map<String, dynamic>> get incomingQrOrdersForRegister => incomingQrOrders
+      .where((o) => registerAllowsQrMode('${o['serviceMode'] ?? 'dine_in'}'))
+      .toList(growable: false);
+
+  List<Map<String, dynamic>> get incomingQrAlertsForRegister =>
+      registerHandlesDineIn ? incomingQrAlerts : const [];
+
   int get incomingQrTotalCount =>
-      incomingQrOrders.length + incomingQrAlerts.length;
+      incomingQrOrdersForRegister.length + incomingQrAlertsForRegister.length;
 
   /// Generates the live public Menu QR URL for this restaurant (general or table-specific).
   /// Uses https://menu.full-tek.com/<CODE> in production and <apiBaseUrl>/m/<CODE> locally.
@@ -6669,8 +6762,38 @@ class PosStore extends ChangeNotifier {
     }
   }
 
+  /// Updates an order's live status on the cloud API so the customer's phone tracker
+  /// advances through Reçue -> Validée (OPEN) -> Cuisine (KDS_PREP) -> Prête ! (READY) -> Payée (PAID).
+  Future<void> updateCloudQrOrderStatus(String orderCode, String status) async {
+    final code = orderCode.trim();
+    if (code.isEmpty || cloudJwtToken == null || cloudJwtToken!.isEmpty) return;
+    try {
+      await _httpRequest(
+        'POST',
+        '$apiBaseUrl/api/pos/qr/orders/${Uri.encodeComponent(code)}/status',
+        headers: {
+          'Authorization': 'Bearer $cloudJwtToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'status': status}),
+      );
+    } catch (_) {}
+  }
+
+  /// Marks an open/waiting order as READY for customer pickup/delivery and notifies the customer's QR tracker.
+  Future<void> markOrderReadyForPickup(String orderId) async {
+    final o = _openOrdersById[orderId];
+    if (o == null) return;
+    _openOrdersById[orderId] = o.copyWith(status: 'ready');
+    for (final k in _kdsTickets.where((t) => t.orderId == orderId).toList()) {
+      await markKdsTicketReady(k.id);
+    }
+    await updateCloudQrOrderStatus(o.ticketNumber, 'READY');
+    notifyListeners();
+  }
+
   /// Accepts an incoming QR order on the cloud API AND imports it into the local POS
-  /// (opening the matching table or Takeaway/Delivery order) so it is ready for Kitchen & Checkout.
+  /// (preserving the original QR-xxxxx ticketNumber AND customerName/customerPhone on ALL modes).
   Future<bool> acceptIncomingQrOrder(Map<String, dynamic> qrOrder) async {
     final code = '${qrOrder['orderCode'] ?? ''}'.trim();
     if (code.isEmpty) return false;
@@ -6688,6 +6811,10 @@ class PosStore extends ChangeNotifier {
     // Import into local POS active order
     final modeStr = '${qrOrder['serviceMode'] ?? 'dine_in'}';
     final tableName = '${qrOrder['tableName'] ?? ''}'.trim();
+    final custName = '${qrOrder['customerName'] ?? ''}'.trim();
+    final custPhone = '${qrOrder['customerPhone'] ?? ''}'.trim();
+    final custAddr = '${qrOrder['deliveryAddress'] ?? ''}'.trim();
+
     if (modeStr == 'dine_in' && tableName.isNotEmpty) {
       final matchedTable = tables.cast<DiningTable?>().firstWhere(
             (t) =>
@@ -6711,9 +6838,9 @@ class PosStore extends ChangeNotifier {
           );
       setDeliveryInfo(
         zone: matchedZone,
-        customerName: '${qrOrder['customerName'] ?? ''}'.trim(),
-        customerPhone: '${qrOrder['customerPhone'] ?? ''}'.trim(),
-        deliveryAddress: '${qrOrder['deliveryAddress'] ?? ''}'.trim(),
+        customerName: custName,
+        customerPhone: custPhone,
+        deliveryAddress: custAddr,
       );
     } else {
       _serviceMode = ServiceMode.takeaway;
@@ -6750,6 +6877,17 @@ class PosStore extends ChangeNotifier {
           setLineQuantity(activeOrder!.items.last.lineId, qty);
         }
       }
+    }
+
+    // Preserve the original QR ticket code (e.g. QR-50053) AND customerName/customerPhone on ALL service modes!
+    final cur = activeOrder;
+    if (cur != null) {
+      _openOrdersById[cur.id] = cur.copyWith(
+        ticketNumber: code,
+        customerName: custName.isNotEmpty ? custName : cur.customerName,
+        customerPhone: custPhone.isNotEmpty ? custPhone : cur.customerPhone,
+        deliveryAddress: custAddr.isNotEmpty ? custAddr : cur.deliveryAddress,
+      );
     }
 
     incomingQrOrders.removeWhere((o) => '${o['orderCode']}' == code);

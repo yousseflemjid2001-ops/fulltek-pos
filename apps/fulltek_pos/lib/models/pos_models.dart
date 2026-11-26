@@ -1236,6 +1236,7 @@ class PosOrder {
   double get changeDue => totalPaid > netTotal ? totalPaid - netTotal : 0;
 
   PosOrder copyWith({
+    String? ticketNumber,
     String? tableId,
     bool clearTable = false,
     String? tableCode,
@@ -1263,7 +1264,7 @@ class PosOrder {
   }) {
     return PosOrder(
       id: id,
-      ticketNumber: ticketNumber,
+      ticketNumber: ticketNumber ?? this.ticketNumber,
       tableId: clearTable ? null : (tableId ?? this.tableId),
       tableCode: clearTable ? null : (tableCode ?? this.tableCode),
       staffName: staffName,

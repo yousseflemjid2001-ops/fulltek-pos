@@ -464,18 +464,23 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
   }
 
   Widget _buildIncomingTab(PosStore store, PosPalette p) {
+    final ordersList = store.incomingQrOrdersForRegister;
+    final alertsList = store.incomingQrAlertsForRegister;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Commandes QR en attente (${store.incomingQrOrders.length}) · Appels Serveur (${store.incomingQrAlerts.length})',
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w900,
-                color: p.textPrimary,
+            Expanded(
+              child: Text(
+                'Commandes QR pour cette caisse (${ordersList.length}) · Appels Serveur (${alertsList.length}) · [${store.registerName}]',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: p.textPrimary,
+                ),
               ),
             ),
             OutlinedButton.icon(
@@ -488,7 +493,7 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
         ),
         const SizedBox(height: 10),
         Expanded(
-          child: store.incomingQrOrders.isEmpty && store.incomingQrAlerts.isEmpty
+          child: ordersList.isEmpty && alertsList.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -497,7 +502,7 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
                           size: 48, color: p.textMuted),
                       const SizedBox(height: 8),
                       Text(
-                        'Aucune commande QR ou appel serveur en attente.',
+                        'Aucune commande QR ou appel serveur en attente pour cette caisse.',
                         style: TextStyle(
                             fontWeight: FontWeight.w700, color: p.textMuted),
                       ),
@@ -506,7 +511,7 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
                 )
               : ListView(
                   children: [
-                    if (store.incomingQrAlerts.isNotEmpty) ...[
+                    if (alertsList.isNotEmpty) ...[
                       Text(
                         '🔔 Appels Serveur & Demandes d\'Addition',
                         style: TextStyle(
@@ -516,7 +521,7 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      ...store.incomingQrAlerts.map((a) {
+                      ...alertsList.map((a) {
                         final id = (a['id'] as num?)?.toInt() ?? 0;
                         final isBill = a['kind'] == 'bill';
                         return Container(
@@ -558,7 +563,7 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
                       }),
                       const SizedBox(height: 12),
                     ],
-                    ...store.incomingQrOrders.map((o) {
+                    ...ordersList.map((o) {
                       final code = '${o['orderCode'] ?? ''}';
                       final mode = '${o['serviceMode'] ?? 'dine_in'}';
                       final items = (o['items'] as List?) ?? const [];
@@ -676,25 +681,151 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
   Widget _buildSettingsTab(PosStore store, PosPalette p) {
     return SingleChildScrollView(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: p.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Configuration du Menu QR & Commande en Ligne',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: p.textPrimary,
-                ),
+        constraints: const BoxConstraints(maxWidth: 660),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Multi-Caisses : Affectation des canaux sur ce poste
+            Container(
+              padding: const EdgeInsets.all(18),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: p.primary.withValues(alpha: 0.45)),
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.point_of_sale_rounded, color: p.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Affectation de cette Caisse (Multi-Caisses)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Choisissez les canaux gérés par ce poste. Un poste « Salle uniquement » ne sera jamais dérangé par les commandes Emporter ou Livraison (et inversement).',
+                    style: TextStyle(fontSize: 12, color: p.textMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.all_inclusive_rounded, size: 15),
+                        label: const Text('Caisse Unique (Tous canaux)'),
+                        onPressed: () => store.setRegisterChannelConfig(
+                          name: 'Caisse Principale (Tous canaux)',
+                          dineIn: true,
+                          takeaway: true,
+                          delivery: true,
+                        ),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.restaurant_rounded, size: 15),
+                        label: const Text('Poste Salle uniquement (Sur place)'),
+                        onPressed: () => store.setRegisterChannelConfig(
+                          name: 'Poste Salle (Sur place)',
+                          dineIn: true,
+                          takeaway: false,
+                          delivery: false,
+                        ),
+                      ),
+                      ActionChip(
+                        avatar:
+                            const Icon(Icons.delivery_dining_rounded, size: 15),
+                        label: const Text('Caisse Livraison & Emporter'),
+                        onPressed: () => store.setRegisterChannelConfig(
+                          name: 'Caisse Livraison & Emporter',
+                          dineIn: false,
+                          takeaway: true,
+                          delivery: true,
+                        ),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.two_wheeler_rounded, size: 15),
+                        label: const Text('Caisse Livraison uniquement'),
+                        onPressed: () => store.setRegisterChannelConfig(
+                          name: 'Caisse Livraison',
+                          dineIn: false,
+                          takeaway: false,
+                          delivery: true,
+                        ),
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.shopping_bag_rounded, size: 15),
+                        label: const Text('Caisse Emporter uniquement'),
+                        onPressed: () => store.setRegisterChannelConfig(
+                          name: 'Caisse Emporter',
+                          dineIn: false,
+                          takeaway: true,
+                          delivery: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('🍽 Sur place (Tables / Salle / Khaima)',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
+                    value: store.registerHandlesDineIn,
+                    onChanged: (v) => store.setRegisterChannelConfig(dineIn: v),
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('🛍 À emporter (Takeaway)',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
+                    value: store.registerHandlesTakeaway,
+                    onChanged: (v) =>
+                        store.setRegisterChannelConfig(takeaway: v),
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('🛵 Livraison (Delivery)',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
+                    value: store.registerHandlesDelivery,
+                    onChanged: (v) =>
+                        store.setRegisterChannelConfig(delivery: v),
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Configuration Menu QR Public
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: p.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Configuration du Menu QR & Commande en Ligne',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: p.textPrimary,
+                    ),
+                  ),
               const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -770,6 +901,8 @@ class _QrMenuManagerViewState extends State<QrMenuManagerView> {
               ),
             ],
           ),
+        ),
+          ],
         ),
       ),
     );
