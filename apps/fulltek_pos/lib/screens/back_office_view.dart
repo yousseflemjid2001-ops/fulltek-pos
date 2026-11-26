@@ -10,6 +10,7 @@ import 'karni_view.dart';
 import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
 import 'qr_menu_manager_view.dart';
+import 'reports_audit_view.dart';
 import 'team_profiles_view.dart';
 
 /// Full-Tek Resto Back-Office ERP Complet :
@@ -128,6 +129,13 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> {
             icon: Icons.dashboard_rounded,
             permission: PosPermission.boDashboard,
             view: OwnerDashboardView(store: store),
+          ),
+          (
+            id: 'reports_audit',
+            label: 'Rapports, Graphiques & Audit',
+            icon: Icons.analytics_rounded,
+            permission: PosPermission.boSalesJournal,
+            view: ReportsAuditView(store: store),
           ),
           (
             id: 'suppliers_purchases',

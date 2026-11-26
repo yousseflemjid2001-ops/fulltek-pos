@@ -16,6 +16,7 @@ import 'menu_stock_view.dart';
 import 'owner_dashboard_view.dart';
 import 'pos_register_view.dart';
 import 'qr_menu_manager_view.dart';
+import 'reports_audit_view.dart';
 
 class PosShellScreen extends StatefulWidget {
   final PosStore store;
@@ -343,6 +344,62 @@ class _PosShellScreenState extends State<PosShellScreen> {
                               onTap: () {
                                 Navigator.of(ctx).pop();
                                 _openQrMenuModal();
+                              },
+                            ),
+                            _buildFunctionTile(
+                              p: p,
+                              icon: Icons.analytics_rounded,
+                              title: 'Rapports, Aperçu & Audit',
+                              subtitle:
+                                  'Aperçu ventes, Facturation A4, Mouchard, Graphiques & Excel/PDF',
+                              color: const Color(0xFF6366F1),
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (dCtx) => Dialog(
+                                    insetPadding: const EdgeInsets.all(16),
+                                    child: SizedBox(
+                                      width: 1120,
+                                      height: 700,
+                                      child: Column(
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                                16, 12, 8, 0),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                    Icons.analytics_rounded),
+                                                const SizedBox(width: 8),
+                                                const Expanded(
+                                                  child: Text(
+                                                    'Centre de Rapports, Graphiques & Audit Caisse',
+                                                    style: TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w900),
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  onPressed: () =>
+                                                      Navigator.of(dCtx).pop(),
+                                                  icon: const Icon(
+                                                      Icons.close_rounded),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Divider(height: 1),
+                                          Expanded(
+                                            child:
+                                                ReportsAuditView(store: store),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
                               },
                             ),
                             _buildFunctionTile(

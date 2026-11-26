@@ -2812,6 +2812,13 @@ class PosStore extends ChangeNotifier {
     if (current != null) {
       _openOrdersById[order.id] = current.copyWith(status: 'waiting_kitchen');
     }
+    logAuditEvent(
+      action: 'MISE EN ATTENTE',
+      ticketNumber: order.ticketNumber,
+      comment: order.tableCode != null
+          ? 'Table N°${order.tableCode} · ${order.items.length} art.'
+          : '${order.serviceMode.name} · ${order.items.length} art.',
+    );
     startCounterOrder();
     return kdsText;
   }
@@ -2864,6 +2871,13 @@ class PosStore extends ChangeNotifier {
         );
       }
     }
+    logAuditEvent(
+      action: 'EDITION NOTE',
+      ticketNumber: order.ticketNumber,
+      comment: order.tableCode != null
+          ? 'Table N°${order.tableCode} · ${order.netTotal.toStringAsFixed(0)} MRU'
+          : 'Comptoir · ${order.netTotal.toStringAsFixed(0)} MRU',
+    );
     notifyListeners();
     return ReceiptFormatter.formatAdditionReceipt80mm(
       order: order,
@@ -4877,6 +4891,13 @@ class PosStore extends ChangeNotifier {
 
     _completedOrders.insert(0, closed);
 
+    logAuditEvent(
+      action: 'VENTE',
+      ticketNumber: closed.ticketNumber,
+      comment:
+          '${closed.tableCode != null ? 'Table N°${closed.tableCode}, ' : ''}Montant : ${closed.netTotal.toStringAsFixed(0)} MRU',
+    );
+
     _enqueueSync(
       entityType: 'order',
       summary:
@@ -6766,5 +6787,96 @@ class PosStore extends ChangeNotifier {
     incomingQrAlerts.removeWhere((a) => (a['id'] as num?)?.toInt() == alertId);
     notifyListeners();
     return true;
+  }
+
+  // =========================================================================
+  // JOURNAL D'AUDIT CAISSE (MOUCHARD) & FACTURATION TICKETS
+  // =========================================================================
+
+  final List<({
+    DateTime timestamp,
+    String action, // VENTE | MISE EN ATTENTE | EDITION NOTE | OUVERTURE TIROIR | ANNULATION | OFFERT | REMISE | TRANSFERT TABLE
+    String staffName,
+    String ticketNumber,
+    String comment,
+  })> auditEvents = [];
+
+  final Map<String, String> invoicedTicketsByOrderId = {};
+  int _ticketInvoiceCounter = 1001;
+
+  void logAuditEvent({
+    required String action,
+    String ticketNumber = '',
+    String comment = '',
+    String? staffName,
+  }) {
+    auditEvents.insert(0, (
+      timestamp: DateTime.now(),
+      action: action,
+      staffName: staffName ?? _currentStaff?.name ?? 'Caisse',
+      ticketNumber: ticketNumber,
+      comment: comment,
+    ));
+    if (auditEvents.length > 500) {
+      auditEvents.removeRange(500, auditEvents.length);
+    }
+  }
+
+  void recordCashDrawerOpen({String reason = 'Ouverture manuelle tiroir'}) {
+    logAuditEvent(
+      action: 'OUVERTURE TIROIR',
+      comment: reason,
+    );
+    notifyListeners();
+  }
+
+  /// Marks one or more paid POS tickets as officially invoiced (generates FAC-YYYY-NNNN).
+  String createInvoiceNumberForOrders(List<PosOrder> orders) {
+    final now = DateTime.now();
+    final invNo = 'FAC-${now.year}-${_ticketInvoiceCounter++}';
+    for (final o in orders) {
+      invoicedTicketsByOrderId[o.id] = invNo;
+    }
+    logAuditEvent(
+      action: 'FACTURATION',
+      ticketNumber: orders.map((o) => o.ticketNumber).join(', '),
+      comment: 'Facture $invNo (${orders.length} ticket(s))',
+    );
+    notifyListeners();
+    return invNo;
+  }
+
+  /// Full audit timeline combining live [auditEvents] + historical [remakeRecords] & [completedOrders].
+  List<({
+    DateTime timestamp,
+    String action,
+    String staffName,
+    String ticketNumber,
+    String comment,
+  })> get fullAuditTimeline {
+    final out = List.of(auditEvents);
+    final existingKeys = <String>{
+      for (final e in out) '${e.action}|${e.ticketNumber}|${e.timestamp.minute}',
+    };
+    for (final r in _remakeRecords) {
+      final act = switch (r.type) {
+        'comp' => 'OFFERT',
+        'return' || 'void_kitchen' => 'ANNULATION',
+        _ => 'REMAKE',
+      };
+      final k = '$act|${r.orderTicket}|${r.createdAt.minute}';
+      if (existingKeys.add(k)) {
+        out.add((
+          timestamp: r.createdAt,
+          action: act,
+          staffName: r.staffName,
+          ticketNumber: r.orderTicket,
+          comment:
+              '${r.quantity}x ${r.itemName} (-${r.amountMru.toStringAsFixed(0)} MRU) · ${r.reason} (Validé: ${r.approvedBy})',
+        ));
+      }
+    }
+    out.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return out;
   }
 }

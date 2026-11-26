@@ -402,5 +402,26 @@ void main() {
       expect(store.activeOrder, isNotNull);
       expect(store.activeOrder!.items.first.quantity, 3);
     });
+
+    test('Journal Audit caisse (Mouchard) & Facturation tickets A4', () {
+      final store = PosStore(enablePersistence: false);
+      expect(store.loginWithPin('7410'), true);
+
+      store.addItemToActiveOrder(store.menuItems.first);
+      store.requestAdditionForActiveOrder();
+      store.recordCashDrawerOpen(reason: 'Test fond de caisse');
+      final total = store.activeOrder!.netTotal;
+      final paid = store.completeCheckout([
+        PaymentEntry(method: PaymentMethod.cash, amountMru: total),
+      ]);
+      expect(paid, isNotNull);
+
+      final invNo = store.createInvoiceNumberForOrders([paid!]);
+      expect(invNo, startsWith('FAC-'));
+      expect(store.invoicedTicketsByOrderId[paid.id], invNo);
+
+      final actions = store.fullAuditTimeline.map((e) => e.action).toSet();
+      expect(actions, containsAll(['EDITION NOTE', 'OUVERTURE TIROIR', 'VENTE', 'FACTURATION']));
+    });
   });
 }
