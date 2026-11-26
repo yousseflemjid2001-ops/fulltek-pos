@@ -6544,10 +6544,13 @@ class PosStore extends ChangeNotifier {
       incomingQrOrders.length + incomingQrAlerts.length;
 
   /// Generates the live public Menu QR URL for this restaurant (general or table-specific).
+  /// Uses https://menu.full-tek.com/<CODE> in production and <apiBaseUrl>/m/<CODE> locally.
   String qrMenuUrl({String? tableCode}) {
     final base = apiBaseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     final slug = tenantCode.trim().isNotEmpty ? tenantCode.trim() : 'TNT-1001';
-    final root = '$base/m/${Uri.encodeComponent(slug)}';
+    final root = base.contains('full-tek.com')
+        ? 'https://menu.full-tek.com/${Uri.encodeComponent(slug)}'
+        : '$base/m/${Uri.encodeComponent(slug)}';
     final t = tableCode?.trim() ?? '';
     if (t.isEmpty) return root;
     return '$root?table=${Uri.encodeComponent(t)}';

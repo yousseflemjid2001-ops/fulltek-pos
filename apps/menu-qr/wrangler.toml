@@ -1,0 +1,7 @@
+name = "fulltek-menu-qr"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+routes = [
+  { pattern = "menu.full-tek.com", custom_domain = true }
+]
